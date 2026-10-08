@@ -1,6 +1,19 @@
 import { api } from './api'
 import type { Match, MatchStats, PaginatedResponse } from '../types'
 
+export interface MatchCreate {
+  academy: string
+  team: string
+  opponent_name: string
+  match_date: string
+  home_away: 'HOME' | 'AWAY'
+  venue?: string
+  competition?: string
+  team_score?: number | null
+  opponent_score?: number | null
+  notes?: string
+}
+
 export const matchService = {
   listMatches: (params?: { page?: number }): Promise<PaginatedResponse<Match>> => {
     const qs = new URLSearchParams()
@@ -13,6 +26,9 @@ export const matchService = {
 
   getMatch: (id: string): Promise<Match> =>
     api.get<Match>(`/matches/${id}/`),
+
+  createMatch: (data: MatchCreate): Promise<Match> =>
+    api.post<Match>('/matches/', data),
 
   listPlayerStats: (matchId: string): Promise<MatchStats[]> =>
     api.get<MatchStats[]>(`/matches/${matchId}/players/`),

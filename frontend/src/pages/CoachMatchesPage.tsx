@@ -78,6 +78,7 @@ function MatchCard({ match }: { match: Match }) {
 // ---------------------------------------------------------------------------
 
 export default function CoachMatchesPage() {
+  const navigate = useNavigate()
   const [matches, setMatches] = useState<Match[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -109,11 +110,19 @@ export default function CoachMatchesPage() {
       <AppNav label="Matches" />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            All match records — click a card to view player statistics.
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
+            <p className="mt-1 text-sm text-gray-400">
+              All match records — click a card to view player statistics.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/coach/matches/new')}
+            className="flex-shrink-0 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          >
+            + New Match
+          </button>
         </div>
 
         {loading && matches.length === 0 && <LoadingSpinner />}

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
 import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
+import CreateMatchPage from './pages/CreateMatchPage'
 import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
 import CoachSessionsPage from './pages/CoachSessionsPage'
 import CreateTrainingSessionPage from './pages/CreateTrainingSessionPage'
@@ -87,6 +88,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CoachMatchesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/matches/new"
+        element={
+          <ProtectedRoute>
+            <CreateMatchPage />
           </ProtectedRoute>
         }
       />
