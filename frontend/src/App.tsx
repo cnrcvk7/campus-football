@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
 import DashboardPage from './pages/DashboardPage'
+import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import PlayersListPage from './pages/PlayersListPage'
@@ -41,6 +42,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PlayerProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/players/:playerId/edit"
+        element={
+          <ProtectedRoute>
+            <EditPlayerPage />
           </ProtectedRoute>
         }
       />

@@ -6,6 +6,7 @@ import type {
   Player,
   PlayerCreate,
   PlayerHistory,
+  PlayerUpdate,
   TrainingHistory,
 } from '../types'
 
@@ -15,6 +16,9 @@ export const playerService = {
 
   create: (data: PlayerCreate): Promise<Player> =>
     api.post<Player>('/players/', data),
+
+  update: (id: string, data: PlayerUpdate): Promise<Player> =>
+    api.patch<Player>(`/players/${id}/`, data),
 
   get: (id: string): Promise<Player> =>
     api.get<Player>(`/players/${id}/`),

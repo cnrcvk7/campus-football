@@ -35,6 +35,16 @@ export interface PlayerCreate {
   profile_photo_url?: string
 }
 
+export interface PlayerUpdate {
+  first_name?: string
+  last_name?: string
+  date_of_birth?: string
+  gender?: string
+  preferred_position?: string
+  jersey_number?: number | null
+  profile_photo_url?: string
+}
+
 // ---------------------------------------------------------------------------
 // Memberships / History
 // ---------------------------------------------------------------------------

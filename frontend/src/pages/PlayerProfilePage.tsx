@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -125,6 +125,7 @@ function PlayerHeader({
   player: Player
   history: PlayerHistory | null
 }) {
+  const navigate = useNavigate()
   const activeAcademy = history ? getActiveAcademy(history) : null
   const activeTeam = history ? getActiveTeam(history) : null
   const age = calcAge(player.date_of_birth)
@@ -190,6 +191,16 @@ function PlayerHeader({
                   {activeAcademy.academy.name}
                 </span>
               )}
+            </div>
+
+            {/* Edit button */}
+            <div className="mt-5">
+              <button
+                onClick={() => navigate(`/players/${player.id}/edit`)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+              >
+                Edit Profile
+              </button>
             </div>
           </div>
         </div>
