@@ -153,6 +153,10 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
 
 export default function PlayersListPage() {
   const [players, setPlayers] = useState<Player[]>([])
+  const [total, setTotal] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrev, setHasPrev] = useState(false)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -161,31 +165,38 @@ export default function PlayersListPage() {
   // Debounce ref — avoid a fetch on every keystroke
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [search, positionFilter])
+
   useEffect(() => {
     setLoading(true)
     setError(null)
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
+    const delay = page === 1 ? 300 : 0  // debounce on search, instant on page nav
     debounceRef.current = setTimeout(() => {
       playerService
-        .list({ search: search.trim() || undefined, position: positionFilter || undefined })
+        .list({ search: search.trim() || undefined, position: positionFilter || undefined, page })
         .then((data) => {
-          setPlayers(data)
+          setPlayers(data.results)
+          setTotal(data.count)
+          setHasNext(data.next !== null)
+          setHasPrev(data.previous !== null)
           setLoading(false)
         })
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : 'Failed to load players.')
           setLoading(false)
         })
-    }, 300)
+    }, delay)
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [search, positionFilter])
-
-  const filtered = players
+  }, [search, positionFilter, page])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -221,12 +232,12 @@ export default function PlayersListPage() {
               onSearch={setSearch}
               position={positionFilter}
               onPosition={setPositionFilter}
-              count={filtered.length}
+              count={total}
               loading={loading}
             />
 
             <div className="mt-6">
-              {filtered.length === 0 ? (
+              {players.length === 0 && !loading ? (
                 <EmptyState
                   icon="⚽"
                   title={search || positionFilter ? 'No players match your search' : 'No players registered yet'}
@@ -238,12 +249,38 @@ export default function PlayersListPage() {
                 />
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filtered.map((player) => (
+                  {players.map((player) => (
                     <PlayerCard key={player.id} player={player} />
                   ))}
                 </div>
               )}
             </div>
+
+            {/* Pagination controls */}
+            {(hasNext || hasPrev) && (
+              <div className="mt-8 flex items-center justify-between">
+                <button
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={!hasPrev || loading}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ← Previous
+                </button>
+                <p className="text-sm text-gray-400">
+                  Page <span className="font-semibold text-gray-700">{page}</span>
+                  {' '}of{' '}
+                  <span className="font-semibold text-gray-700">{Math.ceil(total / 20)}</span>
+                </p>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!hasNext || loading}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+
           </>
         )}
       </main>

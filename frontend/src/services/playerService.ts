@@ -3,6 +3,7 @@ import type {
   DevelopmentTimeline,
   MatchHistory,
   MatchSummary,
+  PaginatedResponse,
   Player,
   PlayerCreate,
   PlayerHistory,
@@ -11,12 +12,13 @@ import type {
 } from '../types'
 
 export const playerService = {
-  list: (params?: { search?: string; position?: string }): Promise<Player[]> => {
+  list: (params?: { search?: string; position?: string; page?: number }): Promise<PaginatedResponse<Player>> => {
     const qs = new URLSearchParams()
     if (params?.search) qs.set('search', params.search)
     if (params?.position) qs.set('position', params.position)
+    if (params?.page && params.page > 1) qs.set('page', String(params.page))
     const query = qs.toString()
-    return api.get<Player[]>(query ? `/players/?${query}` : '/players/')
+    return api.get<PaginatedResponse<Player>>(query ? `/players/?${query}` : '/players/')
   },
 
   create: (data: PlayerCreate): Promise<Player> =>
