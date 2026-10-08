@@ -212,21 +212,29 @@ export default function CoachSessionDetailPage() {
 
         {/* Attendance */}
         <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
               Attendance ({attendance.length})
             </h2>
-            {attendance.length > 0 && (
-              <div className="flex gap-2">
-                {(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const).map((s) =>
-                  attendanceCounts[s] ? (
-                    <span key={s} className={`rounded-full px-2 py-0.5 text-xs font-medium ${ATTENDANCE_BADGE[s]}`}>
-                      {attendanceCounts[s]} {s.toLowerCase()}
-                    </span>
-                  ) : null
-                )}
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {attendance.length > 0 && (
+                <div className="flex gap-2">
+                  {(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const).map((s) =>
+                    attendanceCounts[s] ? (
+                      <span key={s} className={`rounded-full px-2 py-0.5 text-xs font-medium ${ATTENDANCE_BADGE[s]}`}>
+                        {attendanceCounts[s]} {s.toLowerCase()}
+                      </span>
+                    ) : null
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => navigate(`/coach/sessions/${session.id}/add-attendance`)}
+                className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+              >
+                + Add Attendance
+              </button>
+            </div>
           </div>
 
           {attendance.length === 0 ? (

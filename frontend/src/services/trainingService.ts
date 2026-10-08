@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PaginatedResponse, TrainingAttendance, TrainingSession } from '../types'
+import type { AttendanceStatus, PaginatedResponse, TrainingAttendance, TrainingSession } from '../types'
 
 export interface TrainingSessionCreate {
   academy: string
@@ -32,4 +32,10 @@ export const trainingService = {
 
   listAttendance: (sessionId: string): Promise<TrainingAttendance[]> =>
     api.get<TrainingAttendance[]>(`/training/sessions/${sessionId}/attendance/`),
+
+  addAttendance: (
+    sessionId: string,
+    data: { player: string; status: AttendanceStatus; notes: string },
+  ): Promise<TrainingAttendance> =>
+    api.post<TrainingAttendance>(`/training/sessions/${sessionId}/attendance/`, data),
 }

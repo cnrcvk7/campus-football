@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
+import AddAttendancePage from './pages/AddAttendancePage'
 import AddMatchPlayerStatsPage from './pages/AddMatchPlayerStatsPage'
 import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
@@ -81,6 +82,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CoachSessionDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/sessions/:sessionId/add-attendance"
+        element={
+          <ProtectedRoute>
+            <AddAttendancePage />
           </ProtectedRoute>
         }
       />
