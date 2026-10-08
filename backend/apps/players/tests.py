@@ -557,3 +557,125 @@ class MembershipAPITests(APITestCase):
         self.client.post(self.team_memberships_url, payload, format="json")
         response = self.client.post(self.team_memberships_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# Search and filter tests
+# ---------------------------------------------------------------------------
+
+class PlayerSearchAPITests(APITestCase):
+
+    def setUp(self):
+        self.user = make_auth_user(email="search@example.com")
+        self.client.force_authenticate(user=self.user)
+        self.list_url = reverse("player-list")
+
+        self.rashford = make_player(
+            first_name="Marcus", last_name="Rashford",
+            date_of_birth="2000-10-31", preferred_position="LW",
+        )
+        self.foden = Player.objects.create(
+            first_name="Phil", last_name="Foden",
+            date_of_birth="2000-05-28", gender="M", preferred_position="CAM",
+        )
+        self.salah = Player.objects.create(
+            first_name="Mohamed", last_name="Salah",
+            date_of_birth="1992-06-15", gender="M", preferred_position="RW",
+        )
+
+    def _results(self, response):
+        data = response.data
+        return data["results"] if isinstance(data, dict) and "results" in data else data
+
+    # -- ?search= --
+
+    def test_search_by_first_name(self):
+        """?search=phil returns only players whose first name matches."""
+        response = self.client.get(self.list_url, {"search": "phil"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["first_name"], "Phil")
+
+    def test_search_by_last_name(self):
+        """?search=salah returns only players whose last name matches."""
+        response = self.client.get(self.list_url, {"search": "salah"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["last_name"], "Salah")
+
+    def test_search_by_football_id(self):
+        """?search=<football_id> returns the matching player."""
+        response = self.client.get(self.list_url, {"search": self.foden.football_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["football_id"], self.foden.football_id)
+
+    def test_search_case_insensitive(self):
+        """Search is case-insensitive."""
+        response = self.client.get(self.list_url, {"search": "MARCUS"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["first_name"], "Marcus")
+
+    def test_search_partial_match(self):
+        """Partial name match returns all players whose name contains the term."""
+        response = self.client.get(self.list_url, {"search": "mo"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        first_names = [r["first_name"] for r in results]
+        self.assertIn("Mohamed", first_names)
+
+    def test_search_no_match_returns_empty(self):
+        """?search=<nonexistent> returns an empty list."""
+        response = self.client.get(self.list_url, {"search": "zzznotaplayer"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 0)
+
+    def test_empty_search_returns_all(self):
+        """?search= (blank) returns all players."""
+        response = self.client.get(self.list_url, {"search": ""})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertGreaterEqual(len(results), 3)
+
+    # -- ?position= --
+
+    def test_filter_by_position(self):
+        """?position=LW returns only left-wingers."""
+        response = self.client.get(self.list_url, {"position": "LW"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["preferred_position"], "LW")
+
+    def test_filter_by_position_no_match_returns_empty(self):
+        """?position=GK returns empty when no goalkeepers exist."""
+        response = self.client.get(self.list_url, {"position": "GK"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 0)
+
+    # -- combined --
+
+    def test_search_and_position_combined(self):
+        """?search=a&position=RW returns only right-wingers whose name contains 'a'."""
+        response = self.client.get(self.list_url, {"search": "a", "position": "RW"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["last_name"], "Salah")
+
+    # -- ?ordering= --
+
+    def test_ordering_by_last_name(self):
+        """?ordering=last_name returns players in alphabetical order by last name."""
+        response = self.client.get(self.list_url, {"ordering": "last_name"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = self._results(response)
+        last_names = [r["last_name"] for r in results]
+        self.assertEqual(last_names, sorted(last_names))

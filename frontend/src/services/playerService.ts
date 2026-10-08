@@ -11,8 +11,13 @@ import type {
 } from '../types'
 
 export const playerService = {
-  list: (): Promise<Player[]> =>
-    api.get<Player[]>('/players/'),
+  list: (params?: { search?: string; position?: string }): Promise<Player[]> => {
+    const qs = new URLSearchParams()
+    if (params?.search) qs.set('search', params.search)
+    if (params?.position) qs.set('position', params.position)
+    const query = qs.toString()
+    return api.get<Player[]>(query ? `/players/?${query}` : '/players/')
+  },
 
   create: (data: PlayerCreate): Promise<Player> =>
     api.post<Player>('/players/', data),

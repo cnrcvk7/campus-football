@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.response import Response
 
 from .models import Player
@@ -35,6 +36,17 @@ class PlayerViewSet(
     queryset = Player.objects.all()
     serializer_class = PlayerSerializer
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["first_name", "last_name", "football_id"]
+    ordering_fields = ["last_name", "first_name", "date_of_birth", "created_at"]
+    ordering = ["-created_at"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        position = self.request.query_params.get("position", "").strip()
+        if position:
+            qs = qs.filter(preferred_position=position)
+        return qs
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
@@ -96,11 +96,11 @@ interface ToolbarProps {
   onSearch: (v: string) => void
   position: string
   onPosition: (v: string) => void
-  total: number
-  filtered: number
+  count: number
+  loading: boolean
 }
 
-function Toolbar({ search, onSearch, position, onPosition, total, filtered }: ToolbarProps) {
+function Toolbar({ search, onSearch, position, onPosition, count, loading }: ToolbarProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       {/* Left: search + position */}
@@ -134,14 +134,12 @@ function Toolbar({ search, onSearch, position, onPosition, total, filtered }: To
 
       {/* Right: count */}
       <p className="text-sm text-gray-400 sm:text-right">
-        {filtered < total ? (
-          <>
-            <span className="font-semibold text-gray-700">{filtered}</span> of {total} players
-          </>
+        {loading ? (
+          <span className="text-gray-300">Searching…</span>
         ) : (
           <>
-            <span className="font-semibold text-gray-700">{total}</span>{' '}
-            {total === 1 ? 'player' : 'players'}
+            <span className="font-semibold text-gray-700">{count}</span>{' '}
+            {count === 1 ? 'player' : 'players'}
           </>
         )}
       </p>
@@ -160,34 +158,34 @@ export default function PlayersListPage() {
   const [search, setSearch] = useState('')
   const [positionFilter, setPositionFilter] = useState('')
 
-  useEffect(() => {
-    playerService
-      .list()
-      .then((data) => {
-        setPlayers(data)
-        setLoading(false)
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load players.')
-        setLoading(false)
-      })
-  }, [])
+  // Debounce ref — avoid a fetch on every keystroke
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const filtered = useMemo(() => {
-    let result = players
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      result = result.filter(
-        (p) =>
-          `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) ||
-          p.football_id.toLowerCase().includes(q),
-      )
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    debounceRef.current = setTimeout(() => {
+      playerService
+        .list({ search: search.trim() || undefined, position: positionFilter || undefined })
+        .then((data) => {
+          setPlayers(data)
+          setLoading(false)
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : 'Failed to load players.')
+          setLoading(false)
+        })
+    }, 300)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-    if (positionFilter) {
-      result = result.filter((p) => p.preferred_position === positionFilter)
-    }
-    return result
-  }, [players, search, positionFilter])
+  }, [search, positionFilter])
+
+  const filtered = players
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -210,32 +208,32 @@ export default function PlayersListPage() {
           </button>
         </div>
 
-        {loading && <LoadingSpinner />}
+        {loading && players.length === 0 && <LoadingSpinner />}
 
         {!loading && error && (
           <EmptyState icon="⚠️" title="Could not load players" description={error} />
         )}
 
-        {!loading && !error && (
+        {(!loading || players.length > 0) && !error && (
           <>
             <Toolbar
               search={search}
               onSearch={setSearch}
               position={positionFilter}
               onPosition={setPositionFilter}
-              total={players.length}
-              filtered={filtered.length}
+              count={filtered.length}
+              loading={loading}
             />
 
             <div className="mt-6">
               {filtered.length === 0 ? (
                 <EmptyState
                   icon="⚽"
-                  title={players.length === 0 ? 'No players registered yet' : 'No players match your search'}
+                  title={search || positionFilter ? 'No players match your search' : 'No players registered yet'}
                   description={
-                    players.length === 0
-                      ? 'Players will appear here once added via the API.'
-                      : 'Try adjusting your search or clearing the position filter.'
+                    search || positionFilter
+                      ? 'Try adjusting your search or clearing the position filter.'
+                      : 'Use the Add Player button to register the first player.'
                   }
                 />
               ) : (
