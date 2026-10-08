@@ -177,3 +177,53 @@ class PlayerTeamMembershipTests(TestCase):
         serializer = PlayerTeamMembershipSerializer(data=data)
         self.assertFalse(serializer.is_valid())
         self.assertIn("left_at", serializer.errors)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/teams/<id>/players/ tests
+# ---------------------------------------------------------------------------
+
+class TeamPlayersViewTests(APITestCase):
+
+    def setUp(self):
+        self.user = make_auth_user(email="coach_tp@example.com")
+        self.client.force_authenticate(user=self.user)
+        self.academy = make_academy(name="Test Academy 2")
+        self.team = make_team(self.academy, name="U18 Boys")
+        self.url = f"/api/teams/{self.team.pk}/players/"
+
+    def test_returns_active_players_only(self):
+        """Only players with active membership are returned."""
+        active = make_player(first_name="Active", last_name="Player")
+        left = make_player(first_name="Left", last_name="Player")
+        PlayerTeamMembership.objects.create(
+            player=active, team=self.team, joined_at="2024-01-01",
+            status=PlayerTeamMembership.Status.ACTIVE,
+        )
+        PlayerTeamMembership.objects.create(
+            player=left, team=self.team, joined_at="2023-01-01", left_at="2024-01-01",
+            status=PlayerTeamMembership.Status.LEFT,
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [p["id"] for p in response.data]
+        self.assertIn(str(active.pk), ids)
+        self.assertNotIn(str(left.pk), ids)
+
+    def test_empty_team_returns_empty_list(self):
+        """A team with no active members returns an empty list."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_unknown_team_returns_404(self):
+        """404 for a non-existent team UUID."""
+        import uuid
+        response = self.client.get(f"/api/teams/{uuid.uuid4()}/players/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_requires_authentication(self):
+        """Unauthenticated requests get 401."""
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

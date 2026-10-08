@@ -80,12 +80,15 @@ class TrainingSessionViewSet(
 
     def get_queryset(self):
         require_coach_or_admin(self.request)
-        return (
+        qs = (
             TrainingSession.objects.all()
             .select_related("academy", "team", "coach")
             .prefetch_related("focus_skills", "session_exercises__exercise")
             .order_by("-training_date", "-created_at")
         )
+        if self.request.query_params.get("coach") == "me":
+            qs = qs.filter(coach=self.request.user)
+        return qs
 
     def perform_create(self, serializer):
         require_coach_or_admin(self.request)

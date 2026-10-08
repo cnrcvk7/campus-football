@@ -18,6 +18,23 @@ export interface AuthTokens {
   refresh: string
 }
 
+export type UserRole = 'PLAYER' | 'PARENT' | 'COACH' | 'ACADEMY_ADMIN'
+
+export interface AuthUser {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  role: UserRole
+  is_active: boolean
+  player_profile: {
+    player_id: string
+    football_id: string
+    first_name: string
+    last_name: string
+  } | null
+}
+
 // ---------------------------------------------------------------------------
 // Player
 // ---------------------------------------------------------------------------

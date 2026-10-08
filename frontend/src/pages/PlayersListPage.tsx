@@ -152,6 +152,7 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
 // ---------------------------------------------------------------------------
 
 export default function PlayersListPage() {
+  const navigate = useNavigate()
   const [players, setPlayers] = useState<Player[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)

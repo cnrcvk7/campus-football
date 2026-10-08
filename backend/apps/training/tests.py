@@ -485,3 +485,49 @@ class PlayerTrainingHistoryTests(APITestCase):
         url = reverse("player-training-history", kwargs={"player_pk": uuid.uuid4()})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+# ---------------------------------------------------------------------------
+# ?coach=me filter tests
+# ---------------------------------------------------------------------------
+
+
+class TrainingSessionCoachMeFilterTests(APITestCase):
+
+    def setUp(self):
+        self.coach_a = make_user(User.Role.COACH, "coach_a@training.test")
+        self.coach_b = make_user(User.Role.COACH, "coach_b@training.test")
+        self.academy = make_academy(name="Filter Test Academy")
+        self.list_url = reverse("training-session-list")
+
+    def test_coach_me_returns_own_sessions_only(self):
+        """?coach=me filters to only sessions created by the requesting user."""
+        make_session(self.coach_a, self.academy, title="Coach A Session")
+        make_session(self.coach_b, self.academy, title="Coach B Session")
+        self.client.force_authenticate(user=self.coach_a)
+        response = self.client.get(self.list_url + "?coach=me")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        results = data["results"] if isinstance(data, dict) and "results" in data else data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["title"], "Coach A Session")
+
+    def test_without_filter_returns_all_sessions(self):
+        """Without ?coach=me, all sessions are returned."""
+        make_session(self.coach_a, self.academy, title="Session A")
+        make_session(self.coach_b, self.academy, title="Session B")
+        self.client.force_authenticate(user=self.coach_a)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        results = data["results"] if isinstance(data, dict) and "results" in data else data
+        self.assertGreaterEqual(len(results), 2)
+
+    def test_coach_me_with_no_sessions_returns_empty(self):
+        """?coach=me for a coach with no sessions returns empty list."""
+        self.client.force_authenticate(user=self.coach_a)
+        response = self.client.get(self.list_url + "?coach=me")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        results = data["results"] if isinstance(data, dict) and "results" in data else data
+        self.assertEqual(len(results), 0)

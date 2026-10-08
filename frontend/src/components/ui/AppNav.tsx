@@ -8,7 +8,9 @@ interface AppNavProps {
 
 export default function AppNav({ label }: AppNavProps) {
   const navigate = useNavigate()
-  const { isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, user, logout } = useAuth()
+
+  const isCoach = user?.role === 'COACH' || user?.role === 'ACADEMY_ADMIN'
 
   function handleLogout() {
     logout()
@@ -44,6 +46,22 @@ export default function AppNav({ label }: AppNavProps) {
             >
               Players
             </button>
+            {isCoach && (
+              <>
+                <button
+                  onClick={() => navigate('/coach/sessions')}
+                  className="text-sm text-gray-500 transition hover:text-gray-800"
+                >
+                  Training
+                </button>
+                <button
+                  onClick={() => navigate('/coach/matches')}
+                  className="text-sm text-gray-500 transition hover:text-gray-800"
+                >
+                  Matches
+                </button>
+              </>
+            )}
             <button
               onClick={handleLogout}
               className="text-xs text-gray-400 transition hover:text-gray-600"
