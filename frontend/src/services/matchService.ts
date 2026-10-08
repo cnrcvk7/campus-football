@@ -14,6 +14,26 @@ export interface MatchCreate {
   notes?: string
 }
 
+export interface PlayerStatsCreate {
+  player: string
+  started: boolean
+  minutes_played: number
+  goals: number
+  assists: number
+  shots: number
+  shots_on_target: number
+  passes_attempted: number
+  passes_completed: number
+  key_passes: number
+  dribbles: number
+  tackles: number
+  interceptions: number
+  yellow_cards: number
+  red_cards: number
+  rating: string | null   // decimal string e.g. "7.50" or null
+  coach_comment: string
+}
+
 export const matchService = {
   listMatches: (params?: { page?: number }): Promise<PaginatedResponse<Match>> => {
     const qs = new URLSearchParams()
@@ -32,4 +52,7 @@ export const matchService = {
 
   listPlayerStats: (matchId: string): Promise<MatchStats[]> =>
     api.get<MatchStats[]>(`/matches/${matchId}/players/`),
+
+  addPlayerStats: (matchId: string, data: PlayerStatsCreate): Promise<MatchStats> =>
+    api.post<MatchStats>(`/matches/${matchId}/players/`, data),
 }

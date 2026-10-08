@@ -154,9 +154,17 @@ export default function CoachMatchDetailPage() {
 
         {/* Player stats */}
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
-            Player Statistics ({playerStats.length})
-          </h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
+              Player Statistics ({playerStats.length})
+            </h2>
+            <button
+              onClick={() => navigate(`/coach/matches/${match.id}/add-stats`)}
+              className="rounded-xl bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              + Add Player Stats
+            </button>
+          </div>
 
           {playerStats.length === 0 ? (
             <EmptyState

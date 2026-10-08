@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
+import AddMatchPlayerStatsPage from './pages/AddMatchPlayerStatsPage'
 import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
 import CreateMatchPage from './pages/CreateMatchPage'
@@ -104,6 +105,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CoachMatchDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/matches/:matchId/add-stats"
+        element={
+          <ProtectedRoute>
+            <AddMatchPlayerStatsPage />
           </ProtectedRoute>
         }
       />
