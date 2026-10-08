@@ -65,6 +65,9 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
   const [form, setForm] = useState<FormState | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     playerService
@@ -83,6 +86,20 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
     setSubmitError(null)
   }
 
+  async function handleDelete() {
+    if (!player) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await playerService.delete(player.id)
+      navigate('/players')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete player.')
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form || !player) return
@@ -91,7 +108,7 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
 
     try {
       const jerseyRaw = form.jersey_number.trim()
-      await playerService.update(player.id, {
+      await playerService.update(playerId, {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         date_of_birth: form.date_of_birth,
@@ -293,6 +310,55 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
 
           </div>
         </form>
+
+        {/* ── Danger Zone ── */}
+        <section className="mt-10 rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-widest text-red-500">
+            Danger Zone
+          </h2>
+          <p className="mb-5 text-sm text-gray-500">
+            Permanently delete this player and all associated data. This cannot be undone.
+          </p>
+
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="rounded-xl border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            >
+              Delete Player
+            </button>
+          ) : (
+            <div className="rounded-xl bg-red-50 p-4 ring-1 ring-red-200">
+              <p className="mb-4 text-sm font-medium text-red-800">
+                Are you sure you want to delete{' '}
+                <span className="font-bold">{player.first_name} {player.last_name}</span>?
+                This action is permanent.
+              </p>
+              {deleteError && (
+                <p className="mb-3 text-sm text-red-700">{deleteError}</p>
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  {deleting ? 'Deleting…' : 'Yes, delete permanently'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmDelete(false); setDeleteError(null) }}
+                  className="text-sm text-gray-500 transition hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
       </main>
     </div>
   )

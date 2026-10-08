@@ -20,6 +20,9 @@ export const playerService = {
   update: (id: string, data: PlayerUpdate): Promise<Player> =>
     api.patch<Player>(`/players/${id}/`, data),
 
+  delete: (id: string): Promise<void> =>
+    api.delete(`/players/${id}/`),
+
   get: (id: string): Promise<Player> =>
     api.get<Player>(`/players/${id}/`),
 

@@ -134,12 +134,24 @@ class PlayerAPITests(APITestCase):
         self.assertEqual(response.data["football_id"], self.player.football_id)
         self.assertEqual(response.data["first_name"], self.player.first_name)
 
-    def test_delete_is_not_allowed(self):
-        """DELETE /api/players/{id}/ must return 405 Method Not Allowed."""
+    def test_player_api_delete(self):
+        """DELETE /api/players/{id}/ removes the player and returns 204."""
         response = self.client.delete(self.detail_url)
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        # Player must still exist
-        self.assertTrue(Player.objects.filter(pk=self.player.pk).exists())
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Player.objects.filter(pk=self.player.pk).exists())
+
+    def test_delete_unknown_player_returns_404(self):
+        """DELETE on a non-existent player UUID returns 404."""
+        import uuid
+        url = reverse("player-detail", kwargs={"pk": uuid.uuid4()})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_requires_authentication(self):
+        """DELETE /api/players/{id}/ returns 401 for unauthenticated requests."""
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     # ---- Validation tests ----
 

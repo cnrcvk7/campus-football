@@ -15,25 +15,26 @@ class PlayerViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
     """
     Player resource.
 
-    list:           GET   /api/players/
-    create:         POST  /api/players/
-    retrieve:       GET   /api/players/{id}/
-    partial_update: PATCH /api/players/{id}/
-    history:        GET   /api/players/{id}/history/
+    list:           GET    /api/players/
+    create:         POST   /api/players/
+    retrieve:       GET    /api/players/{id}/
+    partial_update: PATCH  /api/players/{id}/
+    destroy:        DELETE /api/players/{id}/
+    history:        GET    /api/players/{id}/history/
 
-    DELETE is intentionally not exposed.
     PUT is intentionally not exposed.
     """
 
     queryset = Player.objects.all()
     serializer_class = PlayerSerializer
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):
