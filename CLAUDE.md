@@ -63,13 +63,35 @@ backend/
 │   │   ├── serializers.py       # MeSerializer
 │   │   ├── views.py             # MeView (GET /api/auth/me/)
 │   │   └── urls.py              # /api/auth/token/, /api/auth/token/refresh/, /api/auth/me/
-│   └── development/            # player development — skills, assessments, goals, measurements
-│       ├── models.py            # Skill, Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement
-│       ├── permissions.py       # get_player_and_check_access() — player-scoped access guard
-│       ├── serializers.py       # AssessmentCreateSerializer (nested items), others
-│       ├── views.py             # SkillViewSet, AssessmentViewSet, GoalViewSet, MeasurementViewSet, DevelopmentTimelineView
-│       ├── urls.py              # /api/development/skills/ + player-nested endpoints
-│       └── management/commands/seed_skills.py  # python manage.py seed_skills
+│   ├── players/                # root domain entity
+│   │   ├── models.py            # Player (UUID PK, permanent football_id CF-XXXXXXXX, nullable user FK)
+│   │   ├── serializers.py       # PlayerSerializer, PlayerHistorySerializer
+│   │   ├── views.py             # PlayerViewSet + PlayerHistoryView
+│   │   └── urls.py              # /api/players/ + /api/players/<id>/history/
+│   ├── academies/              # Academy model — players/teams belong to an academy
+│   │   ├── models.py            # Academy, AcademyMembership (player↔academy with joined_at/left_at)
+│   │   └── urls.py              # /api/academies/
+│   ├── teams/                  # Team model — teams belong to an academy
+│   │   ├── models.py            # Team, TeamMembership (player↔team with joined_at/left_at)
+│   │   └── urls.py              # /api/teams/
+│   ├── development/            # player development — skills, assessments, goals, measurements
+│   │   ├── models.py            # Skill, Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement
+│   │   ├── permissions.py       # get_player_and_check_access() — player-scoped access guard
+│   │   ├── serializers.py       # AssessmentCreateSerializer (nested items), others
+│   │   ├── views.py             # SkillViewSet, AssessmentViewSet, GoalViewSet, MeasurementViewSet, DevelopmentTimelineView
+│   │   ├── urls.py              # /api/development/skills/ + player-nested endpoints
+│   │   └── management/commands/seed_skills.py  # python manage.py seed_skills
+│   ├── training/               # training sessions, exercises, attendance
+│   │   ├── models.py            # Exercise, TrainingSession, TrainingSessionExercise, TrainingAttendance
+│   │   ├── permissions.py       # get_player_and_check_training_access()
+│   │   ├── views.py             # ExerciseViewSet, TrainingSessionViewSet, AttendanceViewSet, PlayerTrainingHistoryView
+│   │   └── urls.py              # /api/training/ + /api/players/<id>/training/history/
+│   └── matches/                # match records and per-player stats
+│       ├── models.py            # Match (result/@property from scores), MatchPlayerStats (rating 0-10 DecimalField)
+│       ├── permissions.py       # require_coach_or_admin(), get_player_and_check_match_access()
+│       ├── serializers.py       # read/write pairs; PlayerMatchHistorySerializer, PlayerMatchSummarySerializer
+│       ├── views.py             # MatchViewSet, MatchPlayerStatsViewSet, PlayerMatchHistoryView, PlayerMatchSummaryView
+│       └── urls.py              # /api/matches/ + nested /players/ + /api/players/<id>/matches/
 └── manage.py                   # loads .env from project root automatically
 ```
 
@@ -82,12 +104,18 @@ backend/
 
 ```
 frontend/src/
-├── components/ui/   # stateless, reusable primitives
+├── components/ui/   # stateless, reusable primitives (AppNav, StatCard, LoadingSpinner, EmptyState)
+├── constants/       # football.ts — POSITIONS record mapping code→label
+├── context/         # AuthContext.tsx — isAuthenticated, login(), logout()
+├── hooks/           # usePlayerProfile.ts — parallel-fetches all 6 player endpoints via Promise.all
 ├── pages/           # one component per route
-├── hooks/           # custom React hooks
-├── services/        # API fetch wrappers, one file per domain
-└── types/           # shared TypeScript interfaces
+├── services/        # api.ts (native fetch wrapper), playerService.ts
+└── types/           # index.ts — all shared TypeScript interfaces
 ```
+
+**Frontend API client** (`src/services/api.ts`): native `fetch` wrapper, no axios. JWT access token stored in `localStorage` under key `cf_access_token` (refresh: `cf_refresh_token`). `ApiError` carries `.status` for 401 detection. All requests proxy through Vite to `http://localhost:8000` in dev.
+
+**Auth flow**: `AuthContext` initialises `isAuthenticated` from `!!getToken()`. `ProtectedRoute` redirects to `/login` with `state.from` so the login page can navigate back after success. `AppNav` branches on `isAuthenticated` to show "Sign in" vs "Players + Sign out".
 
 ### Key architectural rules
 
