@@ -1,0 +1,17 @@
+export const POSITIONS: Record<string, string> = {
+  GK:  'Goalkeeper',
+  CB:  'Centre Back',
+  LB:  'Left Back',
+  RB:  'Right Back',
+  LWB: 'Left Wing Back',
+  RWB: 'Right Wing Back',
+  CDM: 'Def. Midfielder',
+  CM:  'Central Midfielder',
+  CAM: 'Att. Midfielder',
+  LM:  'Left Midfielder',
+  RM:  'Right Midfielder',
+  LW:  'Left Winger',
+  RW:  'Right Winger',
+  ST:  'Striker',
+  CF:  'Centre Forward',
+}
