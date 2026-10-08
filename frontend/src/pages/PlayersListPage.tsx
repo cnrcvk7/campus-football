@@ -195,11 +195,19 @@ export default function PlayersListPage() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Page heading */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Players</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            All registered players — click a card to view the full profile.
-          </p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Players</h1>
+            <p className="mt-1 text-sm text-gray-400">
+              All registered players — click a card to view the full profile.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/players/new')}
+            className="flex-shrink-0 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          >
+            + Add Player
+          </button>
         </div>
 
         {loading && <LoadingSpinner />}
