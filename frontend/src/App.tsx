@@ -5,6 +5,7 @@ import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
 import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
 import CoachSessionsPage from './pages/CoachSessionsPage'
+import CreateTrainingSessionPage from './pages/CreateTrainingSessionPage'
 import DashboardPage from './pages/DashboardPage'
 import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
@@ -62,6 +63,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CoachSessionsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/sessions/new"
+        element={
+          <ProtectedRoute>
+            <CreateTrainingSessionPage />
           </ProtectedRoute>
         }
       />

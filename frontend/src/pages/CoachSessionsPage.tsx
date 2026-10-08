@@ -138,15 +138,23 @@ export default function CoachSessionsPage() {
               All training sessions — click a card to view exercises and attendance.
             </p>
           </div>
-          <label className="flex flex-shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm transition hover:border-brand-300">
-            <input
-              type="checkbox"
-              checked={myOnly}
-              onChange={(e) => setMyOnly(e.target.checked)}
-              className="accent-brand-600"
-            />
-            My sessions only
-          </label>
+          <div className="flex flex-shrink-0 items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 shadow-sm transition hover:border-brand-300">
+              <input
+                type="checkbox"
+                checked={myOnly}
+                onChange={(e) => setMyOnly(e.target.checked)}
+                className="accent-brand-600"
+              />
+              My sessions only
+            </label>
+            <button
+              onClick={() => navigate('/coach/sessions/new')}
+              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              + New Session
+            </button>
+          </div>
         </div>
 
         {loading && sessions.length === 0 && <LoadingSpinner />}

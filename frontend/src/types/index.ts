@@ -74,6 +74,38 @@ export interface PlayerUpdate {
 }
 
 // ---------------------------------------------------------------------------
+// Academy / Team
+// ---------------------------------------------------------------------------
+
+export interface Academy {
+  id: string
+  name: string
+  city: string
+  country: string
+}
+
+export interface Team {
+  id: string
+  academy: string   // UUID of the parent academy
+  name: string
+  age_group: string
+  gender: string
+  season: string
+}
+
+// ---------------------------------------------------------------------------
+// Skill (development)
+// ---------------------------------------------------------------------------
+
+export interface Skill {
+  id: string
+  name: string
+  category: SkillCategory
+  description: string
+  is_active: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Memberships / History
 // ---------------------------------------------------------------------------
 
