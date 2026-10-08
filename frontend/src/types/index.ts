@@ -245,6 +245,101 @@ export interface MatchSummary {
 }
 
 // ---------------------------------------------------------------------------
+// Training Session (coach view — full object)
+// ---------------------------------------------------------------------------
+
+export interface SessionExercise {
+  id: string
+  exercise: string
+  exercise_name: string
+  exercise_category: string
+  order: number
+  duration_minutes: number | null
+  notes: string
+}
+
+export interface TrainingSession {
+  id: string
+  academy: string
+  academy_name: string
+  team: string | null
+  team_name: string | null
+  title: string
+  description: string
+  training_date: string
+  start_time: string | null
+  duration_minutes: number | null
+  location: string
+  coach: string
+  coach_name: string
+  focus_skills: FocusSkill[]
+  session_exercises: SessionExercise[]
+  created_at: string
+  updated_at: string
+}
+
+export interface TrainingAttendance {
+  id: string
+  session: string
+  player: string
+  player_name: string
+  football_id: string
+  status: AttendanceStatus
+  notes: string
+  recorded_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Matches (coach view — full object)
+// ---------------------------------------------------------------------------
+
+export interface Match {
+  id: string
+  academy: string
+  academy_name: string
+  team: string
+  team_name: string
+  opponent_name: string
+  match_date: string
+  venue: string
+  competition: string
+  home_away: 'HOME' | 'AWAY'
+  team_score: number | null
+  opponent_score: number | null
+  result: MatchResult | null
+  score_display: string | null
+  notes: string
+  created_by: string
+  created_by_name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface MatchStats {
+  id: string
+  match: string
+  player: string
+  player_name: string
+  football_id: string
+  started: boolean
+  minutes_played: number
+  goals: number
+  assists: number
+  shots: number
+  shots_on_target: number
+  passes_attempted: number
+  passes_completed: number
+  key_passes: number
+  dribbles: number
+  tackles: number
+  interceptions: number
+  yellow_cards: number
+  red_cards: number
+  rating: string | null
+  coach_comment: string
+}
+
+// ---------------------------------------------------------------------------
 // Training
 // ---------------------------------------------------------------------------
 

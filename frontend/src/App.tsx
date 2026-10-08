@@ -1,6 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
+import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
+import CoachMatchesPage from './pages/CoachMatchesPage'
+import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
+import CoachSessionsPage from './pages/CoachSessionsPage'
 import DashboardPage from './pages/DashboardPage'
 import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
@@ -50,6 +54,38 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <EditPlayerPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/sessions"
+        element={
+          <ProtectedRoute>
+            <CoachSessionsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/sessions/:sessionId"
+        element={
+          <ProtectedRoute>
+            <CoachSessionDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/matches"
+        element={
+          <ProtectedRoute>
+            <CoachMatchesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/matches/:matchId"
+        element={
+          <ProtectedRoute>
+            <CoachMatchDetailPage />
           </ProtectedRoute>
         }
       />
