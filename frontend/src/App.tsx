@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddPlayerPage from './pages/AddPlayerPage'
 import AddAttendancePage from './pages/AddAttendancePage'
+import EditAttendancePage from './pages/EditAttendancePage'
 import AddMatchPlayerStatsPage from './pages/AddMatchPlayerStatsPage'
 import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
@@ -101,6 +102,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AddAttendancePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/sessions/:sessionId/edit-attendance/:attendanceId"
+        element={
+          <ProtectedRoute>
+            <EditAttendancePage />
           </ProtectedRoute>
         }
       />

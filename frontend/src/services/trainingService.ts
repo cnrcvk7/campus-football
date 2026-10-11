@@ -41,4 +41,11 @@ export const trainingService = {
     data: { player: string; status: AttendanceStatus; notes: string },
   ): Promise<TrainingAttendance> =>
     api.post<TrainingAttendance>(`/training/sessions/${sessionId}/attendance/`, data),
+
+  updateAttendance: (
+    sessionId: string,
+    attendanceId: string,
+    data: { status: AttendanceStatus; notes: string },
+  ): Promise<TrainingAttendance> =>
+    api.patch<TrainingAttendance>(`/training/sessions/${sessionId}/attendance/${attendanceId}/`, data),
 }

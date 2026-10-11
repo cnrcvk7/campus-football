@@ -255,7 +255,8 @@ export default function CoachSessionDetailPage() {
                     <th className="py-3 pl-4 pr-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Player</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">ID</th>
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Status</th>
-                    <th className="pl-3 pr-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Notes</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Notes</th>
+                    <th className="pl-3 pr-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -268,7 +269,15 @@ export default function CoachSessionDetailPage() {
                           {a.status}
                         </span>
                       </td>
-                      <td className="pl-3 pr-4 py-3 text-xs text-gray-400">{a.notes || '—'}</td>
+                      <td className="px-3 py-3 text-xs text-gray-400">{a.notes || '—'}</td>
+                      <td className="pl-3 pr-4 py-3 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => navigate(`/coach/sessions/${session.id}/edit-attendance/${a.id}`)}
+                          className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                        >
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
