@@ -10,12 +10,6 @@ import type { TrainingSession } from '../types'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  })
-}
-
 const SKILL_CATEGORY_COLOR: Record<string, string> = {
   TECHNICAL: 'bg-blue-50 text-blue-600',
   TACTICAL: 'bg-purple-50 text-purple-600',
@@ -95,6 +89,7 @@ function SessionCard({ session }: { session: TrainingSession }) {
 // ---------------------------------------------------------------------------
 
 export default function CoachSessionsPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)

@@ -50,6 +50,9 @@ export const matchService = {
   createMatch: (data: MatchCreate): Promise<Match> =>
     api.post<Match>('/matches/', data),
 
+  updateMatch: (id: string, data: Partial<MatchCreate>): Promise<Match> =>
+    api.patch<Match>(`/matches/${id}/`, data),
+
   listPlayerStats: (matchId: string): Promise<MatchStats[]> =>
     api.get<MatchStats[]>(`/matches/${matchId}/players/`),
 

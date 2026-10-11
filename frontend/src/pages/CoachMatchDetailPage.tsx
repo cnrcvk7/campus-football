@@ -94,13 +94,21 @@ export default function CoachMatchDetailPage() {
       <AppNav label="Match" />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        {/* Back */}
-        <button
-          onClick={() => navigate('/coach/matches')}
-          className="mb-6 text-sm text-brand-600 hover:text-brand-700"
-        >
-          ← All matches
-        </button>
+        {/* Back + actions */}
+        <div className="mb-6 flex items-center justify-between">
+          <button
+            onClick={() => navigate('/coach/matches')}
+            className="text-sm text-brand-600 hover:text-brand-700"
+          >
+            ← All matches
+          </button>
+          <button
+            onClick={() => navigate(`/coach/matches/${match.id}/edit`)}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900"
+          >
+            Edit Match
+          </button>
+        </div>
 
         {/* Match header */}
         <div className={`rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100 border-l-4 ${resultStyle?.border ?? 'border-l-gray-200'}`}>
