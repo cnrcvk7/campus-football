@@ -22,6 +22,7 @@ import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import PlayersListPage from './pages/PlayersListPage'
+import LoadingSpinner from './components/ui/LoadingSpinner'
 import type { ReactNode } from 'react'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -30,6 +31,20 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace state={{ from: window.location.pathname }} />
   }
   return <>{children}</>
+}
+
+function CoachRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, user, userLoading } = useAuth()
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: window.location.pathname }} />
+  }
+  if (userLoading) {
+    return <LoadingSpinner />
+  }
+  if (user?.role === 'COACH' || user?.role === 'ACADEMY_ADMIN') {
+    return <>{children}</>
+  }
+  return <Navigate to="/" replace />
 }
 
 function AppRoutes() {
@@ -104,97 +119,97 @@ function AppRoutes() {
       <Route
         path="/coach/sessions"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CoachSessionsPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/sessions/new"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CreateTrainingSessionPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/sessions/:sessionId"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CoachSessionDetailPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/sessions/:sessionId/edit"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <EditTrainingSessionPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/sessions/:sessionId/add-attendance"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <AddAttendancePage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/sessions/:sessionId/edit-attendance/:attendanceId"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <EditAttendancePage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CoachMatchesPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches/new"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CreateMatchPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches/:matchId"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <CoachMatchDetailPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches/:matchId/edit"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <EditMatchPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches/:matchId/add-stats"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <AddMatchPlayerStatsPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route
         path="/coach/matches/:matchId/edit-stats/:statsId"
         element={
-          <ProtectedRoute>
+          <CoachRoute>
             <EditMatchPlayerStatsPage />
-          </ProtectedRoute>
+          </CoachRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

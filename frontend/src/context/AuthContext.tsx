@@ -13,6 +13,7 @@ import type { AuthTokens, AuthUser } from '../types'
 interface AuthContextValue {
   isAuthenticated: boolean
   user: AuthUser | null
+  userLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -24,18 +25,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => !!getToken(),
   )
   const [user, setUser] = useState<AuthUser | null>(null)
+  // Start loading only if we already have a token (need to fetch user)
+  const [userLoading, setUserLoading] = useState<boolean>(() => !!getToken())
 
   // Fetch /api/auth/me/ whenever we become authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       setUser(null)
+      setUserLoading(false)
       return
     }
-    api.get<AuthUser>('/auth/me/').then(setUser).catch(() => {
+    setUserLoading(true)
+    api.get<AuthUser>('/auth/me/').then((u) => {
+      setUser(u)
+    }).catch(() => {
       // Token may be expired; clean up silently
       clearTokens()
       setIsAuthenticated(false)
       setUser(null)
+    }).finally(() => {
+      setUserLoading(false)
     })
   }, [isAuthenticated])
 
@@ -52,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ isAuthenticated, user, login, logout }),
-    [isAuthenticated, user, login, logout],
+    () => ({ isAuthenticated, user, userLoading, login, logout }),
+    [isAuthenticated, user, userLoading, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -32,6 +32,39 @@ export function clearTokens(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Token refresh — single in-flight promise to prevent concurrent storms
+// ---------------------------------------------------------------------------
+
+let refreshPromise: Promise<string> | null = null
+
+async function refreshAccessToken(): Promise<string> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY)
+    if (!refreshToken) throw new Error('No refresh token available')
+
+    const res = await fetch(`${BASE_URL}/auth/token/refresh/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh: refreshToken }),
+    })
+
+    if (!res.ok) {
+      throw new ApiError(res.status, 'Token refresh failed')
+    }
+
+    const data = (await res.json()) as { access: string }
+    localStorage.setItem(ACCESS_KEY, data.access)
+    return data.access
+  })().finally(() => {
+    refreshPromise = null
+  })
+
+  return refreshPromise
+}
+
+// ---------------------------------------------------------------------------
 // Core request function
 // ---------------------------------------------------------------------------
 
@@ -47,6 +80,45 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: { ...headers, ...(options.headers as Record<string, string> | undefined) },
   })
+
+  // Attempt one token refresh on 401, but never for the refresh endpoint itself
+  if (res.status === 401 && path !== '/auth/token/refresh/') {
+    try {
+      const newToken = await refreshAccessToken()
+      const retryHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${newToken}`,
+        ...(options.headers as Record<string, string> | undefined),
+      }
+      const retryRes = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: retryHeaders,
+      })
+
+      if (!retryRes.ok) {
+        let message = retryRes.statusText
+        try {
+          const body = await retryRes.json()
+          message = typeof body === 'string' ? body : JSON.stringify(body)
+        } catch {
+          // ignore parse error
+        }
+        throw new ApiError(retryRes.status, message)
+      }
+
+      if (retryRes.status === 204) return undefined as T
+      return retryRes.json() as Promise<T>
+    } catch (err) {
+      // Refresh failed — clear tokens and redirect to login
+      if (err instanceof ApiError && err.status !== 401) {
+        // Retry itself failed with a non-401, surface that error
+        throw err
+      }
+      clearTokens()
+      window.location.href = '/login'
+      throw err
+    }
+  }
 
   if (!res.ok) {
     let message = res.statusText

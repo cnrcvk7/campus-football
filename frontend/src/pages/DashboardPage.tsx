@@ -28,11 +28,21 @@ const COACH_FEATURES = [
     description: 'Record match results and log per-player stats: goals, assists, passes, tackles, ratings, and more.',
     href: '/coach/matches',
   },
+  {
+    icon: '📊',
+    title: 'Development Assessments',
+    description: 'Technical, tactical, physical, and mental scores tracked over time. Access via a player profile.',
+    href: '/players',
+  },
+  {
+    icon: '🎯',
+    title: 'Development Goals',
+    description: 'Coach-set goals with milestones and achievement tracking. Access via a player profile.',
+    href: '/players',
+  },
 ]
 
 const COMING_SOON = [
-  { icon: '📊', title: 'Development Assessments', description: 'Technical, tactical, physical, and mental scores tracked over time.' },
-  { icon: '🎯', title: 'Development Goals', description: 'Coach-set goals with milestones and achievement tracking.' },
   { icon: '📈', title: 'Progress Reports', description: 'Monthly summaries and team comparison insights.' },
   { icon: '🏅', title: 'Team Averages', description: 'Computed-at-query-time team benchmarks across all metrics.' },
 ]
