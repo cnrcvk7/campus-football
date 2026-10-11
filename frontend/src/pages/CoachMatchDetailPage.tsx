@@ -197,7 +197,8 @@ export default function CoachMatchDetailPage() {
                       <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Tkl</th>
                       <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">YC</th>
                       <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">RC</th>
-                      <th className="pl-3 pr-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Rating</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Rating</th>
+                      <th className="pl-3 pr-4 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -234,7 +235,7 @@ export default function CoachMatchDetailPage() {
                               <span className="inline-block h-4 w-3 rounded-sm bg-red-500" title={`${s.red_cards} red`} />
                             ) : '—'}
                           </td>
-                          <td className="pl-3 pr-4 py-3 text-center">
+                          <td className="px-3 py-3 text-center">
                             {s.rating ? (
                               <span className="inline-flex items-center justify-center rounded-full bg-brand-50 px-2 py-0.5 text-sm font-bold text-brand-700">
                                 {parseFloat(s.rating).toFixed(1)}
@@ -242,6 +243,14 @@ export default function CoachMatchDetailPage() {
                             ) : (
                               <span className="text-sm text-gray-300">—</span>
                             )}
+                          </td>
+                          <td className="pl-3 pr-4 py-3 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => navigate(`/coach/matches/${match.id}/edit-stats/${s.id}`)}
+                              className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                            >
+                              Edit
+                            </button>
                           </td>
                         </tr>
                       )

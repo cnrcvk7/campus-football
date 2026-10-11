@@ -58,4 +58,14 @@ export const matchService = {
 
   addPlayerStats: (matchId: string, data: PlayerStatsCreate): Promise<MatchStats> =>
     api.post<MatchStats>(`/matches/${matchId}/players/`, data),
+
+  getPlayerStats: (matchId: string, statsId: string): Promise<MatchStats> =>
+    api.get<MatchStats>(`/matches/${matchId}/players/${statsId}/`),
+
+  updatePlayerStats: (
+    matchId: string,
+    statsId: string,
+    data: Partial<Omit<PlayerStatsCreate, 'player'>>,
+  ): Promise<MatchStats> =>
+    api.patch<MatchStats>(`/matches/${matchId}/players/${statsId}/`, data),
 }

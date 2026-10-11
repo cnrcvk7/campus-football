@@ -7,6 +7,7 @@ import CoachMatchDetailPage from './pages/CoachMatchDetailPage'
 import CoachMatchesPage from './pages/CoachMatchesPage'
 import CreateMatchPage from './pages/CreateMatchPage'
 import EditMatchPage from './pages/EditMatchPage'
+import EditMatchPlayerStatsPage from './pages/EditMatchPlayerStatsPage'
 import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
 import CoachSessionsPage from './pages/CoachSessionsPage'
 import CreateTrainingSessionPage from './pages/CreateTrainingSessionPage'
@@ -140,6 +141,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AddMatchPlayerStatsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach/matches/:matchId/edit-stats/:statsId"
+        element={
+          <ProtectedRoute>
+            <EditMatchPlayerStatsPage />
           </ProtectedRoute>
         }
       />
