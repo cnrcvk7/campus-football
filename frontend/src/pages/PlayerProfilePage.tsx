@@ -425,30 +425,49 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
 // Development Goals
 // ---------------------------------------------------------------------------
 
-function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
-  const active = goals.filter((g) => g.status === 'ACTIVE')
+const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
+  ACTIVE:    'bg-brand-50 text-brand-600 ring-brand-200',
+  COMPLETED: 'bg-emerald-50 text-emerald-600 ring-emerald-200',
+  CANCELLED: 'bg-gray-100 text-gray-400 ring-gray-200',
+}
+
+function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId: string }) {
+  const navigate = useNavigate()
 
   return (
     <section>
-      <SectionTitle>Current Goals</SectionTitle>
-      {active.length === 0 ? (
-        <EmptyState icon="🎯" title="No active goals" description="Goals appear here once set by a coach." />
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Goals</h2>
+        <button
+          onClick={() => navigate(`/players/${playerId}/goals/new`)}
+          className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+        >
+          + New Goal
+        </button>
+      </div>
+      {goals.length === 0 ? (
+        <EmptyState icon="🎯" title="No goals yet" description="Goals appear here once set by a coach." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          {active.map((goal) => {
+          {goals.map((goal) => {
             const progress = goalProgress(goal)
             return (
               <Card key={goal.id}>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium text-gray-900">{goal.title}</p>
-                  {goal.skill_name && (
-                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                      {goal.skill_name}
-                    </span>
-                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 truncate">{goal.title}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${GOAL_STATUS_BADGE[goal.status]}`}>
+                    {goal.status.charAt(0) + goal.status.slice(1).toLowerCase()}
+                  </span>
                 </div>
+                {goal.skill_name && (
+                  <span className="mt-1.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                    {goal.skill_name}
+                  </span>
+                )}
                 {goal.description && (
-                  <p className="mt-1 text-sm text-gray-500 line-clamp-2">{goal.description}</p>
+                  <p className="mt-2 text-sm text-gray-500 line-clamp-2">{goal.description}</p>
                 )}
                 {progress !== null ? (
                   <div className="mt-4">
@@ -466,11 +485,19 @@ function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
                     </div>
                   </div>
                 ) : null}
-                {goal.target_date && (
-                  <p className="mt-3 text-xs text-gray-400">
-                    Target: {fmtDate(goal.target_date)}
-                  </p>
-                )}
+                <div className="mt-3 flex items-center justify-between">
+                  {goal.target_date ? (
+                    <p className="text-xs text-gray-400">Target: {fmtDate(goal.target_date)}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <button
+                    onClick={() => navigate(`/players/${playerId}/goals/${goal.id}/edit`)}
+                    className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Edit
+                  </button>
+                </div>
               </Card>
             )
           })}
@@ -842,8 +869,8 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
           <TrainingSummary sessions={sessions} />
         </div>
 
-        {/* Active Goals */}
-        <GoalsSection goals={goals} />
+        {/* Goals */}
+        <GoalsSection goals={goals} playerId={playerId} />
 
         {/* Match History Table */}
         <MatchHistorySection matches={matches} />
