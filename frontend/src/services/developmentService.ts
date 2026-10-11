@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Assessment, DevelopmentGoal, PaginatedResponse, Skill } from '../types'
+import type { Assessment, DevelopmentGoal, PhysicalMeasurement, PaginatedResponse, Skill } from '../types'
 
 export interface AssessmentItemInput {
   skill: string      // UUID
@@ -26,6 +26,15 @@ export interface GoalCreate {
 
 export type GoalUpdate = Partial<GoalCreate>
 
+export interface MeasurementCreate {
+  measurement_date: string
+  height_cm: string | null
+  weight_kg: string | null
+  body_fat_percentage: string | null
+  sprint_time_seconds: string | null
+  notes: string
+}
+
 export const developmentService = {
   listSkills: (): Promise<PaginatedResponse<Skill>> =>
     api.get<PaginatedResponse<Skill>>('/development/skills/?page_size=100'),
@@ -44,4 +53,7 @@ export const developmentService = {
 
   updateGoal: (playerId: string, goalId: string, data: GoalUpdate): Promise<DevelopmentGoal> =>
     api.patch<DevelopmentGoal>(`/players/${playerId}/goals/${goalId}/`, data),
+
+  createMeasurement: (playerId: string, data: MeasurementCreate): Promise<PhysicalMeasurement> =>
+    api.post<PhysicalMeasurement>(`/players/${playerId}/measurements/`, data),
 }

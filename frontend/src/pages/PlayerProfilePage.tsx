@@ -661,10 +661,24 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
 // Physical Measurements
 // ---------------------------------------------------------------------------
 
-function PhysicalMeasurementsSection({ measurements }: { measurements: PhysicalMeasurement[] }) {
-  if (measurements.length === 0) return null
+function PhysicalMeasurementsSection({
+  measurements,
+  playerId,
+}: {
+  measurements: PhysicalMeasurement[]
+  playerId: string
+}) {
+  const navigate = useNavigate()
+
+  const fields: { key: keyof PhysicalMeasurement; label: string; unit: string }[] = [
+    { key: 'height_cm', label: 'Height', unit: 'cm' },
+    { key: 'weight_kg', label: 'Weight', unit: 'kg' },
+    { key: 'body_fat_percentage', label: 'Body Fat', unit: '%' },
+    { key: 'sprint_time_seconds', label: '10m Sprint', unit: 's' },
+  ]
+
   // Timeline is chronological (earliest first) — most recent is last
-  const latest = measurements[measurements.length - 1]
+  const latest = measurements.length > 0 ? measurements[measurements.length - 1] : null
   const previous = measurements.length > 1 ? measurements[measurements.length - 2] : null
 
   function delta(curr: string | null, prev: string | null): string | null {
@@ -674,46 +688,50 @@ function PhysicalMeasurementsSection({ measurements }: { measurements: PhysicalM
     return d > 0 ? `+${d.toFixed(1)}` : d.toFixed(1)
   }
 
-  const fields: { key: keyof PhysicalMeasurement; label: string; unit: string }[] = [
-    { key: 'height_cm', label: 'Height', unit: 'cm' },
-    { key: 'weight_kg', label: 'Weight', unit: 'kg' },
-    { key: 'body_fat_percentage', label: 'Body Fat', unit: '%' },
-    { key: 'sprint_time_seconds', label: '10m Sprint', unit: 's' },
-  ]
-
-  const visibleFields = fields.filter((f) => latest[f.key] !== null)
-  if (visibleFields.length === 0) return null
+  const visibleFields = latest ? fields.filter((f) => latest[f.key] !== null) : []
 
   return (
     <section>
-      <SectionTitle>Physical Measurements</SectionTitle>
-      <Card>
-        <p className="mb-4 text-xs text-gray-400">Latest: {fmtDate(latest.measurement_date)}</p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {visibleFields.map(({ key, label, unit }) => {
-            const currVal = latest[key] as string | null
-            const prevVal = previous ? (previous[key] as string | null) : null
-            const d = delta(currVal, prevVal)
-            return (
-              <div key={key} className="rounded-xl bg-gray-50 p-4 text-center">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {currVal ? parseFloat(currVal).toFixed(1) : '—'}
-                </p>
-                <p className="text-xs text-gray-400">{unit}</p>
-                {d && (
-                  <p className={`mt-1 text-xs font-semibold ${d.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {d}
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Physical Measurements</h2>
+        <button
+          onClick={() => navigate(`/players/${playerId}/measurements/new`)}
+          className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+        >
+          + New Measurement
+        </button>
+      </div>
+      {!latest || visibleFields.length === 0 ? (
+        <EmptyState icon="📏" title="No measurements yet" description="Physical measurements appear here once recorded." />
+      ) : (
+        <Card>
+          <p className="mb-4 text-xs text-gray-400">Latest: {fmtDate(latest.measurement_date)}</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {visibleFields.map(({ key, label, unit }) => {
+              const currVal = latest[key] as string | null
+              const prevVal = previous ? (previous[key] as string | null) : null
+              const d = delta(currVal, prevVal)
+              return (
+                <div key={key} className="rounded-xl bg-gray-50 p-4 text-center">
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">
+                    {currVal ? parseFloat(currVal).toFixed(1) : '—'}
                   </p>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        {latest.notes && (
-          <p className="mt-4 text-xs text-gray-400 italic">{latest.notes}</p>
-        )}
-      </Card>
+                  <p className="text-xs text-gray-400">{unit}</p>
+                  {d && (
+                    <p className={`mt-1 text-xs font-semibold ${d.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {d}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {latest.notes && (
+            <p className="mt-4 text-xs text-gray-400 italic">{latest.notes}</p>
+          )}
+        </Card>
+      )}
     </section>
   )
 }
@@ -882,7 +900,7 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
         <DevelopmentTimeline assessments={assessments} />
 
         {/* Physical Measurements */}
-        <PhysicalMeasurementsSection measurements={measurements} />
+        <PhysicalMeasurementsSection measurements={measurements} playerId={playerId} />
 
         {/* Academy / Team History */}
         {history && (

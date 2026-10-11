@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AddAssessmentPage from './pages/AddAssessmentPage'
 import AddGoalPage from './pages/AddGoalPage'
+import AddMeasurementPage from './pages/AddMeasurementPage'
 import AddPlayerPage from './pages/AddPlayerPage'
 import EditGoalPage from './pages/EditGoalPage'
 import AddAttendancePage from './pages/AddAttendancePage'
@@ -89,6 +90,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <EditGoalPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/players/:playerId/measurements/new"
+        element={
+          <ProtectedRoute>
+            <AddMeasurementPage />
           </ProtectedRoute>
         }
       />
