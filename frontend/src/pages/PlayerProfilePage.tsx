@@ -213,14 +213,23 @@ function PlayerHeader({
 // Development Overview
 // ---------------------------------------------------------------------------
 
-function DevelopmentOverview({ assessments }: { assessments: Assessment[] }) {
+function DevelopmentOverview({ assessments, playerId }: { assessments: Assessment[]; playerId: string }) {
+  const navigate = useNavigate()
   const scores = computeCategoryScores(assessments)
   const categories: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
   const hasData = Object.keys(scores).length > 0
 
   return (
     <section>
-      <SectionTitle>Development Overview</SectionTitle>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Development Overview</h2>
+        <button
+          onClick={() => navigate(`/players/${playerId}/assessments/new`)}
+          className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
+        >
+          + New Assessment
+        </button>
+      </div>
       {!hasData ? (
         <EmptyState icon="📊" title="No assessments yet" description="Category scores appear after the first coach assessment." />
       ) : (
@@ -825,7 +834,7 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
         {/* Development Overview */}
-        <DevelopmentOverview assessments={assessments} />
+        <DevelopmentOverview assessments={assessments} playerId={playerId} />
 
         {/* Season + Training (side by side on desktop) */}
         <div className="grid gap-8 lg:grid-cols-2">
