@@ -101,13 +101,21 @@ export default function CoachSessionDetailPage() {
       <AppNav label="Training Session" />
 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        {/* Back */}
-        <button
-          onClick={() => navigate('/coach/sessions')}
-          className="mb-6 text-sm text-brand-600 hover:text-brand-700"
-        >
-          ← All sessions
-        </button>
+        {/* Back + actions */}
+        <div className="mb-6 flex items-center justify-between">
+          <button
+            onClick={() => navigate('/coach/sessions')}
+            className="text-sm text-brand-600 hover:text-brand-700"
+          >
+            ← All sessions
+          </button>
+          <button
+            onClick={() => navigate(`/coach/sessions/${session.id}/edit`)}
+            className="rounded-xl border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900"
+          >
+            Edit Session
+          </button>
+        </div>
 
         {/* Header */}
         <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">

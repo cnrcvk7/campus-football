@@ -30,6 +30,9 @@ export const trainingService = {
   createSession: (data: TrainingSessionCreate): Promise<TrainingSession> =>
     api.post<TrainingSession>('/training/sessions/', data),
 
+  updateSession: (id: string, data: Partial<TrainingSessionCreate>): Promise<TrainingSession> =>
+    api.patch<TrainingSession>(`/training/sessions/${id}/`, data),
+
   listAttendance: (sessionId: string): Promise<TrainingAttendance[]> =>
     api.get<TrainingAttendance[]>(`/training/sessions/${sessionId}/attendance/`),
 
