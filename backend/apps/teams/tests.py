@@ -1,3 +1,5 @@
+import uuid
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -9,13 +11,13 @@ from apps.users.models import User
 from .models import Team, PlayerTeamMembership
 
 
-def make_auth_user(email="team_test@example.com") -> User:
+def make_auth_user(email="team_test@example.com", role=User.Role.COACH) -> User:
     return User.objects.create_user(
         email=email,
         password="testpass123",
         first_name="Test",
         last_name="User",
-        role=User.Role.COACH,
+        role=role,
     )
 
 # ---------------------------------------------------------------------------
@@ -227,3 +229,85 @@ class TeamPlayersViewTests(APITestCase):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Team write-authorization tests
+# ---------------------------------------------------------------------------
+
+class TeamWriteAuthorizationTests(APITestCase):
+    """
+    Verify that COACH and ACADEMY_ADMIN can create/modify teams,
+    and PLAYER/PARENT cannot.
+    """
+
+    def setUp(self):
+        self.academy = make_academy(name="Auth Test Academy")
+        self.team = make_team(self.academy, name="Auth Test Team")
+        self.list_url = reverse("team-list")
+        self.detail_url = reverse("team-detail", kwargs={"pk": self.team.pk})
+        self.payload = {
+            "academy": str(self.academy.pk),
+            "name": "New Team",
+            "age_group": "U14",
+            "season": "2025/26",
+        }
+
+    def _auth(self, role: str):
+        user = make_auth_user(email=f"auth_{uuid.uuid4()}@test.com", role=role)
+        self.client.force_authenticate(user=user)
+
+    # -- POST --
+
+    def test_player_cannot_create_team(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(
+            self.client.post(self.list_url, self.payload, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_parent_cannot_create_team(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(
+            self.client.post(self.list_url, self.payload, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_coach_can_create_team(self):
+        self._auth(User.Role.COACH)
+        response = self.client.post(self.list_url, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_academy_admin_can_create_team(self):
+        self._auth(User.Role.ACADEMY_ADMIN)
+        payload = {**self.payload, "name": "Admin Team"}
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # -- PATCH --
+
+    def test_player_cannot_patch_team(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(
+            self.client.patch(self.detail_url, {"season": "2026/27"}, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_parent_cannot_patch_team(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(
+            self.client.patch(self.detail_url, {"season": "2026/27"}, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_coach_can_patch_team(self):
+        self._auth(User.Role.COACH)
+        response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["season"], "2026/27")
+
+    def test_academy_admin_can_patch_team(self):
+        self._auth(User.Role.ACADEMY_ADMIN)
+        response = self.client.patch(self.detail_url, {"age_group": "U16"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["age_group"], "U16")

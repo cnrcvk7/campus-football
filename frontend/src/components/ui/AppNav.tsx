@@ -49,6 +49,18 @@ export default function AppNav({ label }: AppNavProps) {
             {isCoach && (
               <>
                 <button
+                  onClick={() => navigate('/coach/academies')}
+                  className="text-sm text-gray-500 transition hover:text-gray-800"
+                >
+                  Academies
+                </button>
+                <button
+                  onClick={() => navigate('/coach/teams')}
+                  className="text-sm text-gray-500 transition hover:text-gray-800"
+                >
+                  Teams
+                </button>
+                <button
                   onClick={() => navigate('/coach/sessions')}
                   className="text-sm text-gray-500 transition hover:text-gray-800"
                 >

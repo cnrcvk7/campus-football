@@ -30,6 +30,18 @@ class TeamViewSet(
     serializer_class = TeamSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
+    def create(self, request, *args, **kwargs):
+        """POST /api/teams/ — COACH or ACADEMY_ADMIN only."""
+        from .permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().create(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        """PATCH /api/teams/{id}/ — COACH or ACADEMY_ADMIN only."""
+        from .permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().partial_update(request, *args, **kwargs)
+
 
 class TeamPlayersView(APIView):
     """

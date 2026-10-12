@@ -1,3 +1,5 @@
+import uuid
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -8,13 +10,13 @@ from apps.users.models import User
 from .models import Academy, PlayerAcademyMembership
 
 
-def make_auth_user(email="academy_test@example.com") -> User:
+def make_auth_user(email="academy_test@example.com", role=User.Role.ACADEMY_ADMIN) -> User:
     return User.objects.create_user(
         email=email,
         password="testpass123",
         first_name="Test",
         last_name="User",
-        role=User.Role.COACH,
+        role=role,
     )
 
 # ---------------------------------------------------------------------------
@@ -154,3 +156,81 @@ class PlayerAcademyMembershipTests(TestCase):
         serializer = PlayerAcademyMembershipSerializer(data=data)
         self.assertFalse(serializer.is_valid())
         self.assertIn("left_at", serializer.errors)
+
+
+# ---------------------------------------------------------------------------
+# Academy write-authorization tests
+# ---------------------------------------------------------------------------
+
+class AcademyWriteAuthorizationTests(APITestCase):
+    """
+    Verify that only ACADEMY_ADMIN can create or modify academies.
+    PLAYER, PARENT, and COACH must receive 403.
+    """
+
+    def setUp(self):
+        self.academy = make_academy(name="Guard Test Academy")
+        self.list_url = reverse("academy-list")
+        self.detail_url = reverse("academy-detail", kwargs={"pk": self.academy.pk})
+        self.payload = {"name": "New Academy", "city": "London", "country": "England"}
+
+    def _auth(self, role: str):
+        user = make_auth_user(email=f"auth_{uuid.uuid4()}@test.com", role=role)
+        self.client.force_authenticate(user=user)
+
+    # -- POST --
+
+    def test_player_cannot_create_academy(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(
+            self.client.post(self.list_url, self.payload, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_parent_cannot_create_academy(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(
+            self.client.post(self.list_url, self.payload, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_coach_cannot_create_academy(self):
+        self._auth(User.Role.COACH)
+        self.assertEqual(
+            self.client.post(self.list_url, self.payload, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_academy_admin_can_create_academy(self):
+        self._auth(User.Role.ACADEMY_ADMIN)
+        response = self.client.post(self.list_url, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # -- PATCH --
+
+    def test_player_cannot_patch_academy(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(
+            self.client.patch(self.detail_url, {"city": "Leeds"}, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_parent_cannot_patch_academy(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(
+            self.client.patch(self.detail_url, {"city": "Leeds"}, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_coach_cannot_patch_academy(self):
+        self._auth(User.Role.COACH)
+        self.assertEqual(
+            self.client.patch(self.detail_url, {"city": "Leeds"}, format="json").status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_academy_admin_can_patch_academy(self):
+        self._auth(User.Role.ACADEMY_ADMIN)
+        response = self.client.patch(self.detail_url, {"city": "Leeds"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "Leeds")

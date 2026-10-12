@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import AcademiesPage from './pages/AcademiesPage'
 import AddAssessmentPage from './pages/AddAssessmentPage'
 import AddGoalPage from './pages/AddGoalPage'
 import AddMeasurementPage from './pages/AddMeasurementPage'
@@ -13,6 +14,8 @@ import CoachMatchesPage from './pages/CoachMatchesPage'
 import CreateMatchPage from './pages/CreateMatchPage'
 import EditMatchPage from './pages/EditMatchPage'
 import EditMatchPlayerStatsPage from './pages/EditMatchPlayerStatsPage'
+import CreateAcademyPage from './pages/CreateAcademyPage'
+import CreateTeamPage from './pages/CreateTeamPage'
 import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
 import CoachSessionsPage from './pages/CoachSessionsPage'
 import CreateTrainingSessionPage from './pages/CreateTrainingSessionPage'
@@ -23,6 +26,7 @@ import LoginPage from './pages/LoginPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import PlayerReportPage from './pages/PlayerReportPage'
 import PlayersListPage from './pages/PlayersListPage'
+import TeamsPage from './pages/TeamsPage'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import type { ReactNode } from 'react'
 
@@ -46,6 +50,20 @@ function CoachRoute({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
   return <Navigate to="/" replace />
+}
+
+function AcademyAdminRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, user, userLoading } = useAuth()
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: window.location.pathname }} />
+  }
+  if (userLoading) {
+    return <LoadingSpinner />
+  }
+  if (user?.role === 'ACADEMY_ADMIN') {
+    return <>{children}</>
+  }
+  return <Navigate to="/coach/academies" replace />
 }
 
 function AppRoutes() {
@@ -218,6 +236,38 @@ function AppRoutes() {
         element={
           <CoachRoute>
             <EditMatchPlayerStatsPage />
+          </CoachRoute>
+        }
+      />
+      <Route
+        path="/coach/academies"
+        element={
+          <CoachRoute>
+            <AcademiesPage />
+          </CoachRoute>
+        }
+      />
+      <Route
+        path="/coach/academies/new"
+        element={
+          <AcademyAdminRoute>
+            <CreateAcademyPage />
+          </AcademyAdminRoute>
+        }
+      />
+      <Route
+        path="/coach/teams"
+        element={
+          <CoachRoute>
+            <TeamsPage />
+          </CoachRoute>
+        }
+      />
+      <Route
+        path="/coach/teams/new"
+        element={
+          <CoachRoute>
+            <CreateTeamPage />
           </CoachRoute>
         }
       />

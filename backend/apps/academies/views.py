@@ -26,3 +26,15 @@ class AcademyViewSet(
     queryset = Academy.objects.all()
     serializer_class = AcademySerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
+
+    def create(self, request, *args, **kwargs):
+        """POST /api/academies/ — ACADEMY_ADMIN only."""
+        from .permissions import require_academy_admin
+        require_academy_admin(request)
+        return super().create(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        """PATCH /api/academies/{id}/ — ACADEMY_ADMIN only."""
+        from .permissions import require_academy_admin
+        require_academy_admin(request)
+        return super().partial_update(request, *args, **kwargs)

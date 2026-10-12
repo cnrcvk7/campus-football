@@ -80,8 +80,20 @@ export interface PlayerUpdate {
 export interface Academy {
   id: string
   name: string
+  description: string
   city: string
   country: string
+  logo_url: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AcademyCreate {
+  name: string
+  description?: string
+  city?: string
+  country?: string
+  logo_url?: string
 }
 
 export interface Team {
@@ -91,6 +103,16 @@ export interface Team {
   age_group: string
   gender: string
   season: string
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamCreate {
+  academy: string
+  name: string
+  age_group?: string
+  gender?: string
+  season?: string
 }
 
 // ---------------------------------------------------------------------------
