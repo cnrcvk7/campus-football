@@ -67,3 +67,33 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}".strip()
+
+
+class ParentPlayerLink(models.Model):
+    """
+    Explicitly associates a PARENT user with a Player they are authorized to view.
+
+    Links are created by academy admins or staff via Django Admin only.
+    A parent gains no access without an explicit link — role alone is not sufficient.
+    A parent may be linked to multiple players.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    parent = models.ForeignKey(
+        "users.User",
+        on_delete=models.CASCADE,
+        related_name="linked_players",
+        limit_choices_to={"role": "PARENT"},
+    )
+    player = models.ForeignKey(
+        "players.Player",
+        on_delete=models.CASCADE,
+        related_name="parent_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "parent_player_links"
+        unique_together = [("parent", "player")]
+
+    def __str__(self) -> str:
+        return f"{self.parent.email} → {self.player}"

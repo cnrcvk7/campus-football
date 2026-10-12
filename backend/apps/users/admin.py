@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User
+from .models import ParentPlayerLink, User
 
 
 @admin.register(User)
@@ -29,3 +29,12 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     ]
+
+
+@admin.register(ParentPlayerLink)
+class ParentPlayerLinkAdmin(admin.ModelAdmin):
+    list_display = ["parent", "player", "created_at"]
+    list_filter = ["parent__role"]
+    search_fields = ["parent__email", "player__first_name", "player__last_name", "player__football_id"]
+    raw_id_fields = ["parent", "player"]
+    readonly_fields = ["id", "created_at"]

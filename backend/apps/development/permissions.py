@@ -22,7 +22,7 @@ def get_player_and_check_access(request, player_pk, require_write: bool = False)
                    Writing (create/update) is never permitted for this role.
     COACH        — can read and write any player's data.
     ACADEMY_ADMIN— can read and write any player's data.
-    PARENT       — not yet permitted (architecture reserved).
+    PARENT       — read-only access to explicitly linked players only (via ParentPlayerLink).
 
     Returns the Player instance on success.
     Raises Http404 if the player does not exist.
@@ -43,8 +43,14 @@ def get_player_and_check_access(request, player_pk, require_write: bool = False)
     elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         pass  # full read/write access
 
+    elif user.role == User.Role.PARENT:
+        from apps.users.models import ParentPlayerLink
+        if not ParentPlayerLink.objects.filter(parent=user, player=player).exists():
+            raise PermissionDenied("You are not authorized to access this player's development data.")
+        if require_write:
+            raise PermissionDenied("Parents cannot create or modify development data.")
+
     else:
-        # PARENT and any future roles — not implemented yet.
         raise PermissionDenied("Insufficient permissions to access development data.")
 
     return player

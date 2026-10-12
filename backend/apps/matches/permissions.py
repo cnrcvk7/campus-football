@@ -28,7 +28,7 @@ def get_player_and_check_match_access(request, player_pk, require_write: bool = 
     PLAYER        — can read their own match history only (no write).
     COACH         — can read and manage match data for any player.
     ACADEMY_ADMIN — can read and manage match data for any player.
-    PARENT        — architecture reserved; not implemented yet.
+    PARENT        — read-only access to explicitly linked players only (via ParentPlayerLink).
 
     Returns the Player on success.
     Raises Http404 if the player does not exist.
@@ -48,7 +48,14 @@ def get_player_and_check_match_access(request, player_pk, require_write: bool = 
     elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         pass  # full access
 
+    elif user.role == User.Role.PARENT:
+        from apps.users.models import ParentPlayerLink
+        if not ParentPlayerLink.objects.filter(parent=user, player=player).exists():
+            raise PermissionDenied("You are not authorized to access this player's data.")
+        if require_write:
+            raise PermissionDenied("Parents cannot modify this data.")
+
     else:
-        raise PermissionDenied("Insufficient permissions to access match data.")
+        raise PermissionDenied("Insufficient permissions.")
 
     return player

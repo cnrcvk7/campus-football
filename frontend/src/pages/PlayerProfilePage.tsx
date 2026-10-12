@@ -194,12 +194,18 @@ function PlayerHeader({
             </div>
 
             {/* Edit button */}
-            <div className="mt-5">
+            <div className="mt-5 flex flex-wrap gap-3">
               <button
                 onClick={() => navigate(`/players/${player.id}/edit`)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
               >
                 Edit Profile
+              </button>
+              <button
+                onClick={() => navigate(`/players/${player.id}/report`)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600/80 px-4 py-2 text-sm font-medium text-white ring-1 ring-brand-400/40 transition hover:bg-brand-600"
+              >
+                Development Report
               </button>
             </div>
           </div>

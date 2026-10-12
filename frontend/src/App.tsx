@@ -21,6 +21,7 @@ import DashboardPage from './pages/DashboardPage'
 import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
+import PlayerReportPage from './pages/PlayerReportPage'
 import PlayersListPage from './pages/PlayersListPage'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import type { ReactNode } from 'react'
@@ -81,6 +82,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <EditPlayerPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/players/:playerId/report"
+        element={
+          <ProtectedRoute>
+            <PlayerReportPage />
           </ProtectedRoute>
         }
       />
