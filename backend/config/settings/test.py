@@ -23,3 +23,12 @@ DATABASES = {
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
+
+# Use a no-op cache by default so throttles are inactive in all non-throttle
+# tests.  Throttle-specific test classes override this with @override_settings
+# to use a real LocMemCache for their isolated assertions.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}

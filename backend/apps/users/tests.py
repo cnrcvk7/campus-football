@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -252,3 +252,120 @@ class PlayerUserLinkTests(APITestCase):
         self.assertIsNotNone(response.data["player_profile"])
         self.assertIn("football_id", response.data["player_profile"])
         self.assertEqual(response.data["player_profile"]["first_name"], "Phil")
+
+
+# ---------------------------------------------------------------------------
+# Login rate-limit throttle tests
+# ---------------------------------------------------------------------------
+
+# Each test in this class uses a real LocMemCache (distinct location so it
+# does not clash with any other cache used in the process) and clears it in
+# setUp so tests are fully independent of each other.
+_THROTTLE_CACHE_SETTINGS = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "login-throttle-test",
+    }
+}
+
+
+@override_settings(CACHES=_THROTTLE_CACHE_SETTINGS)
+class LoginRateThrottleTests(APITestCase):
+    """
+    Verify that:
+    - POST /api/auth/token/ is throttled to 5 requests/minute per IP.
+    - A valid login within the limit succeeds.
+    - The 6th request within the window returns HTTP 429.
+    - POST /api/auth/token/refresh/ is never subject to the login throttle.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.user = make_user(email="throttle@test.com")
+        self.token_url = reverse("token-obtain-pair")
+        self.refresh_url = reverse("token-refresh")
+
+    def test_login_succeeds_within_limit(self):
+        """First 5 requests are allowed (valid credentials → 200 each time)."""
+        for i in range(5):
+            response = self.client.post(
+                self.token_url,
+                {"email": "throttle@test.com", "password": "securepass123"},
+                format="json",
+            )
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_200_OK,
+                msg=f"Request {i + 1} should succeed within the throttle limit",
+            )
+
+    def test_login_blocked_after_limit(self):
+        """6th request within the same minute returns 429."""
+        for _ in range(5):
+            self.client.post(
+                self.token_url,
+                {"email": "throttle@test.com", "password": "wrongpassword"},
+                format="json",
+            )
+        response = self.client.post(
+            self.token_url,
+            {"email": "throttle@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_failed_attempts_count_toward_limit(self):
+        """Invalid-credential attempts (401) consume quota; correct credentials still get 429 after limit."""
+        # 5 bad-password attempts exhaust the quota
+        for _ in range(5):
+            resp = self.client.post(
+                self.token_url,
+                {"email": "throttle@test.com", "password": "wrong"},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Even correct credentials are now blocked
+        response = self.client.post(
+            self.token_url,
+            {"email": "throttle@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_refresh_is_not_throttled(self):
+        """Token refresh is unaffected even when the login throttle is exhausted."""
+        # Obtain a valid refresh token (1st login request)
+        obtain = self.client.post(
+            self.token_url,
+            {"email": "throttle@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(obtain.status_code, status.HTTP_200_OK)
+        refresh_token = obtain.data["refresh"]
+
+        # Use up the remaining 4 login slots
+        for _ in range(4):
+            self.client.post(
+                self.token_url,
+                {"email": "throttle@test.com", "password": "wrongpassword"},
+                format="json",
+            )
+
+        # Login endpoint is now blocked
+        blocked = self.client.post(
+            self.token_url,
+            {"email": "throttle@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # Refresh endpoint is unaffected
+        response = self.client.post(
+            self.refresh_url,
+            {"refresh": refresh_token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)

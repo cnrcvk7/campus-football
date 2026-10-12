@@ -139,6 +139,11 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",
     "PAGE_SIZE": 20,
+    # Throttle rates — applied per-view, not globally.
+    # LoginRateThrottle uses the "login" scope on POST /api/auth/token/ only.
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "5/min",
+    },
 }
 
 # ---------------------------------------------------------------------------
