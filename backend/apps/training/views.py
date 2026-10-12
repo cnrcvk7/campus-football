@@ -3,6 +3,8 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.models import User
+
 from .models import Exercise, TrainingAttendance, TrainingSession, TrainingSessionExercise
 from .permissions import get_player_and_check_training_access, require_coach_or_admin
 from .serializers import (
@@ -228,6 +230,15 @@ class PlayerTrainingHistoryView(APIView):
             .order_by("-training_date", "-created_at")
             .distinct()
         )
+
+        # Coaches and academy admins can only view sessions belonging to
+        # academies they are explicitly staff of.  Players and parents already
+        # have their access scoped at the player level above; they receive the
+        # full unfiltered history.
+        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(request.user)
+            sessions = sessions.filter(academy_id__in=academy_ids)
 
         serializer = PlayerTrainingSessionSerializer(
             sessions,

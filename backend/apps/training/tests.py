@@ -419,6 +419,8 @@ class PlayerTrainingHistoryTests(APITestCase):
         self.player_user = make_user(User.Role.PLAYER, "histplayer@training.test")
         self.player = make_player(user=self.player_user)
         self.academy = make_academy()
+        # Coach must be a staff member so the academy-scoped filter returns sessions.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.client.force_authenticate(user=self.coach)
         self.url = reverse(
             "player-training-history", kwargs={"player_pk": self.player.pk}
@@ -680,3 +682,110 @@ class TrainingSessionObjectAuthorizationTests(APITestCase):
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# Player Training History — authorization tests
+# ---------------------------------------------------------------------------
+
+
+class PlayerTrainingHistoryAuthorizationTests(APITestCase):
+    """
+    Verify that COACH and ACADEMY_ADMIN callers only receive sessions from
+    academies they are staff of, even when the player attended sessions across
+    multiple academies.  PLAYER and PARENT roles receive the full unfiltered
+    history (scoped only to the target player).
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "authcoach@training.test")
+        self.admin = make_user(User.Role.ACADEMY_ADMIN, "authadmin@training.test")
+        self.academy_a = make_academy(name="Auth Academy A")
+        self.academy_b = make_academy(name="Auth Academy B")
+        # Coach and admin are staff of academy A only.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy_a)
+        # A player who attended one session in each academy.
+        self.player = make_player()
+        self.session_a = make_session(
+            self.coach, self.academy_a, title="Academy A Session"
+        )
+        self.session_b = make_session(
+            self.coach, self.academy_b, title="Academy B Session"
+        )
+        TrainingAttendance.objects.create(
+            session=self.session_a, player=self.player, status="PRESENT"
+        )
+        TrainingAttendance.objects.create(
+            session=self.session_b, player=self.player, status="PRESENT"
+        )
+        self.url = reverse(
+            "player-training-history", kwargs={"player_pk": self.player.pk}
+        )
+
+    def test_coach_in_member_academy_sees_own_academy_sessions(self):
+        """COACH with membership in academy A sees only academy A sessions."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = [s["title"] for s in response.data["sessions"]]
+        self.assertIn("Academy A Session", titles)
+        self.assertNotIn("Academy B Session", titles)
+
+    def test_coach_cannot_see_sessions_from_non_member_academy(self):
+        """COACH in academy A gets 200 but academy B sessions are excluded."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["sessions"]), 1)
+
+    def test_academy_admin_in_member_academy_sees_own_academy_sessions(self):
+        """ACADEMY_ADMIN with membership in academy A sees only academy A sessions."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = [s["title"] for s in response.data["sessions"]]
+        self.assertIn("Academy A Session", titles)
+        self.assertNotIn("Academy B Session", titles)
+
+    def test_cross_academy_isolation(self):
+        """
+        A coach from academy B only sees academy B's sessions for the same player.
+        The session from academy A is hidden from them.
+        """
+        coach_b = make_user(User.Role.COACH, "coachb_auth@training.test")
+        AcademyStaffMembership.objects.create(user=coach_b, academy=self.academy_b)
+        self.client.force_authenticate(user=coach_b)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = [s["title"] for s in response.data["sessions"]]
+        self.assertIn("Academy B Session", titles)
+        self.assertNotIn("Academy A Session", titles)
+
+    def test_staff_with_no_memberships_sees_empty_history(self):
+        """COACH with no academy memberships gets 200 with an empty sessions list."""
+        no_membership_coach = make_user(User.Role.COACH, "nomem_auth@training.test")
+        self.client.force_authenticate(user=no_membership_coach)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["sessions"], [])
+
+    def test_player_sees_all_own_sessions_across_academies(self):
+        """PLAYER sees their complete history regardless of which academy hosted the session."""
+        player_user = make_user(User.Role.PLAYER, "histplayer_auth@training.test")
+        self.player.user = player_user
+        self.player.save()
+        self.client.force_authenticate(user=player_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["sessions"]), 2)
+
+    def test_parent_sees_all_linked_player_sessions_across_academies(self):
+        """PARENT with an explicit link sees the player's full history from all academies."""
+        from apps.users.models import ParentPlayerLink
+        parent_user = make_user(User.Role.PARENT, "parent_auth@training.test")
+        ParentPlayerLink.objects.create(parent=parent_user, player=self.player)
+        self.client.force_authenticate(user=parent_user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["sessions"]), 2)
