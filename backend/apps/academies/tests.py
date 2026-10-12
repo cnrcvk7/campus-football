@@ -3,11 +3,17 @@ import uuid
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from apps.players.models import Player
 from apps.users.models import User
 from .models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+from .permissions import (
+    get_user_academy_ids,
+    require_academy_admin_of_academy,
+    require_staff_of_academy,
+)
 
 
 def make_auth_user(email="academy_test@example.com", role=User.Role.ACADEMY_ADMIN) -> User:
@@ -296,3 +302,127 @@ class AcademyStaffMembershipModelTests(TestCase):
             AcademyStaffMembership.objects.filter(user=self.user).count(), 2
         )
         self.assertNotEqual(m1.pk, m2.pk)
+
+
+# ---------------------------------------------------------------------------
+# Academy-level authorization helper tests
+# ---------------------------------------------------------------------------
+
+class AcademyStaffPermissionTests(TestCase):
+    """
+    Unit tests for the object-level academy permission helpers:
+      - get_user_academy_ids()
+      - require_staff_of_academy()
+      - require_academy_admin_of_academy()
+
+    These helpers are pure-function DB checks; no HTTP layer is involved.
+    """
+
+    def setUp(self):
+        self.academy_a = make_academy(name="Academy Alpha", city="London")
+        self.academy_b = make_academy(name="Academy Beta", city="Manchester")
+        self.coach = make_auth_user(
+            email="coach@test.com", role=User.Role.COACH
+        )
+        self.admin = make_auth_user(
+            email="admin@test.com", role=User.Role.ACADEMY_ADMIN
+        )
+        self.player_user = make_auth_user(
+            email="player@test.com", role=User.Role.PLAYER
+        )
+        self.parent_user = make_auth_user(
+            email="parent@test.com", role=User.Role.PARENT
+        )
+
+    # ------------------------------------------------------------------ #
+    # get_user_academy_ids                                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_get_ids_no_memberships_returns_empty(self):
+        """User with no staff memberships returns an empty frozenset."""
+        ids = get_user_academy_ids(self.coach)
+        self.assertEqual(ids, frozenset())
+
+    def test_get_ids_one_membership(self):
+        """User with one membership returns a frozenset containing that academy ID."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        ids = get_user_academy_ids(self.coach)
+        self.assertEqual(ids, frozenset([self.academy_a.pk]))
+
+    def test_get_ids_multiple_memberships(self):
+        """User with memberships in two academies returns both IDs."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_b)
+        ids = get_user_academy_ids(self.coach)
+        self.assertEqual(ids, frozenset([self.academy_a.pk, self.academy_b.pk]))
+
+    # ------------------------------------------------------------------ #
+    # require_staff_of_academy                                             #
+    # ------------------------------------------------------------------ #
+
+    def test_coach_with_membership_passes(self):
+        """COACH with an AcademyStaffMembership for the academy passes."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        # Must not raise
+        require_staff_of_academy(self.coach, self.academy_a.pk)
+
+    def test_academy_admin_with_membership_passes(self):
+        """ACADEMY_ADMIN with an AcademyStaffMembership for the academy passes."""
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy_a)
+        require_staff_of_academy(self.admin, self.academy_a.pk)
+
+    def test_coach_with_membership_in_other_academy_is_denied(self):
+        """COACH with a membership in academy B cannot access academy A."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_b)
+        with self.assertRaises(PermissionDenied):
+            require_staff_of_academy(self.coach, self.academy_a.pk)
+
+    def test_coach_with_no_membership_is_denied(self):
+        """COACH with no memberships at all is denied."""
+        with self.assertRaises(PermissionDenied):
+            require_staff_of_academy(self.coach, self.academy_a.pk)
+
+    def test_player_role_is_denied_before_membership_check(self):
+        """PLAYER is denied by the role check regardless of any membership."""
+        # Even if we grant membership, role check fires first and denies.
+        AcademyStaffMembership.objects.create(user=self.player_user, academy=self.academy_a)
+        with self.assertRaises(PermissionDenied):
+            require_staff_of_academy(self.player_user, self.academy_a.pk)
+
+    def test_parent_role_is_denied_before_membership_check(self):
+        """PARENT is denied by the role check regardless of any membership."""
+        AcademyStaffMembership.objects.create(user=self.parent_user, academy=self.academy_a)
+        with self.assertRaises(PermissionDenied):
+            require_staff_of_academy(self.parent_user, self.academy_a.pk)
+
+    def test_nonexistent_academy_id_is_denied(self):
+        """A non-existent academy ID is treated as a missing membership (403, not 404)."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        nonexistent_id = uuid.uuid4()
+        with self.assertRaises(PermissionDenied):
+            require_staff_of_academy(self.coach, nonexistent_id)
+
+    # ------------------------------------------------------------------ #
+    # require_academy_admin_of_academy                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_academy_admin_with_membership_passes(self):
+        """ACADEMY_ADMIN with an AcademyStaffMembership for the academy passes."""
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy_a)
+        require_academy_admin_of_academy(self.admin, self.academy_a.pk)
+
+    def test_coach_with_membership_is_denied_by_role(self):
+        """COACH is denied even when holding a membership — admin action requires ACADEMY_ADMIN."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        with self.assertRaises(PermissionDenied):
+            require_academy_admin_of_academy(self.coach, self.academy_a.pk)
+
+    def test_academy_admin_without_membership_is_denied(self):
+        """ACADEMY_ADMIN without a membership for the academy is denied."""
+        with self.assertRaises(PermissionDenied):
+            require_academy_admin_of_academy(self.admin, self.academy_a.pk)
+
+    def test_player_is_denied_by_role(self):
+        """PLAYER is denied by the role check."""
+        with self.assertRaises(PermissionDenied):
+            require_academy_admin_of_academy(self.player_user, self.academy_a.pk)
