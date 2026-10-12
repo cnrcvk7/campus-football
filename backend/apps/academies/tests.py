@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.players.models import Player
 from apps.users.models import User
-from .models import Academy, PlayerAcademyMembership
+from .models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 
 
 def make_auth_user(email="academy_test@example.com", role=User.Role.ACADEMY_ADMIN) -> User:
@@ -234,3 +234,65 @@ class AcademyWriteAuthorizationTests(APITestCase):
         response = self.client.patch(self.detail_url, {"city": "Leeds"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["city"], "Leeds")
+
+
+# ---------------------------------------------------------------------------
+# AcademyStaffMembership model tests
+# ---------------------------------------------------------------------------
+
+class AcademyStaffMembershipModelTests(TestCase):
+
+    def setUp(self):
+        self.academy = make_academy()
+        self.user = make_auth_user(role=User.Role.COACH)
+
+    def test_can_create_staff_membership(self):
+        """A staff membership linking a user to an academy can be created."""
+        membership = AcademyStaffMembership.objects.create(
+            user=self.user,
+            academy=self.academy,
+        )
+        self.assertIsNotNone(membership.pk)
+        self.assertEqual(membership.user, self.user)
+        self.assertEqual(membership.academy, self.academy)
+        self.assertIsNotNone(membership.created_at)
+
+    def test_duplicate_user_academy_raises_integrity_error(self):
+        """Creating a duplicate (user, academy) pair raises IntegrityError."""
+        from django.db import IntegrityError
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
+        with self.assertRaises(IntegrityError):
+            AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
+
+    def test_deleting_user_cascades_to_membership(self):
+        """Deleting the user removes their staff memberships."""
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
+        self.assertEqual(AcademyStaffMembership.objects.filter(academy=self.academy).count(), 1)
+        self.user.delete()
+        self.assertEqual(AcademyStaffMembership.objects.filter(academy=self.academy).count(), 0)
+
+    def test_deleting_academy_cascades_to_membership(self):
+        """Deleting the academy removes its staff memberships."""
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
+        academy_pk = self.academy.pk
+        self.academy.delete()
+        self.assertEqual(AcademyStaffMembership.objects.filter(academy_id=academy_pk).count(), 0)
+
+    def test_str_returns_expected_format(self):
+        """__str__ returns 'email → academy (role)'."""
+        membership = AcademyStaffMembership.objects.create(
+            user=self.user,
+            academy=self.academy,
+        )
+        expected = f"{self.user.email} → {self.academy.name} ({self.user.role})"
+        self.assertEqual(str(membership), expected)
+
+    def test_user_can_be_staff_at_multiple_academies(self):
+        """The same user can have memberships at different academies."""
+        academy_b = make_academy(name="Arsenal Academy", city="London")
+        m1 = AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
+        m2 = AcademyStaffMembership.objects.create(user=self.user, academy=academy_b)
+        self.assertEqual(
+            AcademyStaffMembership.objects.filter(user=self.user).count(), 2
+        )
+        self.assertNotEqual(m1.pk, m2.pk)

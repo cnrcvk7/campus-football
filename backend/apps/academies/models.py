@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 
@@ -61,3 +62,36 @@ class PlayerAcademyMembership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.player_id} @ {self.academy} (joined {self.joined_at})"
+
+
+class AcademyStaffMembership(models.Model):
+    """
+    Explicitly associates a COACH or ACADEMY_ADMIN user with a specific academy.
+
+    A user may be staff of multiple academies. Write access to academy-scoped
+    resources (teams, sessions, matches, memberships) requires both the correct
+    User.role AND an AcademyStaffMembership row for the relevant academy.
+
+    Records are created via Django Admin only (same pattern as ParentPlayerLink).
+    Self-service staff management is a Phase 2 feature.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="academy_staff_memberships",
+    )
+    academy = models.ForeignKey(
+        Academy,
+        on_delete=models.CASCADE,
+        related_name="staff_memberships",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "academy_staff_memberships"
+        unique_together = [("user", "academy")]
+
+    def __str__(self) -> str:
+        return f"{self.user.email} → {self.academy.name} ({self.user.role})"
