@@ -1076,3 +1076,171 @@ class MembershipWriteAuthorizationTests(APITestCase):
         self.client.force_authenticate(user=None)
         response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-01-01"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Player self-patch authorisation test
+#
+# Confirms that a PLAYER cannot PATCH even the Player record linked to their
+# own user account.  require_coach_or_admin fires before get_object(), so the
+# ID match between user and player is irrelevant — the role check is decisive.
+# ---------------------------------------------------------------------------
+
+class PlayerSelfPatchAuthorizationTests(APITestCase):
+    """A PLAYER cannot PATCH their own linked player record."""
+
+    def setUp(self):
+        self.p_user    = _make_user(User.Role.PLAYER, "player_sp@test.com")
+        self.own_player = _make_player(user=self.p_user)
+        self.url = reverse("player-detail", kwargs={"pk": self.own_player.pk})
+
+    def test_player_cannot_patch_own_linked_record(self):
+        """PLAYER role is rejected with 403 even when targeting their own record."""
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(self.url, {"jersey_number": 99}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.own_player.refresh_from_db()
+        self.assertIsNone(self.own_player.jersey_number)  # unchanged from initial None
+
+
+# ---------------------------------------------------------------------------
+# Membership PATCH authorisation tests
+#
+# Covers PATCH /api/players/{id}/academy-memberships/{id}/
+#         and  /api/players/{id}/team-memberships/{id}/
+#
+# Access matrix
+# ─────────────
+# COACH / ACADEMY_ADMIN → 200  +  DB record is updated
+# PLAYER / PARENT       → 403  +  DB record is unchanged
+# unauthenticated       → 401  +  DB record is unchanged
+# ---------------------------------------------------------------------------
+
+class MembershipPatchAuthorizationTests(APITestCase):
+    """Authorization tests for PATCH on academy and team membership endpoints."""
+
+    def setUp(self):
+        from apps.academies.models import Academy, PlayerAcademyMembership
+        from apps.teams.models import Team, PlayerTeamMembership
+
+        self.coach   = _make_user(User.Role.COACH,         "coach_mp@test.com")
+        self.admin   = _make_user(User.Role.ACADEMY_ADMIN, "admin_mp@test.com")
+        self.p_user  = _make_user(User.Role.PLAYER,        "player_mp@test.com")
+        self.parent  = _make_user(User.Role.PARENT,        "parent_mp@test.com")
+        self.target  = _make_player()
+        self.academy = Academy.objects.create(name="Patch Academy", city="London", country="England")
+        self.team    = Team.objects.create(
+            academy=self.academy, name="U15 Boys", age_group="U15", season="2025/26"
+        )
+        self.acad_membership = PlayerAcademyMembership.objects.create(
+            player=self.target, academy=self.academy, joined_at="2025-01-01"
+        )
+        self.team_membership = PlayerTeamMembership.objects.create(
+            player=self.target, team=self.team, joined_at="2025-01-01"
+        )
+        self.acad_patch_url = reverse(
+            "player-academy-membership-detail",
+            kwargs={"player_pk": self.target.pk, "pk": self.acad_membership.pk},
+        )
+        self.team_patch_url = reverse(
+            "player-team-membership-detail",
+            kwargs={"player_pk": self.target.pk, "pk": self.team_membership.pk},
+        )
+
+    # -- Academy membership PATCH --
+
+    def test_coach_can_patch_academy_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "left")
+
+    def test_admin_can_patch_academy_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "left")
+
+    def test_player_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+        self.assertIsNone(self.acad_membership.left_at)
+
+    def test_parent_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+        self.assertIsNone(self.acad_membership.left_at)
+
+    def test_unauthenticated_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+
+    # -- Team membership PATCH --
+
+    def test_coach_can_patch_team_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "left")
+
+    def test_admin_can_patch_team_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "left")
+
+    def test_player_cannot_patch_team_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
+        self.assertIsNone(self.team_membership.left_at)
+
+    def test_parent_cannot_patch_team_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
+        self.assertIsNone(self.team_membership.left_at)
+
+    def test_unauthenticated_cannot_patch_team_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
