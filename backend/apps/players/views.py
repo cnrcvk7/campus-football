@@ -48,6 +48,18 @@ class PlayerViewSet(
             qs = qs.filter(preferred_position=position)
         return qs
 
+    def retrieve(self, request, *args, **kwargs):
+        """
+        GET /api/players/{id}/
+
+        Overrides RetrieveModelMixin to enforce per-player read access:
+        PLAYER (own), COACH/ACADEMY_ADMIN (any), PARENT (linked only).
+        """
+        from .permissions import get_player_and_check_read_access
+        player = get_player_and_check_read_access(request, kwargs["pk"])
+        serializer = self.get_serializer(player)
+        return Response(serializer.data)
+
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):
         """
@@ -56,7 +68,8 @@ class PlayerViewSet(
         Imports are local to avoid Python-level circular dependencies between
         the players, academies, and teams apps.
         """
-        player = self.get_object()
+        from .permissions import get_player_and_check_read_access
+        player = get_player_and_check_read_access(request, pk)
 
         from apps.academies.models import PlayerAcademyMembership
         from apps.academies.serializers import PlayerAcademyMembershipHistorySerializer

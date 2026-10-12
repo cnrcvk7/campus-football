@@ -679,3 +679,140 @@ class PlayerSearchAPITests(APITestCase):
         results = self._results(response)
         last_names = [r["last_name"] for r in results]
         self.assertEqual(last_names, sorted(last_names))
+
+
+# ---------------------------------------------------------------------------
+# Per-player read authorisation tests
+#
+# Covers GET /api/players/{id}/ and GET /api/players/{id}/history/ after
+# the PlayerViewSet.retrieve and history overrides were added to enforce the
+# same access rules as the other player-scoped endpoints.
+#
+# Access matrix
+# ─────────────
+# PLAYER        own player  → 200     other player → 403
+# COACH         any player  → 200
+# ACADEMY_ADMIN any player  → 200
+# PARENT linked     player  → 200
+# PARENT unlinked   player  → 403
+# unauthenticated           → 401
+# ---------------------------------------------------------------------------
+
+def _make_user(role, email, password="testpass"):
+    return User.objects.create_user(
+        email=email, password=password,
+        first_name="Test", last_name="User", role=role,
+    )
+
+
+def _make_player(user=None):
+    p = Player.objects.create(
+        first_name="Jane", last_name="Smith",
+        date_of_birth="2006-03-10", gender="F",
+    )
+    if user is not None:
+        p.user = user
+        p.save()
+    return p
+
+
+class PlayerRetrieveAuthorizationTests(APITestCase):
+    """Authorization tests for GET /api/players/{id}/."""
+
+    def setUp(self):
+        from apps.users.models import ParentPlayerLink
+
+        self.coach     = _make_user(User.Role.COACH,         "coach_r@test.com")
+        self.admin     = _make_user(User.Role.ACADEMY_ADMIN, "admin_r@test.com")
+        self.p_user    = _make_user(User.Role.PLAYER,        "player_r@test.com")
+        self.player    = _make_player(user=self.p_user)
+        self.other     = _make_player()                    # no user link
+        self.parent    = _make_user(User.Role.PARENT,        "parent_r@test.com")
+        self.stranger  = _make_user(User.Role.PARENT,        "stranger_r@test.com")
+        ParentPlayerLink.objects.create(parent=self.parent, player=self.player)
+
+    def _url(self, player):
+        return reverse("player-detail", kwargs={"pk": player.pk})
+
+    def test_player_reads_own_record(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_read_other_record(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_reads_any_player(self):
+        self.client.force_authenticate(self.coach)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_200_OK)
+
+    def test_admin_reads_any_player(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_200_OK)
+
+    def test_linked_parent_reads_linked_player(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_200_OK)
+
+    def test_unlinked_parent_cannot_read_any_player(self):
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_linked_to_a_cannot_read_b(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_is_rejected(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PlayerHistoryAuthorizationTests(APITestCase):
+    """Authorization tests for GET /api/players/{id}/history/."""
+
+    def setUp(self):
+        from apps.users.models import ParentPlayerLink
+
+        self.coach     = _make_user(User.Role.COACH,         "coach_h@test.com")
+        self.admin     = _make_user(User.Role.ACADEMY_ADMIN, "admin_h@test.com")
+        self.p_user    = _make_user(User.Role.PLAYER,        "player_h@test.com")
+        self.player    = _make_player(user=self.p_user)
+        self.other     = _make_player()
+        self.parent    = _make_user(User.Role.PARENT,        "parent_h@test.com")
+        self.stranger  = _make_user(User.Role.PARENT,        "stranger_h@test.com")
+        ParentPlayerLink.objects.create(parent=self.parent, player=self.player)
+
+    def _url(self, player):
+        return reverse("player-history", kwargs={"pk": player.pk})
+
+    def test_player_reads_own_history(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_read_other_history(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_reads_any_history(self):
+        self.client.force_authenticate(self.coach)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_200_OK)
+
+    def test_admin_reads_any_history(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_200_OK)
+
+    def test_linked_parent_reads_linked_player_history(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_200_OK)
+
+    def test_unlinked_parent_cannot_read_any_history(self):
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_linked_to_a_cannot_read_b_history(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_is_rejected(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_401_UNAUTHORIZED)
