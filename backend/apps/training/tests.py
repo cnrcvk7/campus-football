@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.academies.models import Academy
+from apps.academies.models import Academy, AcademyStaffMembership
 from apps.development.models import Skill
 from apps.players.models import Player
 from apps.teams.models import Team
@@ -94,6 +94,7 @@ class TrainingSessionAPITests(APITestCase):
         self.coach = make_user(User.Role.COACH, "coach@training.test")
         self.academy = make_academy()
         self.team = make_team(self.academy)
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.client.force_authenticate(user=self.coach)
         self.list_url = reverse("training-session-list")
 
@@ -231,6 +232,7 @@ class SessionExerciseAPITests(APITestCase):
     def setUp(self):
         self.coach = make_user(User.Role.COACH, "secoach@training.test")
         self.academy = make_academy()
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.session = make_session(self.coach, self.academy)
         self.exercise1 = make_exercise(self.coach, name="Rondo")
         self.exercise2 = make_exercise(self.coach, name="Sprint Drill", category="PHYSICAL")
@@ -272,6 +274,7 @@ class AttendanceAPITests(APITestCase):
     def setUp(self):
         self.coach = make_user(User.Role.COACH, "attcoach@training.test")
         self.academy = make_academy()
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.session = make_session(self.coach, self.academy)
         self.player = make_player()
         self.client.force_authenticate(user=self.coach)
@@ -355,7 +358,8 @@ class TrainingPermissionTests(APITestCase):
         }
 
     def test_coach_can_create_training(self):
-        """A COACH user can POST a training session (201)."""
+        """A COACH with staff membership can POST a training session (201)."""
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.client.force_authenticate(user=self.coach)
         response = self.client.post(
             self.session_list_url, self._session_payload(), format="json"
@@ -363,7 +367,8 @@ class TrainingPermissionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_academy_admin_can_manage_training(self):
-        """ACADEMY_ADMIN can create and list training sessions."""
+        """ACADEMY_ADMIN with staff membership can create and list training sessions."""
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
         self.client.force_authenticate(user=self.admin)
         # Create
         response = self.client.post(
@@ -498,6 +503,8 @@ class TrainingSessionCoachMeFilterTests(APITestCase):
         self.coach_a = make_user(User.Role.COACH, "coach_a@training.test")
         self.coach_b = make_user(User.Role.COACH, "coach_b@training.test")
         self.academy = make_academy(name="Filter Test Academy")
+        AcademyStaffMembership.objects.create(user=self.coach_a, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.coach_b, academy=self.academy)
         self.list_url = reverse("training-session-list")
 
     def test_coach_me_returns_own_sessions_only(self):
@@ -531,3 +538,145 @@ class TrainingSessionCoachMeFilterTests(APITestCase):
         data = response.data
         results = data["results"] if isinstance(data, dict) and "results" in data else data
         self.assertEqual(len(results), 0)
+
+
+# ---------------------------------------------------------------------------
+# Object-level training session authorization tests
+# ---------------------------------------------------------------------------
+
+
+class TrainingSessionObjectAuthorizationTests(APITestCase):
+    """
+    Verify that training session access is scoped to AcademyStaffMembership.
+
+    A COACH or ACADEMY_ADMIN can only read, create, or update sessions in
+    academies they are explicitly linked to as staff.
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "objcoach@training.test")
+        self.admin = make_user(User.Role.ACADEMY_ADMIN, "objadmin@training.test")
+        self.academy_a = make_academy(name="Object Auth Academy A")
+        self.academy_b = make_academy(name="Object Auth Academy B")
+        # Coach and admin are staff of academy A only.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy_a)
+        # One session in each academy (created via ORM to bypass view auth).
+        self.session_a = make_session(self.coach, self.academy_a, title="Session in A")
+        self.session_b = make_session(self.coach, self.academy_b, title="Session in B")
+        self.list_url = reverse("training-session-list")
+        self.detail_a = reverse("training-session-detail", kwargs={"pk": self.session_a.pk})
+        self.detail_b = reverse("training-session-detail", kwargs={"pk": self.session_b.pk})
+
+    def _payload(self, academy, **overrides):
+        return {
+            "academy": str(academy.pk),
+            "title": "Test Session",
+            "training_date": "2026-10-08",
+            **overrides,
+        }
+
+    # -- CREATE --
+
+    def test_coach_with_membership_can_create_session(self):
+        """COACH with membership in academy A can create a session there (201)."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.post(self.list_url, self._payload(self.academy_a), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_coach_without_membership_cannot_create_session(self):
+        """COACH without membership in academy B cannot create a session there (403)."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.post(self.list_url, self._payload(self.academy_b), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_academy_admin_without_membership_cannot_create_session(self):
+        """ACADEMY_ADMIN without membership in academy B cannot create a session there (403)."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(self.list_url, self._payload(self.academy_b), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # -- LIST --
+
+    def test_session_list_scoped_to_member_academies(self):
+        """Session list returns only sessions in the user's member academies."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        results = data["results"] if isinstance(data, dict) and "results" in data else data
+        ids = [str(r["id"]) for r in results]
+        self.assertIn(str(self.session_a.pk), ids)
+        self.assertNotIn(str(self.session_b.pk), ids)
+
+    def test_coach_without_any_membership_sees_empty_list(self):
+        """A COACH with no memberships at all gets 200 with an empty list."""
+        no_membership_coach = make_user(User.Role.COACH, "nomem@training.test")
+        self.client.force_authenticate(user=no_membership_coach)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data
+        results = data["results"] if isinstance(data, dict) and "results" in data else data
+        self.assertEqual(len(results), 0)
+
+    # -- RETRIEVE --
+
+    def test_coach_can_retrieve_session_in_member_academy(self):
+        """Coach can retrieve a session in their member academy (200)."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.get(self.detail_a)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data["id"]), str(self.session_a.pk))
+
+    def test_coach_cannot_retrieve_session_in_nonmember_academy(self):
+        """Session in a non-member academy is not in the queryset — returns 404."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.get(self.detail_b)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # -- UPDATE --
+
+    def test_coach_can_update_session_in_member_academy(self):
+        """Coach can PATCH a session in their member academy (200)."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.patch(self.detail_a, {"location": "Pitch 1"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["location"], "Pitch 1")
+
+    def test_coach_cannot_update_session_in_nonmember_academy(self):
+        """Session in a non-member academy is not in the queryset — PATCH returns 404."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.patch(self.detail_b, {"location": "Pitch 2"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_patch_cannot_reassign_session_to_different_academy(self):
+        """PATCH with a different academy ID is silently ignored — academy is immutable."""
+        self.client.force_authenticate(user=self.coach)
+        response = self.client.patch(
+            self.detail_a, {"academy": str(self.academy_b.pk)}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # The session must still belong to academy A.
+        self.assertEqual(str(response.data["academy"]), str(self.academy_a.pk))
+
+    # -- NESTED RESOURCES (exercises & attendance) --
+
+    def test_session_exercises_blocked_without_membership(self):
+        """Accessing session exercises for a non-member academy returns 403."""
+        self.client.force_authenticate(user=self.coach)
+        url = reverse(
+            "training-session-exercise-list",
+            kwargs={"session_pk": self.session_b.pk},
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_session_attendance_blocked_without_membership(self):
+        """Accessing session attendance for a non-member academy returns 403."""
+        self.client.force_authenticate(user=self.coach)
+        url = reverse(
+            "training-attendance-list",
+            kwargs={"session_pk": self.session_b.pk},
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

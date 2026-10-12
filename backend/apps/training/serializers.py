@@ -135,6 +135,13 @@ class TrainingSessionWriteSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
+    def get_fields(self):
+        fields = super().get_fields()
+        # Prevent cross-academy reassignment: academy is immutable after creation.
+        if self.instance is not None:
+            fields["academy"].read_only = True
+        return fields
+
     def validate(self, data):
         # Resolve effective values (existing instance values for partial updates)
         team = data.get("team", getattr(self.instance, "team", None))

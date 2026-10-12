@@ -80,8 +80,10 @@ class TrainingSessionViewSet(
 
     def get_queryset(self):
         require_coach_or_admin(self.request)
+        from apps.academies.permissions import get_user_academy_ids
+        academy_ids = get_user_academy_ids(self.request.user)
         qs = (
-            TrainingSession.objects.all()
+            TrainingSession.objects.filter(academy_id__in=academy_ids)
             .select_related("academy", "team", "coach")
             .prefetch_related("focus_skills", "session_exercises__exercise")
             .order_by("-training_date", "-created_at")
@@ -90,12 +92,16 @@ class TrainingSessionViewSet(
             qs = qs.filter(coach=self.request.user)
         return qs
 
+    def create(self, request, *args, **kwargs):
+        """POST /api/training/sessions/ — COACH or ACADEMY_ADMIN with staff membership."""
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(request.user, request.data.get("academy"))
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        require_coach_or_admin(self.request)
         serializer.save(coach=self.request.user)
 
     def perform_update(self, serializer):
-        require_coach_or_admin(self.request)
         serializer.save()
 
 
@@ -114,7 +120,10 @@ class SessionExerciseViewSet(viewsets.GenericViewSet):
 
     def _get_session(self) -> TrainingSession:
         require_coach_or_admin(self.request)
-        return get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
+        session = get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(self.request.user, session.academy_id)
+        return session
 
     def list(self, request, session_pk=None):
         session = self._get_session()
@@ -154,7 +163,10 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     def _get_session(self) -> TrainingSession:
         require_coach_or_admin(self.request)
-        return get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
+        session = get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(self.request.user, session.academy_id)
+        return session
 
     def list(self, request, session_pk=None):
         session = self._get_session()
