@@ -1,20 +1,30 @@
 """
-Player-domain permission helper.
+Player-domain permission helpers.
 
 Follows the same pattern as:
   apps.development.permissions.get_player_and_check_access
   apps.matches.permissions.get_player_and_check_match_access
   apps.training.permissions.get_player_and_check_training_access
-
-Used by PlayerViewSet.retrieve and PlayerViewSet.history to enforce
-consistent read-access rules on the two player-scoped GET endpoints
-that were previously guarded only by global IsAuthenticated.
 """
 
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 
 from apps.users.models import User
+
+
+def require_coach_or_admin(request) -> None:
+    """
+    Raise PermissionDenied if the requesting user is not COACH or ACADEMY_ADMIN.
+
+    Call this at the start of any view method that creates, updates, or deletes
+    player data (player records, academy memberships, team memberships).
+    """
+    user = request.user
+    if user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        raise PermissionDenied(
+            "Only coaches and academy admins can manage player data."
+        )
 
 
 def get_player_and_check_read_access(request, player_pk):

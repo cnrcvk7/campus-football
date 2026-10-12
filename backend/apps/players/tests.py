@@ -816,3 +816,431 @@ class PlayerHistoryAuthorizationTests(APITestCase):
     def test_unauthenticated_is_rejected(self):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Player list authorisation tests
+#
+# Covers GET /api/players/ queryset filtering added to get_queryset().
+#
+# Access matrix
+# ─────────────
+# COACH / ACADEMY_ADMIN → all players
+# PLAYER                → own player record only (filtered by user=request.user)
+# PARENT                → linked players only (filtered via ParentPlayerLink)
+# unauthenticated       → 401
+# ---------------------------------------------------------------------------
+
+class PlayerListAuthorizationTests(APITestCase):
+    """Authorization and queryset-filtering tests for GET /api/players/."""
+
+    def setUp(self):
+        from apps.users.models import ParentPlayerLink
+
+        self.coach    = _make_user(User.Role.COACH,         "coach_l@test.com")
+        self.admin    = _make_user(User.Role.ACADEMY_ADMIN, "admin_l@test.com")
+        self.p_user   = _make_user(User.Role.PLAYER,        "player_l@test.com")
+        self.player_a = _make_player(user=self.p_user)   # linked to p_user
+        self.player_b = _make_player()                   # unlinked
+        self.parent   = _make_user(User.Role.PARENT,        "parent_l@test.com")
+        ParentPlayerLink.objects.create(parent=self.parent, player=self.player_a)
+
+        self.list_url = reverse("player-list")
+
+    def _results(self, response):
+        data = response.data
+        return data["results"] if isinstance(data, dict) and "results" in data else data
+
+    def test_coach_sees_all_players(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [str(r["id"]) for r in self._results(response)]
+        self.assertIn(str(self.player_a.pk), ids)
+        self.assertIn(str(self.player_b.pk), ids)
+
+    def test_admin_sees_all_players(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [str(r["id"]) for r in self._results(response)]
+        self.assertIn(str(self.player_a.pk), ids)
+        self.assertIn(str(self.player_b.pk), ids)
+
+    def test_player_sees_only_own_record(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [str(r["id"]) for r in self._results(response)]
+        self.assertIn(str(self.player_a.pk), ids)
+        self.assertNotIn(str(self.player_b.pk), ids)
+
+    def test_player_with_no_linked_record_sees_empty_list(self):
+        unlinked = _make_user(User.Role.PLAYER, "player_nolink_l@test.com")
+        self.client.force_authenticate(unlinked)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(response)), 0)
+
+    def test_parent_sees_only_linked_players(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [str(r["id"]) for r in self._results(response)]
+        self.assertIn(str(self.player_a.pk), ids)
+        self.assertNotIn(str(self.player_b.pk), ids)
+
+    def test_parent_with_no_links_sees_empty_list(self):
+        unlinked_parent = _make_user(User.Role.PARENT, "parent_nolink_l@test.com")
+        self.client.force_authenticate(unlinked_parent)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(self._results(response)), 0)
+
+    def test_unauthenticated_is_rejected(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Player write authorisation tests
+#
+# Covers POST /api/players/, PATCH /api/players/{id}/, DELETE /api/players/{id}/
+#
+# Access matrix
+# ─────────────
+# COACH / ACADEMY_ADMIN → allowed (201 / 200 / 204)
+# PLAYER / PARENT       → 403
+# unauthenticated       → 401
+# ---------------------------------------------------------------------------
+
+class PlayerWriteAuthorizationTests(APITestCase):
+    """Authorization tests for POST, PATCH, DELETE /api/players/{id}/."""
+
+    def setUp(self):
+        self.coach   = _make_user(User.Role.COACH,         "coach_w@test.com")
+        self.admin   = _make_user(User.Role.ACADEMY_ADMIN, "admin_w@test.com")
+        self.p_user  = _make_user(User.Role.PLAYER,        "player_w@test.com")
+        self.parent  = _make_user(User.Role.PARENT,        "parent_w@test.com")
+        self.target  = _make_player()
+        self.list_url   = reverse("player-list")
+        self.detail_url = reverse("player-detail", kwargs={"pk": self.target.pk})
+
+    # -- POST --
+
+    def test_coach_can_create_player(self):
+        self.client.force_authenticate(self.coach)
+        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_201_CREATED)
+
+    def test_admin_can_create_player(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_201_CREATED)
+
+    def test_player_cannot_create_player(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_create_player(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_create_player(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # -- PATCH --
+
+    def test_coach_can_update_player(self):
+        self.client.force_authenticate(self.coach)
+        self.assertEqual(self.client.patch(self.detail_url, {"jersey_number": 9}, format="json").status_code, status.HTTP_200_OK)
+
+    def test_admin_can_update_player(self):
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.patch(self.detail_url, {"jersey_number": 7}, format="json").status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_update_player(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.patch(self.detail_url, {"jersey_number": 9}, format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_update_player(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.patch(self.detail_url, {"jersey_number": 9}, format="json").status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_update_player(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.patch(self.detail_url, {"jersey_number": 9}, format="json").status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # -- DELETE --
+
+    def test_coach_can_delete_player(self):
+        self.client.force_authenticate(self.coach)
+        player = _make_player()
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_admin_can_delete_player(self):
+        self.client.force_authenticate(self.admin)
+        player = _make_player()
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_player_cannot_delete_player(self):
+        self.client.force_authenticate(self.p_user)
+        self.assertEqual(self.client.delete(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_delete_player(self):
+        self.client.force_authenticate(self.parent)
+        self.assertEqual(self.client.delete(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_delete_player(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.delete(self.detail_url).status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Membership write authorisation tests
+#
+# Covers POST /api/players/{id}/academy-memberships/
+#         and /api/players/{id}/team-memberships/
+#
+# Access matrix
+# ─────────────
+# COACH / ACADEMY_ADMIN → 201
+# PLAYER / PARENT       → 403
+# unauthenticated       → 401
+# ---------------------------------------------------------------------------
+
+class MembershipWriteAuthorizationTests(APITestCase):
+    """Authorization tests for membership create endpoints."""
+
+    def setUp(self):
+        from apps.academies.models import Academy
+        from apps.teams.models import Team
+
+        self.coach   = _make_user(User.Role.COACH,         "coach_ma@test.com")
+        self.admin   = _make_user(User.Role.ACADEMY_ADMIN, "admin_ma@test.com")
+        self.p_user  = _make_user(User.Role.PLAYER,        "player_ma@test.com")
+        self.parent  = _make_user(User.Role.PARENT,        "parent_ma@test.com")
+        self.target  = _make_player()
+        self.academy = Academy.objects.create(name="Auth Academy", city="London", country="England")
+        self.team    = Team.objects.create(academy=self.academy, name="U14 Boys", age_group="U14", season="2025/26")
+        self.acad_url = reverse("player-academy-membership-list", kwargs={"player_pk": self.target.pk})
+        self.team_url = reverse("player-team-membership-list",    kwargs={"player_pk": self.target.pk})
+
+    def test_coach_can_create_academy_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.post(self.acad_url, {"academy": str(self.academy.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_admin_can_create_academy_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.acad_url, {"academy": str(self.academy.pk), "joined_at": "2026-02-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_cannot_create_academy_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.post(self.acad_url, {"academy": str(self.academy.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_create_academy_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.post(self.acad_url, {"academy": str(self.academy.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_create_academy_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.acad_url, {"academy": str(self.academy.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_coach_can_create_team_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_admin_can_create_team_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-02-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_cannot_create_team_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_create_team_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_cannot_create_team_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.team_url, {"team": str(self.team.pk), "joined_at": "2026-01-01"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Player self-patch authorisation test
+#
+# Confirms that a PLAYER cannot PATCH even the Player record linked to their
+# own user account.  require_coach_or_admin fires before get_object(), so the
+# ID match between user and player is irrelevant — the role check is decisive.
+# ---------------------------------------------------------------------------
+
+class PlayerSelfPatchAuthorizationTests(APITestCase):
+    """A PLAYER cannot PATCH their own linked player record."""
+
+    def setUp(self):
+        self.p_user    = _make_user(User.Role.PLAYER, "player_sp@test.com")
+        self.own_player = _make_player(user=self.p_user)
+        self.url = reverse("player-detail", kwargs={"pk": self.own_player.pk})
+
+    def test_player_cannot_patch_own_linked_record(self):
+        """PLAYER role is rejected with 403 even when targeting their own record."""
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(self.url, {"jersey_number": 99}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.own_player.refresh_from_db()
+        self.assertIsNone(self.own_player.jersey_number)  # unchanged from initial None
+
+
+# ---------------------------------------------------------------------------
+# Membership PATCH authorisation tests
+#
+# Covers PATCH /api/players/{id}/academy-memberships/{id}/
+#         and  /api/players/{id}/team-memberships/{id}/
+#
+# Access matrix
+# ─────────────
+# COACH / ACADEMY_ADMIN → 200  +  DB record is updated
+# PLAYER / PARENT       → 403  +  DB record is unchanged
+# unauthenticated       → 401  +  DB record is unchanged
+# ---------------------------------------------------------------------------
+
+class MembershipPatchAuthorizationTests(APITestCase):
+    """Authorization tests for PATCH on academy and team membership endpoints."""
+
+    def setUp(self):
+        from apps.academies.models import Academy, PlayerAcademyMembership
+        from apps.teams.models import Team, PlayerTeamMembership
+
+        self.coach   = _make_user(User.Role.COACH,         "coach_mp@test.com")
+        self.admin   = _make_user(User.Role.ACADEMY_ADMIN, "admin_mp@test.com")
+        self.p_user  = _make_user(User.Role.PLAYER,        "player_mp@test.com")
+        self.parent  = _make_user(User.Role.PARENT,        "parent_mp@test.com")
+        self.target  = _make_player()
+        self.academy = Academy.objects.create(name="Patch Academy", city="London", country="England")
+        self.team    = Team.objects.create(
+            academy=self.academy, name="U15 Boys", age_group="U15", season="2025/26"
+        )
+        self.acad_membership = PlayerAcademyMembership.objects.create(
+            player=self.target, academy=self.academy, joined_at="2025-01-01"
+        )
+        self.team_membership = PlayerTeamMembership.objects.create(
+            player=self.target, team=self.team, joined_at="2025-01-01"
+        )
+        self.acad_patch_url = reverse(
+            "player-academy-membership-detail",
+            kwargs={"player_pk": self.target.pk, "pk": self.acad_membership.pk},
+        )
+        self.team_patch_url = reverse(
+            "player-team-membership-detail",
+            kwargs={"player_pk": self.target.pk, "pk": self.team_membership.pk},
+        )
+
+    # -- Academy membership PATCH --
+
+    def test_coach_can_patch_academy_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "left")
+
+    def test_admin_can_patch_academy_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "left")
+
+    def test_player_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+        self.assertIsNone(self.acad_membership.left_at)
+
+    def test_parent_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+        self.assertIsNone(self.acad_membership.left_at)
+
+    def test_unauthenticated_cannot_patch_academy_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(
+            self.acad_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.acad_membership.refresh_from_db()
+        self.assertEqual(self.acad_membership.status, "active")
+
+    # -- Team membership PATCH --
+
+    def test_coach_can_patch_team_membership(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "left")
+
+    def test_admin_can_patch_team_membership(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "left")
+
+    def test_player_cannot_patch_team_membership(self):
+        self.client.force_authenticate(self.p_user)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
+        self.assertIsNone(self.team_membership.left_at)
+
+    def test_parent_cannot_patch_team_membership(self):
+        self.client.force_authenticate(self.parent)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
+        self.assertIsNone(self.team_membership.left_at)
+
+    def test_unauthenticated_cannot_patch_team_membership(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(
+            self.team_patch_url, {"left_at": "2025-12-31", "status": "left"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.team_membership.refresh_from_db()
+        self.assertEqual(self.team_membership.status, "active")
