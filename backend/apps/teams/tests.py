@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.academies.models import Academy
+from apps.academies.models import Academy, AcademyStaffMembership
 from apps.players.models import Player
 from apps.users.models import User
 from .models import Team, PlayerTeamMembership
@@ -57,6 +57,8 @@ class TeamAPITests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.academy = make_academy()
         self.team = make_team(self.academy)
+        # POST and PATCH now require staff membership; create it so write tests pass.
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.list_url = reverse("team-list")
         self.detail_url = reverse("team-detail", kwargs={"pk": self.team.pk})
 
@@ -74,15 +76,19 @@ class TeamAPITests(APITestCase):
         self.assertEqual(response.data["name"], "U12 Girls")
 
     def test_team_must_reference_existing_academy(self):
-        """POST with a non-existent academy UUID must fail validation."""
+        """POST with a non-existent academy UUID returns 403.
+
+        The staff-membership check treats 'not your academy' and 'non-existent
+        academy' identically — both result in no membership row, so the user
+        receives 403 rather than 400.  This avoids leaking which academy IDs exist.
+        """
         import uuid
         payload = {
             "academy": str(uuid.uuid4()),
             "name": "Orphan Team",
         }
         response = self.client.post(self.list_url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("academy", response.data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_team_list(self):
         """GET /api/teams/ returns at least one team."""
@@ -237,8 +243,11 @@ class TeamPlayersViewTests(APITestCase):
 
 class TeamWriteAuthorizationTests(APITestCase):
     """
-    Verify that COACH and ACADEMY_ADMIN can create/modify teams,
-    and PLAYER/PARENT cannot.
+    Verify team write authorization.
+
+    POST (create): COACH or ACADEMY_ADMIN AND AcademyStaffMembership for the target academy.
+    PATCH (update): COACH or ACADEMY_ADMIN AND AcademyStaffMembership for the team's academy.
+    PLAYER and PARENT are denied by the role check before any membership query.
     """
 
     def setUp(self):
@@ -253,9 +262,10 @@ class TeamWriteAuthorizationTests(APITestCase):
             "season": "2025/26",
         }
 
-    def _auth(self, role: str):
+    def _auth(self, role: str) -> User:
         user = make_auth_user(email=f"auth_{uuid.uuid4()}@test.com", role=role)
         self.client.force_authenticate(user=user)
+        return user
 
     # -- POST --
 
@@ -273,16 +283,32 @@ class TeamWriteAuthorizationTests(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
 
-    def test_coach_can_create_team(self):
-        self._auth(User.Role.COACH)
+    def test_coach_with_membership_can_create_team(self):
+        user = self._auth(User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         response = self.client.post(self.list_url, self.payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_academy_admin_can_create_team(self):
-        self._auth(User.Role.ACADEMY_ADMIN)
+    def test_academy_admin_with_membership_can_create_team(self):
+        user = self._auth(User.Role.ACADEMY_ADMIN)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         payload = {**self.payload, "name": "Admin Team"}
         response = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_coach_without_membership_cannot_create_team(self):
+        """COACH role alone is not enough — membership for the target academy is required."""
+        self._auth(User.Role.COACH)
+        response = self.client.post(self.list_url, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_of_other_academy_cannot_create_team_here(self):
+        """COACH with membership in a different academy cannot create a team in this one."""
+        other_academy = make_academy(name="Other Academy", city="Bristol")
+        user = self._auth(User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=user, academy=other_academy)
+        response = self.client.post(self.list_url, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # -- PATCH --
 
@@ -300,14 +326,30 @@ class TeamWriteAuthorizationTests(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
 
-    def test_coach_can_patch_team(self):
-        self._auth(User.Role.COACH)
+    def test_coach_with_membership_can_patch_team(self):
+        user = self._auth(User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["season"], "2026/27")
 
-    def test_academy_admin_can_patch_team(self):
-        self._auth(User.Role.ACADEMY_ADMIN)
+    def test_academy_admin_with_membership_can_patch_team(self):
+        user = self._auth(User.Role.ACADEMY_ADMIN)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         response = self.client.patch(self.detail_url, {"age_group": "U16"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["age_group"], "U16")
+
+    def test_coach_without_membership_cannot_patch_team(self):
+        """COACH role alone is not enough — membership for the team's academy is required."""
+        self._auth(User.Role.COACH)
+        response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_of_other_academy_cannot_patch_team_here(self):
+        """COACH with membership in a different academy cannot patch a team in this one."""
+        other_academy = make_academy(name="Other Academy 2", city="Leeds")
+        user = self._auth(User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=user, academy=other_academy)
+        response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

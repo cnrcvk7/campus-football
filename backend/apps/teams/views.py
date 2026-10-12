@@ -31,16 +31,22 @@ class TeamViewSet(
     http_method_names = ["get", "post", "patch", "head", "options"]
 
     def create(self, request, *args, **kwargs):
-        """POST /api/teams/ — COACH or ACADEMY_ADMIN only."""
-        from .permissions import require_coach_or_admin
-        require_coach_or_admin(request)
+        """POST /api/teams/ — COACH or ACADEMY_ADMIN with staff membership for the target academy."""
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(request.user, request.data.get("academy"))
         return super().create(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
-        """PATCH /api/teams/{id}/ — COACH or ACADEMY_ADMIN only."""
-        from .permissions import require_coach_or_admin
-        require_coach_or_admin(request)
-        return super().partial_update(request, *args, **kwargs)
+        """PATCH /api/teams/{id}/ — COACH or ACADEMY_ADMIN with staff membership for this team's academy."""
+        from apps.academies.permissions import require_staff_of_academy
+        instance = self.get_object()
+        require_staff_of_academy(request.user, instance.academy_id)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, "_prefetched_objects_cache", None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
 
 
 class TeamPlayersView(APIView):

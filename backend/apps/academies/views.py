@@ -34,7 +34,7 @@ class AcademyViewSet(
         return super().create(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
-        """PATCH /api/academies/{id}/ — ACADEMY_ADMIN only."""
-        from .permissions import require_academy_admin
-        require_academy_admin(request)
+        """PATCH /api/academies/{id}/ — ACADEMY_ADMIN with staff membership for this academy."""
+        from .permissions import require_academy_admin_of_academy
+        require_academy_admin_of_academy(request.user, kwargs["pk"])
         return super().partial_update(request, *args, **kwargs)

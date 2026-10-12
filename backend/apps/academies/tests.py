@@ -61,6 +61,8 @@ class AcademyAPITests(APITestCase):
         self.user = make_auth_user()
         self.client.force_authenticate(user=self.user)
         self.academy = make_academy()
+        # PATCH now requires staff membership; create it so update tests pass.
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.list_url = reverse("academy-list")
         self.detail_url = reverse("academy-detail", kwargs={"pk": self.academy.pk})
 
@@ -170,8 +172,12 @@ class PlayerAcademyMembershipTests(TestCase):
 
 class AcademyWriteAuthorizationTests(APITestCase):
     """
-    Verify that only ACADEMY_ADMIN can create or modify academies.
-    PLAYER, PARENT, and COACH must receive 403.
+    Verify academy write authorization.
+
+    POST (create): role-only — ACADEMY_ADMIN only, no membership required
+                   (bootstrapping: the academy does not yet exist).
+    PATCH (update): object-level — ACADEMY_ADMIN AND AcademyStaffMembership
+                   for the target academy.
     """
 
     def setUp(self):
@@ -180,9 +186,10 @@ class AcademyWriteAuthorizationTests(APITestCase):
         self.detail_url = reverse("academy-detail", kwargs={"pk": self.academy.pk})
         self.payload = {"name": "New Academy", "city": "London", "country": "England"}
 
-    def _auth(self, role: str):
+    def _auth(self, role: str) -> User:
         user = make_auth_user(email=f"auth_{uuid.uuid4()}@test.com", role=role)
         self.client.force_authenticate(user=user)
+        return user
 
     # -- POST --
 
@@ -235,11 +242,26 @@ class AcademyWriteAuthorizationTests(APITestCase):
             status.HTTP_403_FORBIDDEN,
         )
 
-    def test_academy_admin_can_patch_academy(self):
-        self._auth(User.Role.ACADEMY_ADMIN)
+    def test_academy_admin_with_membership_can_patch_academy(self):
+        user = self._auth(User.Role.ACADEMY_ADMIN)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         response = self.client.patch(self.detail_url, {"city": "Leeds"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["city"], "Leeds")
+
+    def test_academy_admin_without_membership_cannot_patch_academy(self):
+        """ACADEMY_ADMIN role alone is not enough — membership is also required for PATCH."""
+        self._auth(User.Role.ACADEMY_ADMIN)
+        response = self.client.patch(self.detail_url, {"city": "Leeds"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_academy_admin_of_other_academy_cannot_patch_this_academy(self):
+        """An ACADEMY_ADMIN with a membership in a different academy cannot patch this one."""
+        other_academy = make_academy(name="Other Academy", city="Bristol")
+        user = self._auth(User.Role.ACADEMY_ADMIN)
+        AcademyStaffMembership.objects.create(user=user, academy=other_academy)
+        response = self.client.patch(self.detail_url, {"city": "Leeds"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 # ---------------------------------------------------------------------------
