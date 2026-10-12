@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../services/api'
+import { resolveDestination } from '../utils/resolveDestination'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -19,8 +20,8 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await login(email, password)
-      navigate(from, { replace: true })
+      const user = await login(email, password)
+      navigate(resolveDestination(user, from), { replace: true })
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('Invalid email or password.')

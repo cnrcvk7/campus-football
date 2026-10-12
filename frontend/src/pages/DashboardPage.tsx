@@ -15,6 +15,15 @@ const PLAYER_FEATURES = [
   },
 ]
 
+const PARENT_FEATURES = [
+  {
+    icon: '👨‍👧',
+    title: 'My Children',
+    description: 'View your child\'s player profile, development report, training attendance, and match history.',
+    href: '/players',
+  },
+]
+
 const COACH_FEATURES = [
   {
     icon: '🏃',
@@ -86,7 +95,11 @@ function FeatureCard({
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+
+  const isCoach = user?.role === 'COACH' || user?.role === 'ACADEMY_ADMIN'
+  const isParent = user?.role === 'PARENT'
+  const isPlayer = user?.role === 'PLAYER'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -118,20 +131,24 @@ export default function DashboardPage() {
                   onClick={() => navigate('/players')}
                   className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-900 transition hover:bg-gray-100"
                 >
-                  View Players →
+                  {isPlayer || isParent ? 'My Players →' : 'View Players →'}
                 </button>
-                <button
-                  onClick={() => navigate('/coach/sessions')}
-                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
-                >
-                  Training Sessions
-                </button>
-                <button
-                  onClick={() => navigate('/coach/matches')}
-                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
-                >
-                  Matches
-                </button>
+                {isCoach && (
+                  <>
+                    <button
+                      onClick={() => navigate('/coach/sessions')}
+                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+                    >
+                      Training Sessions
+                    </button>
+                    <button
+                      onClick={() => navigate('/coach/matches')}
+                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+                    >
+                      Matches
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -150,29 +167,47 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* ── Parent: My Children ── */}
+        {isParent && (
+          <section>
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+              My Children
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PARENT_FEATURES.map((f) => (
+                <FeatureCard key={f.title} {...f} isAuthenticated={isAuthenticated} />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ── Players ── */}
-        <section>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Players
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {PLAYER_FEATURES.map((f) => (
-              <FeatureCard key={f.title} {...f} isAuthenticated={isAuthenticated} />
-            ))}
-          </div>
-        </section>
+        {!isParent && (
+          <section>
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+              Players
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PLAYER_FEATURES.map((f) => (
+                <FeatureCard key={f.title} {...f} isAuthenticated={isAuthenticated} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Coach tools ── */}
-        <section>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Coach Tools
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {COACH_FEATURES.map((f) => (
-              <FeatureCard key={f.title} {...f} isAuthenticated={isAuthenticated} />
-            ))}
-          </div>
-        </section>
+        {(isCoach || !isAuthenticated) && (
+          <section>
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+              Coach Tools
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {COACH_FEATURES.map((f) => (
+                <FeatureCard key={f.title} {...f} isAuthenticated={isAuthenticated} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Coming soon ── */}
         <section>

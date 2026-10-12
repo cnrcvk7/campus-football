@@ -14,7 +14,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   user: AuthUser | null
   userLoading: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthUser>
   logout: () => void
 }
 
@@ -28,7 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Start loading only if we already have a token (need to fetch user)
   const [userLoading, setUserLoading] = useState<boolean>(() => !!getToken())
 
-  // Fetch /api/auth/me/ whenever we become authenticated
+  // Fetch /api/auth/me/ on page-load when a stored token is present.
+  // During login() we fetch /auth/me/ ourselves before setting isAuthenticated,
+  // so this effect fires a second time in that path — the redundant fetch is
+  // harmless (same response) and keeps the page-reload path working correctly.
   useEffect(() => {
     if (!isAuthenticated) {
       setUser(null)
@@ -48,10 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [isAuthenticated])
 
-  const login = useCallback(async (email: string, password: string) => {
+  /**
+   * Authenticate with email/password.
+   *
+   * Fetches /auth/me/ before resolving so callers can immediately read the
+   * user's role and player_profile for redirect logic — without waiting for
+   * the async useEffect above to complete.
+   */
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const tokens = await api.post<AuthTokens>('/auth/token/', { email, password })
     setTokens(tokens.access, tokens.refresh)
+    const u = await api.get<AuthUser>('/auth/me/')
+    setUser(u)
     setIsAuthenticated(true)
+    return u
   }, [])
 
   const logout = useCallback(() => {
