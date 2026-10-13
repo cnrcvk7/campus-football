@@ -5,10 +5,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.academies.models import Academy
+from apps.academies.models import Academy, AcademyStaffMembership
 from apps.players.models import Player
 from apps.teams.models import Team
-from apps.users.models import User
+from apps.users.models import ParentPlayerLink, User
 
 from .models import Match, MatchPlayerStats
 
@@ -43,6 +43,10 @@ def make_player(user=None, first_name="John", last_name="Doe") -> Player:
 
 def make_academy(name="Test Academy") -> Academy:
     return Academy.objects.create(name=name, city="London", country="England")
+
+
+def make_staff_membership(user: User, academy: Academy) -> AcademyStaffMembership:
+    return AcademyStaffMembership.objects.create(user=user, academy=academy)
 
 
 def make_team(academy: Academy, name="U15 Boys") -> Team:
@@ -86,6 +90,7 @@ class MatchAPITests(APITestCase):
         self.coach = make_user(User.Role.COACH, "coach@test.com")
         self.academy = make_academy()
         self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
         self.client.force_authenticate(user=self.coach)
         self.list_url = reverse("match-list")
 
@@ -190,6 +195,7 @@ class MatchPlayerStatsTests(APITestCase):
         self.coach = make_user(User.Role.COACH, "coach2@test.com")
         self.academy = make_academy("Stats Academy")
         self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
         self.player = make_player()
         self.match = make_match(self.coach, self.academy, self.team)
         self.client.force_authenticate(user=self.coach)
@@ -277,6 +283,8 @@ class MatchPermissionTests(APITestCase):
         self.other_player = make_player(user=self.other_player_user, first_name="Jane")
         self.academy = make_academy("Perm Academy")
         self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
+        make_staff_membership(self.admin, self.academy)
         self.match = make_match(self.coach, self.academy, self.team)
         self.list_url = reverse("match-list")
 
@@ -356,6 +364,7 @@ class PlayerMatchHistoryTests(APITestCase):
         self.player = make_player(user=self.player_user)
         self.academy = make_academy("History Academy")
         self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
         self.match = make_match(
             self.coach, self.academy, self.team,
             team_score=3, opponent_score=1
@@ -418,6 +427,7 @@ class PlayerMatchSummaryTests(APITestCase):
         self.player = make_player(user=self.player_user)
         self.academy = make_academy("Summary Academy")
         self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
         self.match1 = make_match(self.coach, self.academy, self.team, match_date="2026-10-01")
         self.match2 = make_match(
             self.coach, self.academy, self.team,
@@ -476,3 +486,392 @@ class PlayerMatchSummaryTests(APITestCase):
         self.assertEqual(response.data["matches_played"], 0)
         self.assertEqual(response.data["goals"], 0)
         self.assertIsNone(response.data["average_rating"])
+
+
+# ---------------------------------------------------------------------------
+# Academy-level authorization regression tests
+# ---------------------------------------------------------------------------
+
+
+class MatchAcademyAuthorizationTests(APITestCase):
+    """
+    Verify that academy-level staff membership is enforced throughout the
+    matches domain: list, create, retrieve, update, nested player-stats, and
+    player-history/summary views.
+    """
+
+    def setUp(self):
+        # Academy A with a coach who is staff
+        self.coach_a = make_user(User.Role.COACH, "coach_a@test.com")
+        self.academy_a = make_academy("Academy A")
+        self.team_a = make_team(self.academy_a, "A U15")
+        make_staff_membership(self.coach_a, self.academy_a)
+        self.match_a = make_match(self.coach_a, self.academy_a, self.team_a)
+
+        # Academy B with its own coach who is staff
+        self.coach_b = make_user(User.Role.COACH, "coach_b@test.com")
+        self.academy_b = make_academy("Academy B")
+        self.team_b = make_team(self.academy_b, "B U15")
+        make_staff_membership(self.coach_b, self.academy_b)
+        self.match_b = make_match(self.coach_b, self.academy_b, self.team_b)
+
+        # A player linked to a user, with stats in Academy A
+        self.player_user = make_user(User.Role.PLAYER, "player_auth@test.com")
+        self.player = make_player(user=self.player_user)
+        MatchPlayerStats.objects.create(match=self.match_a, player=self.player)
+
+        self.list_url = reverse("match-list")
+
+    # --- List isolation -------------------------------------------------------
+
+    def test_coach_sees_only_own_academy_matches(self):
+        """Coach only sees matches from academies they are staff of."""
+        self.client.force_authenticate(user=self.coach_a)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [m["id"] for m in response.data["results"]]
+        self.assertIn(str(self.match_a.pk), ids)
+        self.assertNotIn(str(self.match_b.pk), ids)
+
+    # --- Create isolation -----------------------------------------------------
+
+    def test_coach_without_membership_cannot_create(self):
+        """Coach with no staff membership is denied match creation (403)."""
+        coach_no_membership = make_user(User.Role.COACH, "nomember@test.com")
+        self.client.force_authenticate(user=coach_no_membership)
+        payload = {
+            "academy": str(self.academy_a.pk),
+            "team": str(self.team_a.pk),
+            "opponent_name": "Rival FC",
+            "match_date": "2026-11-01",
+            "home_away": "HOME",
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_cannot_create_match_for_another_academy(self):
+        """Coach A cannot create a match attributed to Academy B."""
+        self.client.force_authenticate(user=self.coach_a)
+        payload = {
+            "academy": str(self.academy_b.pk),
+            "team": str(self.team_b.pk),
+            "opponent_name": "Rival FC",
+            "match_date": "2026-11-01",
+            "home_away": "HOME",
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Retrieve isolation ---------------------------------------------------
+
+    def test_coach_cannot_retrieve_another_academys_match(self):
+        """Coach A receives 404 when fetching a match from Academy B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-detail", args=[self.match_b.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- Update isolation -----------------------------------------------------
+
+    def test_coach_cannot_update_another_academys_match(self):
+        """Coach A receives 404 when PATCHing a match from Academy B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-detail", args=[self.match_b.pk])
+        response = self.client.patch(url, {"team_score": 1}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cannot_move_match_to_another_academy_via_patch(self):
+        """Coach A cannot move their own match to Academy B via PATCH."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-detail", args=[self.match_a.pk])
+        response = self.client.patch(
+            url,
+            {"academy": str(self.academy_b.pk), "team": str(self.team_b.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Cross-academy team ---------------------------------------------------
+
+    def test_cross_academy_team_rejected_on_create(self):
+        """Supplying a team that belongs to a different academy returns 400."""
+        self.client.force_authenticate(user=self.coach_a)
+        payload = {
+            "academy": str(self.academy_a.pk),
+            "team": str(self.team_b.pk),  # team_b belongs to academy_b
+            "opponent_name": "Rival FC",
+            "match_date": "2026-11-01",
+            "home_away": "HOME",
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # --- Nested player-stats isolation ----------------------------------------
+
+    def test_coach_cannot_list_stats_for_another_academys_match(self):
+        """Coach A receives 403 when listing stats for Academy B's match."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-player-stats-list", args=[self.match_b.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_cannot_add_stats_to_another_academys_match(self):
+        """Coach A receives 403 when adding stats to Academy B's match."""
+        player = make_player()
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-player-stats-list", args=[self.match_b.pk])
+        response = self.client.post(url, {"player": str(player.pk), "started": True}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- Player history and summary scoping -----------------------------------
+
+    def test_player_role_sees_full_own_match_history(self):
+        """PLAYER role receives their full match history regardless of academy scoping."""
+        self.client.force_authenticate(user=self.player_user)
+        url = reverse("player-match-history", args=[self.player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["matches"]), 1)
+
+    def test_coach_sees_only_own_academy_in_player_history(self):
+        """COACH sees only history from their own academies when viewing a player."""
+        # Add a second stats record for the same player in Academy B
+        MatchPlayerStats.objects.create(match=self.match_b, player=self.player)
+
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-match-history", args=[self.player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Coach A must see only the Academy A match
+        self.assertEqual(len(response.data["matches"]), 1)
+        self.assertEqual(str(response.data["matches"][0]["match"]), str(self.match_a.pk))
+
+    def test_coach_sees_only_own_academy_in_player_summary(self):
+        """COACH sees only stats from their own academies in the player summary."""
+        # stats in Academy A: 2 goals
+        stats_a = MatchPlayerStats.objects.get(match=self.match_a, player=self.player)
+        stats_a.goals = 2
+        stats_a.save()
+        # stats in Academy B: 5 goals — coach_a must not see these
+        MatchPlayerStats.objects.create(match=self.match_b, player=self.player, goals=5)
+
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-match-summary", args=[self.player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["matches_played"], 1)
+        self.assertEqual(response.data["goals"], 2)
+
+    # --- Cross-academy team on update (no academy change) --------------------
+
+    def test_patch_with_cross_academy_team_returns_400(self):
+        """PATCH with a team from another academy (no academy change) returns 400 and leaves the match unchanged."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-detail", args=[self.match_a.pk])
+        response = self.client.patch(
+            url,
+            {"team": str(self.team_b.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("team", response.data)
+        # Verify the match is unchanged in the DB
+        self.match_a.refresh_from_db()
+        self.assertEqual(self.match_a.team_id, self.team_a.pk)
+
+    # --- Nested stats retrieve / update cross-academy ------------------------
+
+    def test_coach_cannot_retrieve_stats_for_another_academys_match(self):
+        """Coach A receives 403 when retrieving a stats record from Academy B's match."""
+        stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player)
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_cannot_update_stats_for_another_academys_match(self):
+        """Coach A receives 403 when updating a stats record in Academy B's match and the record is unchanged."""
+        stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player, goals=3)
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
+        response = self.client.patch(url, {"goals": 99}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Verify the record was not modified
+        stats.refresh_from_db()
+        self.assertEqual(stats.goals, 3)
+
+
+# ---------------------------------------------------------------------------
+# Parent access tests
+# ---------------------------------------------------------------------------
+
+
+class ParentMatchAccessTests(APITestCase):
+    """
+    Verify that PARENT users can read history/summary for explicitly linked
+    players and are denied access for non-linked players.
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "coach_parent@test.com")
+        self.academy = make_academy("Parent Academy")
+        self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
+
+        # Player linked to a parent
+        self.parent_user = make_user(User.Role.PARENT, "parent@test.com")
+        self.linked_player_user = make_user(User.Role.PLAYER, "linked_player@test.com")
+        self.linked_player = make_player(user=self.linked_player_user, first_name="Linked")
+        ParentPlayerLink.objects.create(parent=self.parent_user, player=self.linked_player)
+
+        # A second player with NO link to the parent
+        self.unlinked_player = make_player(first_name="Unlinked")
+
+        self.match = make_match(self.coach, self.academy, self.team, team_score=2, opponent_score=1)
+        MatchPlayerStats.objects.create(
+            match=self.match, player=self.linked_player, started=True, minutes_played=90, goals=1
+        )
+
+    def test_parent_can_read_linked_player_match_history(self):
+        """PARENT can read the match history of an explicitly linked player."""
+        self.client.force_authenticate(user=self.parent_user)
+        url = reverse("player-match-history", args=[self.linked_player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["matches"]), 1)
+        self.assertEqual(response.data["matches"][0]["goals"], 1)
+
+    def test_parent_can_read_linked_player_match_summary(self):
+        """PARENT can read the match summary of an explicitly linked player."""
+        self.client.force_authenticate(user=self.parent_user)
+        url = reverse("player-match-summary", args=[self.linked_player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["matches_played"], 1)
+        self.assertEqual(response.data["goals"], 1)
+
+    def test_parent_cannot_read_unlinked_player_match_history(self):
+        """PARENT receives 403 when reading history for a player they are not linked to."""
+        self.client.force_authenticate(user=self.parent_user)
+        url = reverse("player-match-history", args=[self.unlinked_player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_read_unlinked_player_match_summary(self):
+        """PARENT receives 403 when reading summary for a player they are not linked to."""
+        self.client.force_authenticate(user=self.parent_user)
+        url = reverse("player-match-summary", args=[self.unlinked_player.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# ACADEMY_ADMIN isolation tests
+# ---------------------------------------------------------------------------
+
+
+class AcademyAdminMatchIsolationTests(APITestCase):
+    """
+    Verify that ACADEMY_ADMIN users are scoped to their own academies in the
+    same way as COACH users.
+    """
+
+    def setUp(self):
+        # Admin of Academy A
+        self.admin_a = make_user(User.Role.ACADEMY_ADMIN, "admin_a@test.com")
+        self.academy_a = make_academy("Admin Academy A")
+        self.team_a = make_team(self.academy_a, "Admin A U15")
+        make_staff_membership(self.admin_a, self.academy_a)
+        self.match_a = make_match(self.admin_a, self.academy_a, self.team_a)
+
+        # Separate Academy B, admin_a has NO membership there
+        self.academy_b = make_academy("Admin Academy B")
+        self.team_b = make_team(self.academy_b, "Admin B U15")
+        coach_b = make_user(User.Role.COACH, "admin_b_creator@test.com")
+        make_staff_membership(coach_b, self.academy_b)
+        self.match_b = make_match(coach_b, self.academy_b, self.team_b)
+
+        self.list_url = reverse("match-list")
+
+    def test_academy_admin_cannot_list_another_academys_matches(self):
+        """ACADEMY_ADMIN sees only matches from academies they are staff of."""
+        self.client.force_authenticate(user=self.admin_a)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [m["id"] for m in response.data["results"]]
+        self.assertIn(str(self.match_a.pk), ids)
+        self.assertNotIn(str(self.match_b.pk), ids)
+
+    def test_academy_admin_cannot_retrieve_another_academys_match(self):
+        """ACADEMY_ADMIN receives 404 when fetching a match from Academy B."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("match-detail", args=[self.match_b.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_academy_admin_cannot_create_match_for_another_academy(self):
+        """ACADEMY_ADMIN cannot create a match for an academy they are not staff of."""
+        self.client.force_authenticate(user=self.admin_a)
+        payload = {
+            "academy": str(self.academy_b.pk),
+            "team": str(self.team_b.pk),
+            "opponent_name": "Rival FC",
+            "match_date": "2026-11-10",
+            "home_away": "HOME",
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# MatchPlayerStats duplicate-on-update tests
+# ---------------------------------------------------------------------------
+
+
+class MatchPlayerStatsDuplicateUpdateTests(APITestCase):
+    """
+    Verify that reassigning a stats record's player to one that already has
+    stats for the same match returns HTTP 400, not an unhandled 500.
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "coach_dup@test.com")
+        self.academy = make_academy("Dup Academy")
+        self.team = make_team(self.academy)
+        make_staff_membership(self.coach, self.academy)
+        self.match = make_match(self.coach, self.academy, self.team)
+        self.player1 = make_player(first_name="Player1")
+        self.player2 = make_player(first_name="Player2")
+        self.stats1 = MatchPlayerStats.objects.create(
+            match=self.match, player=self.player1, goals=2
+        )
+        self.stats2 = MatchPlayerStats.objects.create(
+            match=self.match, player=self.player2, goals=1
+        )
+        self.client.force_authenticate(user=self.coach)
+
+    def test_patch_player_to_existing_player_returns_400(self):
+        """PATCH stats record to reassign player to one already recorded returns 400."""
+        url = reverse("match-player-stats-detail", args=[self.match.pk, self.stats1.pk])
+        response = self.client.patch(url, {"player": str(self.player2.pk)}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("player", response.data)
+        # Verify neither record was changed
+        self.stats1.refresh_from_db()
+        self.assertEqual(self.stats1.player_id, self.player1.pk)
+
+    def test_patch_other_fields_on_stats_without_changing_player_succeeds(self):
+        """PATCH of non-player fields on a stats record succeeds without false duplicate errors."""
+        url = reverse("match-player-stats-detail", args=[self.match.pk, self.stats1.pk])
+        response = self.client.patch(url, {"goals": 5}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.stats1.refresh_from_db()
+        self.assertEqual(self.stats1.goals, 5)
+
+    def test_patch_same_player_on_own_stats_succeeds(self):
+        """PATCH that resends the same player (no actual change) does not raise a duplicate error."""
+        url = reverse("match-player-stats-detail", args=[self.match.pk, self.stats1.pk])
+        response = self.client.patch(url, {"player": str(self.player1.pk), "goals": 3}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.stats1.refresh_from_db()
+        self.assertEqual(self.stats1.goals, 3)

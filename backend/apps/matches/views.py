@@ -4,6 +4,8 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.users.models import User
+
 from .models import Match, MatchPlayerStats
 from .permissions import get_player_and_check_match_access, require_coach_or_admin
 from .serializers import (
@@ -44,18 +46,31 @@ class MatchViewSet(
 
     def get_queryset(self):
         require_coach_or_admin(self.request)
+        from apps.academies.permissions import get_user_academy_ids
+        academy_ids = get_user_academy_ids(self.request.user)
         return (
-            Match.objects.all()
+            Match.objects.filter(academy_id__in=academy_ids)
             .select_related("academy", "team", "created_by")
             .order_by("-match_date", "-created_at")
         )
 
+    def create(self, request, *args, **kwargs):
+        """POST /api/matches/ — COACH or ACADEMY_ADMIN with staff membership."""
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(request.user, request.data.get("academy"))
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        require_coach_or_admin(self.request)
         serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
-        require_coach_or_admin(self.request)
+        # If the client is changing the academy, the user must also be staff of
+        # the new academy.  get_queryset() already guarantees membership in the
+        # match's current academy.
+        new_academy = serializer.validated_data.get("academy")
+        if new_academy is not None:
+            from apps.academies.permissions import require_staff_of_academy
+            require_staff_of_academy(self.request.user, new_academy.pk)
         serializer.save()
 
 
@@ -76,7 +91,10 @@ class MatchPlayerStatsViewSet(viewsets.GenericViewSet):
 
     def _get_match(self) -> Match:
         require_coach_or_admin(self.request)
-        return get_object_or_404(Match, pk=self.kwargs["match_pk"])
+        match = get_object_or_404(Match, pk=self.kwargs["match_pk"])
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(self.request.user, match.academy_id)
+        return match
 
     def list(self, request, match_pk=None):
         match = self._get_match()
@@ -141,6 +159,14 @@ class PlayerMatchHistoryView(APIView):
             .order_by("-match__match_date", "-match__created_at")
         )
 
+        # Coaches and academy admins see only matches from academies they are
+        # explicitly staff of.  Players and parents have access already scoped
+        # at the player level above; they receive the full unfiltered history.
+        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(request.user)
+            stats_qs = stats_qs.filter(match__academy_id__in=academy_ids)
+
         serializer = PlayerMatchHistorySerializer(
             stats_qs,
             many=True,
@@ -165,6 +191,12 @@ class PlayerMatchSummaryView(APIView):
         player = get_player_and_check_match_access(request, player_pk)
 
         qs = MatchPlayerStats.objects.filter(player=player)
+
+        # Coaches and academy admins see only stats from their own academies.
+        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(request.user)
+            qs = qs.filter(match__academy_id__in=academy_ids)
 
         aggregates = qs.aggregate(
             total_minutes=Sum("minutes_played"),

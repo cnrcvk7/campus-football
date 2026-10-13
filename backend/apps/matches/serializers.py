@@ -141,19 +141,24 @@ class MatchPlayerStatsWriteSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate(self, data):
-        if self.instance is None:
-            # On create — check for duplicate stats in the same match.
-            match = self.context.get("match")
-            player = data.get("player")
-            if match and player:
-                if MatchPlayerStats.objects.filter(match=match, player=player).exists():
-                    raise serializers.ValidationError(
-                        {
-                            "player": (
-                                "Statistics already recorded for this player in this match."
-                            )
-                        }
-                    )
+        match = self.context.get("match")
+        player = data.get("player")
+
+        if match and player:
+            qs = MatchPlayerStats.objects.filter(match=match, player=player)
+            if self.instance is not None:
+                # On update — exclude the current record so a no-op player
+                # field (same player as already stored) does not raise a false
+                # positive, and so a genuine duplicate is still caught.
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {
+                        "player": (
+                            "Statistics already recorded for this player in this match."
+                        )
+                    }
+                )
         return data
 
     def create(self, validated_data):
