@@ -30,6 +30,18 @@ class TeamViewSet(
     serializer_class = TeamSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
+    def list(self, request, *args, **kwargs):
+        """GET /api/teams/ — COACH or ACADEMY_ADMIN only."""
+        from apps.academies.permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """GET /api/teams/{id}/ — COACH or ACADEMY_ADMIN only."""
+        from apps.academies.permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().retrieve(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         """POST /api/teams/ — COACH or ACADEMY_ADMIN with staff membership for the target academy."""
         from apps.academies.permissions import require_staff_of_academy
@@ -57,11 +69,16 @@ class TeamPlayersView(APIView):
     """
 
     def get(self, request, team_pk):
+        from apps.academies.permissions import require_staff_of_academy
         from apps.players.models import Player
         from apps.players.serializers import PlayerSerializer
         from .models import PlayerTeamMembership
 
-        get_object_or_404(Team, pk=team_pk)
+        team = get_object_or_404(Team, pk=team_pk)
+        # Require staff membership for the team's actual academy.  This also
+        # enforces role (COACH / ACADEMY_ADMIN) so PLAYER and PARENT receive 403.
+        require_staff_of_academy(request.user, team.academy_id)
+
         active_player_ids = PlayerTeamMembership.objects.filter(
             team_id=team_pk,
             status=PlayerTeamMembership.Status.ACTIVE,

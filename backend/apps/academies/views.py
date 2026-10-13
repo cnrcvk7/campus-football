@@ -27,6 +27,18 @@ class AcademyViewSet(
     serializer_class = AcademySerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
+    def list(self, request, *args, **kwargs):
+        """GET /api/academies/ — COACH or ACADEMY_ADMIN only."""
+        from .permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """GET /api/academies/{id}/ — COACH or ACADEMY_ADMIN only."""
+        from .permissions import require_coach_or_admin
+        require_coach_or_admin(request)
+        return super().retrieve(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         """POST /api/academies/ — ACADEMY_ADMIN only."""
         from .permissions import require_academy_admin

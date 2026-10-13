@@ -198,6 +198,8 @@ class TeamPlayersViewTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.academy = make_academy(name="Test Academy 2")
         self.team = make_team(self.academy, name="U18 Boys")
+        # Staff membership required since TeamPlayersView now enforces it.
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.url = f"/api/teams/{self.team.pk}/players/"
 
     def test_returns_active_players_only(self):
@@ -353,3 +355,116 @@ class TeamWriteAuthorizationTests(APITestCase):
         AcademyStaffMembership.objects.create(user=user, academy=other_academy)
         response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/teams/<id>/players/ authorization tests (finding 5)
+# ---------------------------------------------------------------------------
+
+class TeamPlayersViewAuthorizationTests(APITestCase):
+    """
+    Verify that GET /api/teams/{pk}/players/ is restricted to staff of the
+    team's academy.  PLAYER and PARENT roles, and COACH/ADMIN users without
+    a staff membership for this specific academy, must receive 403.
+    """
+
+    def setUp(self):
+        self.academy = make_academy(name="Roster Academy")
+        self.team = make_team(self.academy, name="Roster Team")
+        self.url = f"/api/teams/{self.team.pk}/players/"
+
+    def _make_user(self, role, email):
+        return User.objects.create_user(
+            email=email, password="testpass123",
+            first_name="Test", last_name="User", role=role,
+        )
+
+    def test_coach_with_membership_can_view_roster(self):
+        """COACH with staff membership for this team's academy gets 200."""
+        coach = self._make_user(User.Role.COACH, "coach_rv@test.com")
+        AcademyStaffMembership.objects.create(user=coach, academy=self.academy)
+        self.client.force_authenticate(user=coach)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_200_OK)
+
+    def test_admin_with_membership_can_view_roster(self):
+        """ACADEMY_ADMIN with staff membership for this team's academy gets 200."""
+        admin = self._make_user(User.Role.ACADEMY_ADMIN, "admin_rv@test.com")
+        AcademyStaffMembership.objects.create(user=admin, academy=self.academy)
+        self.client.force_authenticate(user=admin)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_200_OK)
+
+    def test_coach_without_membership_cannot_view_roster(self):
+        """COACH without staff membership for this team's academy gets 403."""
+        coach = self._make_user(User.Role.COACH, "coach_rv2@test.com")
+        self.client.force_authenticate(user=coach)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_of_other_academy_cannot_view_roster(self):
+        """COACH with staff membership in a different academy cannot view this team's roster."""
+        other_academy = make_academy(name="Other Roster Academy", city="Bristol")
+        coach = self._make_user(User.Role.COACH, "coach_other_rv@test.com")
+        AcademyStaffMembership.objects.create(user=coach, academy=other_academy)
+        self.client.force_authenticate(user=coach)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_player_cannot_view_roster(self):
+        """PLAYER role is denied with 403."""
+        player_user = self._make_user(User.Role.PLAYER, "player_rv@test.com")
+        self.client.force_authenticate(user=player_user)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_view_roster(self):
+        """PARENT role is denied with 403."""
+        parent = self._make_user(User.Role.PARENT, "parent_rv@test.com")
+        self.client.force_authenticate(user=parent)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# Finding 7: Team list/retrieve authorization
+#
+# GET /api/teams/ and GET /api/teams/{id}/ must return 403 for PLAYER and
+# PARENT roles.  COACH and ACADEMY_ADMIN continue to receive 200.
+# ---------------------------------------------------------------------------
+
+class TeamListRetrieveAuthorizationTests(APITestCase):
+    """Verify that PLAYER and PARENT cannot list or retrieve team records."""
+
+    def setUp(self):
+        self.academy = make_academy(name="Visibility Academy")
+        self.team = make_team(self.academy)
+        self.list_url = reverse("team-list")
+        self.detail_url = reverse("team-detail", kwargs={"pk": self.team.pk})
+
+    def _auth(self, role: str, email: str) -> User:
+        user = make_auth_user(email=email, role=role)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_coach_can_list_teams(self):
+        self._auth(User.Role.COACH, "coach_f7t@test.com")
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_200_OK)
+
+    def test_admin_can_list_teams(self):
+        self._auth(User.Role.ACADEMY_ADMIN, "admin_f7t@test.com")
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_list_teams(self):
+        self._auth(User.Role.PLAYER, "player_f7t@test.com")
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_list_teams(self):
+        self._auth(User.Role.PARENT, "parent_f7t@test.com")
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_can_retrieve_team(self):
+        self._auth(User.Role.COACH, "coach_f7tr@test.com")
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_retrieve_team(self):
+        self._auth(User.Role.PLAYER, "player_f7tr@test.com")
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_retrieve_team(self):
+        self._auth(User.Role.PARENT, "parent_f7tr@test.com")
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)

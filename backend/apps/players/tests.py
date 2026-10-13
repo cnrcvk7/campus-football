@@ -135,14 +135,25 @@ class PlayerAPITests(APITestCase):
         self.assertEqual(response.data["first_name"], self.player.first_name)
 
     def test_player_api_delete(self):
-        """DELETE /api/players/{id}/ removes the player and returns 204."""
+        """DELETE /api/players/{id}/ removes the player and returns 204 (ACADEMY_ADMIN only)."""
+        admin = User.objects.create_user(
+            email="admin_del@example.com", password="testpass123",
+            first_name="Admin", last_name="Del", role=User.Role.ACADEMY_ADMIN,
+        )
+        self.client.force_authenticate(user=admin)
+        # self.player has no academy memberships — pass-through applies
         response = self.client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Player.objects.filter(pk=self.player.pk).exists())
 
     def test_delete_unknown_player_returns_404(self):
-        """DELETE on a non-existent player UUID returns 404."""
+        """DELETE on a non-existent player UUID returns 404 (ACADEMY_ADMIN required)."""
         import uuid
+        admin = User.objects.create_user(
+            email="admin_del404@example.com", password="testpass123",
+            first_name="Admin", last_name="Del", role=User.Role.ACADEMY_ADMIN,
+        )
+        self.client.force_authenticate(user=admin)
         url = reverse("player-detail", kwargs={"pk": uuid.uuid4()})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -260,7 +271,7 @@ class MembershipAPITests(APITestCase):
     """
 
     def setUp(self):
-        from apps.academies.models import Academy
+        from apps.academies.models import Academy, AcademyStaffMembership
         from apps.teams.models import Team
 
         self.user = make_auth_user(email="membership@example.com")
@@ -284,6 +295,8 @@ class MembershipAPITests(APITestCase):
             age_group="U18",
             season="2025/26",
         )
+        # Staff membership required for object-level authorization checks.
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.academy_memberships_url = reverse(
             "player-academy-membership-list",
             kwargs={"player_pk": self.player.pk},
@@ -972,11 +985,11 @@ class PlayerWriteAuthorizationTests(APITestCase):
 
     # -- DELETE --
 
-    def test_coach_can_delete_player(self):
+    def test_coach_cannot_delete_player(self):
         self.client.force_authenticate(self.coach)
         player = _make_player()
         url = reverse("player-detail", kwargs={"pk": player.pk})
-        self.assertEqual(self.client.delete(url).status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_delete_player(self):
         self.client.force_authenticate(self.admin)
@@ -1014,7 +1027,7 @@ class MembershipWriteAuthorizationTests(APITestCase):
     """Authorization tests for membership create endpoints."""
 
     def setUp(self):
-        from apps.academies.models import Academy
+        from apps.academies.models import Academy, AcademyStaffMembership
         from apps.teams.models import Team
 
         self.coach   = _make_user(User.Role.COACH,         "coach_ma@test.com")
@@ -1024,6 +1037,9 @@ class MembershipWriteAuthorizationTests(APITestCase):
         self.target  = _make_player()
         self.academy = Academy.objects.create(name="Auth Academy", city="London", country="England")
         self.team    = Team.objects.create(academy=self.academy, name="U14 Boys", age_group="U14", season="2025/26")
+        # Staff memberships so the "can" tests exercise the authorized workflow.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
         self.acad_url = reverse("player-academy-membership-list", kwargs={"player_pk": self.target.pk})
         self.team_url = reverse("player-team-membership-list",    kwargs={"player_pk": self.target.pk})
 
@@ -1120,7 +1136,7 @@ class MembershipPatchAuthorizationTests(APITestCase):
     """Authorization tests for PATCH on academy and team membership endpoints."""
 
     def setUp(self):
-        from apps.academies.models import Academy, PlayerAcademyMembership
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
         from apps.teams.models import Team, PlayerTeamMembership
 
         self.coach   = _make_user(User.Role.COACH,         "coach_mp@test.com")
@@ -1132,6 +1148,9 @@ class MembershipPatchAuthorizationTests(APITestCase):
         self.team    = Team.objects.create(
             academy=self.academy, name="U15 Boys", age_group="U15", season="2025/26"
         )
+        # Staff memberships so the "can" tests exercise the authorized workflow.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
         self.acad_membership = PlayerAcademyMembership.objects.create(
             player=self.target, academy=self.academy, joined_at="2025-01-01"
         )
@@ -1244,3 +1263,313 @@ class MembershipPatchAuthorizationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.team_membership.refresh_from_db()
         self.assertEqual(self.team_membership.status, "active")
+
+
+# ---------------------------------------------------------------------------
+# Cross-academy object-level authorization tests (findings 1–4)
+#
+# A COACH or ACADEMY_ADMIN who holds staff membership in Academy X must NOT
+# be able to create or modify memberships that belong to Academy Y.
+# ---------------------------------------------------------------------------
+
+class MembershipCrossAcademyAuthorizationTests(APITestCase):
+    """
+    Verify that academy-level object authorization is enforced on every
+    membership write endpoint, not just the role check.
+    """
+
+    def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+        from apps.teams.models import Team, PlayerTeamMembership
+
+        self.coach = _make_user(User.Role.COACH, "coach_cross@test.com")
+        self.academy_x = Academy.objects.create(
+            name="Academy X", city="London", country="England"
+        )
+        self.academy_y = Academy.objects.create(
+            name="Academy Y", city="Leeds", country="England"
+        )
+        # Coach is staff of Academy X only — not Academy Y.
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_x)
+
+        self.team_x = Team.objects.create(
+            academy=self.academy_x, name="X Team", age_group="U15", season="2025/26"
+        )
+        self.team_y = Team.objects.create(
+            academy=self.academy_y, name="Y Team", age_group="U15", season="2025/26"
+        )
+        self.player = _make_player()
+
+        # Pre-existing memberships at Academy Y / Team Y.
+        self.acad_y_membership = PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy_y, joined_at="2025-01-01"
+        )
+        self.team_y_membership = PlayerTeamMembership.objects.create(
+            player=self.player, team=self.team_y, joined_at="2025-01-01"
+        )
+        self.client.force_authenticate(user=self.coach)
+
+    # -- Finding 1: create academy membership --
+
+    def test_coach_cannot_create_academy_membership_in_foreign_academy(self):
+        """Coach of Academy X is denied when enrolling a player in Academy Y (403)."""
+        # Use a fresh player with no existing memberships so the serializer's
+        # duplicate-guard does not mask the 403 with a 400.
+        fresh = _make_player()
+        url = reverse("player-academy-membership-list", kwargs={"player_pk": fresh.pk})
+        response = self.client.post(
+            url, {"academy": str(self.academy_y.pk), "joined_at": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        from apps.academies.models import PlayerAcademyMembership
+        self.assertEqual(PlayerAcademyMembership.objects.filter(player=fresh).count(), 0)
+
+    def test_coach_can_create_academy_membership_in_own_academy(self):
+        """Coach of Academy X can enroll a player in Academy X (201)."""
+        url = reverse("player-academy-membership-list", kwargs={"player_pk": self.player.pk})
+        response = self.client.post(
+            url, {"academy": str(self.academy_x.pk), "joined_at": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # -- Finding 2: create team membership --
+
+    def test_coach_cannot_create_team_membership_in_foreign_academy(self):
+        """Coach of Academy X is denied when assigning a player to a team belonging to Academy Y (403)."""
+        # Use a fresh player with no existing memberships so the serializer's
+        # duplicate-guard does not mask the 403 with a 400.
+        fresh = _make_player()
+        url = reverse("player-team-membership-list", kwargs={"player_pk": fresh.pk})
+        response = self.client.post(
+            url, {"team": str(self.team_y.pk), "joined_at": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        from apps.teams.models import PlayerTeamMembership
+        self.assertEqual(PlayerTeamMembership.objects.filter(player=fresh).count(), 0)
+
+    def test_coach_can_create_team_membership_in_own_academy(self):
+        """Coach of Academy X can assign a player to a team belonging to Academy X (201)."""
+        url = reverse("player-team-membership-list", kwargs={"player_pk": self.player.pk})
+        response = self.client.post(
+            url, {"team": str(self.team_x.pk), "joined_at": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # -- Finding 3: patch academy membership --
+
+    def test_coach_cannot_patch_academy_membership_in_foreign_academy(self):
+        """Coach of Academy X is denied when closing a player's membership at Academy Y (403)."""
+        url = reverse(
+            "player-academy-membership-detail",
+            kwargs={"player_pk": self.player.pk, "pk": self.acad_y_membership.pk},
+        )
+        response = self.client.patch(
+            url, {"status": "left", "left_at": "2025-06-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.acad_y_membership.refresh_from_db()
+        self.assertEqual(self.acad_y_membership.status, "active")
+        self.assertIsNone(self.acad_y_membership.left_at)
+
+    def test_coach_can_patch_academy_membership_in_own_academy(self):
+        """Coach of Academy X can close a player's membership at Academy X (200)."""
+        from apps.academies.models import PlayerAcademyMembership
+        acad_x_membership = PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy_x, joined_at="2025-01-01"
+        )
+        url = reverse(
+            "player-academy-membership-detail",
+            kwargs={"player_pk": self.player.pk, "pk": acad_x_membership.pk},
+        )
+        response = self.client.patch(
+            url, {"status": "left", "left_at": "2025-12-31"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        acad_x_membership.refresh_from_db()
+        self.assertEqual(acad_x_membership.status, "left")
+
+    # -- Finding 4: patch team membership --
+
+    def test_coach_cannot_patch_team_membership_in_foreign_academy(self):
+        """Coach of Academy X is denied when closing a player's membership in a team belonging to Academy Y (403)."""
+        url = reverse(
+            "player-team-membership-detail",
+            kwargs={"player_pk": self.player.pk, "pk": self.team_y_membership.pk},
+        )
+        response = self.client.patch(
+            url, {"status": "left", "left_at": "2025-06-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.team_y_membership.refresh_from_db()
+        self.assertEqual(self.team_y_membership.status, "active")
+        self.assertIsNone(self.team_y_membership.left_at)
+
+    def test_coach_can_patch_team_membership_in_own_academy(self):
+        """Coach of Academy X can close a player's membership in a team belonging to Academy X (200)."""
+        from apps.teams.models import PlayerTeamMembership
+        team_x_membership = PlayerTeamMembership.objects.create(
+            player=self.player, team=self.team_x, joined_at="2025-01-01"
+        )
+        url = reverse(
+            "player-team-membership-detail",
+            kwargs={"player_pk": self.player.pk, "pk": team_x_membership.pk},
+        )
+        response = self.client.patch(
+            url, {"status": "left", "left_at": "2025-12-31"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        team_x_membership.refresh_from_db()
+        self.assertEqual(team_x_membership.status, "left")
+
+
+# ---------------------------------------------------------------------------
+# Finding 6: PlayerViewSet PATCH and DELETE academy-scope authorization
+#
+# PATCH: COACH/ACADEMY_ADMIN may edit a player only if they are staff of at
+#        least one academy the player belongs to.  Players with no academy
+#        memberships can be managed by any coach/admin (pass-through).
+#
+# DELETE: restricted to ACADEMY_ADMIN only; also requires staff affiliation.
+#         A player with protected history (PlayerAcademyMembership etc.)
+#         returns 409 instead of a raw 500.
+# ---------------------------------------------------------------------------
+
+class PlayerPatchAcademyScopeTests(APITestCase):
+    """Object-level authorization on PATCH /api/players/{id}/."""
+
+    def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+
+        self.coach = _make_user(User.Role.COACH, "coach_f6p@test.com")
+        self.academy_a = Academy.objects.create(name="Scope A", city="London", country="England")
+        self.academy_b = Academy.objects.create(name="Scope B", city="Leeds", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+
+        # Player enrolled only in Academy B.
+        self.player_b = _make_player()
+        PlayerAcademyMembership.objects.create(
+            player=self.player_b, academy=self.academy_b, joined_at="2025-01-01"
+        )
+        # Player enrolled in Academy A.
+        self.player_a = _make_player()
+        PlayerAcademyMembership.objects.create(
+            player=self.player_a, academy=self.academy_a, joined_at="2025-01-01"
+        )
+        # Player with no academy memberships.
+        self.player_none = _make_player()
+
+    def test_coach_can_patch_player_in_own_academy(self):
+        """COACH with staff membership in Academy A can PATCH a player enrolled in Academy A."""
+        self.client.force_authenticate(self.coach)
+        url = reverse("player-detail", kwargs={"pk": self.player_a.pk})
+        response = self.client.patch(url, {"jersey_number": 7}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_coach_cannot_patch_player_in_foreign_academy(self):
+        """COACH with staff membership in Academy A cannot PATCH a player enrolled only in Academy B."""
+        self.client.force_authenticate(self.coach)
+        url = reverse("player-detail", kwargs={"pk": self.player_b.pk})
+        response = self.client.patch(url, {"jersey_number": 9}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.player_b.refresh_from_db()
+        self.assertIsNone(self.player_b.jersey_number)
+
+    def test_coach_can_patch_player_enrolled_in_multiple_academies(self):
+        """
+        COACH with staff membership in Academy A can PATCH a player enrolled in
+        both Academy A and Academy B.
+
+        This verifies the ANY-match semantics: affiliation with one of the
+        player's academies is sufficient.  If the implementation incorrectly
+        required membership in ALL of the player's academies, this test would
+        return 403 because the coach is not staff of Academy B.
+        """
+        from apps.academies.models import PlayerAcademyMembership
+
+        # Enrol the same player in both Academy A and Academy B.
+        multi_player = _make_player()
+        PlayerAcademyMembership.objects.create(
+            player=multi_player, academy=self.academy_a, joined_at="2025-01-01"
+        )
+        PlayerAcademyMembership.objects.create(
+            player=multi_player, academy=self.academy_b, joined_at="2025-02-01"
+        )
+
+        # Coach is staff of Academy A only — not Academy B.
+        self.client.force_authenticate(self.coach)
+        url = reverse("player-detail", kwargs={"pk": multi_player.pk})
+        response = self.client.patch(url, {"jersey_number": 5}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        multi_player.refresh_from_db()
+        self.assertEqual(multi_player.jersey_number, 5)
+
+    def test_coach_can_patch_player_with_no_academy_memberships(self):
+        """COACH without any staff memberships can still PATCH a player with no academy enrollments."""
+        no_staff_coach = _make_user(User.Role.COACH, "coach_f6p_none@test.com")
+        self.client.force_authenticate(no_staff_coach)
+        url = reverse("player-detail", kwargs={"pk": self.player_none.pk})
+        response = self.client.patch(url, {"jersey_number": 11}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class PlayerDeleteAuthorizationTests(APITestCase):
+    """
+    Authorization tests for DELETE /api/players/{id}/.
+
+    DELETE is restricted to ACADEMY_ADMIN only.
+    A player with any protected FK (e.g. PlayerAcademyMembership) returns 409.
+    """
+
+    def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership
+
+        self.coach = _make_user(User.Role.COACH, "coach_f6d@test.com")
+        self.admin = _make_user(User.Role.ACADEMY_ADMIN, "admin_f6d@test.com")
+        self.academy = Academy.objects.create(name="Del Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
+
+    def test_admin_can_delete_player_with_no_history(self):
+        """ACADEMY_ADMIN can delete a player who has never been enrolled anywhere."""
+        player = _make_player()
+        self.client.force_authenticate(self.admin)
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Player.objects.filter(pk=player.pk).exists())
+
+    def test_coach_cannot_delete_player(self):
+        """COACH role is rejected before any object check — DELETE is ACADEMY_ADMIN only."""
+        player = _make_player()
+        self.client.force_authenticate(self.coach)
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Player.objects.filter(pk=player.pk).exists())
+
+    def test_admin_of_foreign_academy_cannot_delete_player(self):
+        """ACADEMY_ADMIN with no affiliation to the player's academy is denied (403)."""
+        from apps.academies.models import Academy, PlayerAcademyMembership
+        other_academy = Academy.objects.create(name="Other Academy", city="Bristol", country="England")
+        player = _make_player()
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=other_academy, joined_at="2025-01-01"
+        )
+        self.client.force_authenticate(self.admin)
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Player.objects.filter(pk=player.pk).exists())
+
+    def test_delete_player_with_academy_history_returns_409(self):
+        """Deleting a player with a PlayerAcademyMembership returns 409, not 500."""
+        from apps.academies.models import PlayerAcademyMembership
+        player = _make_player()
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.academy, joined_at="2025-01-01"
+        )
+        self.client.force_authenticate(self.admin)
+        url = reverse("player-detail", kwargs={"pk": player.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("detail", response.data)
+        self.assertTrue(Player.objects.filter(pk=player.pk).exists())

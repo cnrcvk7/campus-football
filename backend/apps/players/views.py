@@ -83,16 +83,37 @@ class PlayerViewSet(
         return super().create(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
-        """PATCH /api/players/{id}/ — COACH and ACADEMY_ADMIN only."""
-        from .permissions import require_coach_or_admin
+        """PATCH /api/players/{id}/ — COACH or ACADEMY_ADMIN, affiliated academy required."""
+        from .permissions import require_coach_or_admin, require_staff_affiliated_with_player
         require_coach_or_admin(request)
-        return super().partial_update(request, *args, **kwargs)
+        instance = self.get_object()
+        require_staff_affiliated_with_player(request.user, instance)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, "_prefetched_objects_cache", None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
-        """DELETE /api/players/{id}/ — COACH and ACADEMY_ADMIN only."""
-        from .permissions import require_coach_or_admin
-        require_coach_or_admin(request)
-        return super().destroy(request, *args, **kwargs)
+        """DELETE /api/players/{id}/ — ACADEMY_ADMIN only, affiliated academy required."""
+        from django.db.models.deletion import ProtectedError
+        from rest_framework.exceptions import PermissionDenied
+        from apps.users.models import User
+        from .permissions import require_staff_affiliated_with_player
+
+        if request.user.role != User.Role.ACADEMY_ADMIN:
+            raise PermissionDenied("Only academy admins can delete player records.")
+        instance = self.get_object()
+        require_staff_affiliated_with_player(request.user, instance)
+        try:
+            self.perform_destroy(instance)
+        except ProtectedError:
+            return Response(
+                {"detail": "Cannot delete a player who has academy, team, or match history."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):
@@ -166,6 +187,11 @@ class PlayerAcademyMembershipViewSet(viewsets.GenericViewSet):
             context={"player": player, "request": request},
         )
         serializer.is_valid(raise_exception=True)
+        # Object-level: caller must be staff of the target academy.
+        # Checked after serializer validation so invalid academy IDs still
+        # return 400 (serializer FK check) rather than 403.
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(request.user, serializer.validated_data["academy"].pk)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -174,10 +200,13 @@ class PlayerAcademyMembershipViewSet(viewsets.GenericViewSet):
         require_coach_or_admin(request)
 
         from apps.academies.models import PlayerAcademyMembership
+        from apps.academies.permissions import require_staff_of_academy
         from apps.academies.serializers import PlayerAcademyMembershipAPISerializer
 
         player = self._get_player()
         membership = get_object_or_404(PlayerAcademyMembership, pk=pk, player=player)
+        # Object-level: caller must be staff of the membership's academy.
+        require_staff_of_academy(request.user, membership.academy_id)
         serializer = PlayerAcademyMembershipAPISerializer(
             membership,
             data=request.data,
@@ -222,6 +251,11 @@ class PlayerTeamMembershipViewSet(viewsets.GenericViewSet):
             context={"player": player, "request": request},
         )
         serializer.is_valid(raise_exception=True)
+        # Object-level: authorize against the team's actual academy — do not
+        # trust a client-supplied academy ID.  Checked after serializer
+        # validation so invalid team IDs still return 400.
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(request.user, serializer.validated_data["team"].academy_id)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -229,11 +263,18 @@ class PlayerTeamMembershipViewSet(viewsets.GenericViewSet):
         from .permissions import require_coach_or_admin
         require_coach_or_admin(request)
 
+        from apps.academies.permissions import require_staff_of_academy
         from apps.teams.models import PlayerTeamMembership
         from apps.teams.serializers import PlayerTeamMembershipAPISerializer
 
         player = self._get_player()
-        membership = get_object_or_404(PlayerTeamMembership, pk=pk, player=player)
+        membership = get_object_or_404(
+            PlayerTeamMembership.objects.select_related("team"),
+            pk=pk,
+            player=player,
+        )
+        # Object-level: caller must be staff of the academy that owns this team.
+        require_staff_of_academy(request.user, membership.team.academy_id)
         serializer = PlayerTeamMembershipAPISerializer(
             membership,
             data=request.data,

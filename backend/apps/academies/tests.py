@@ -448,3 +448,52 @@ class AcademyStaffPermissionTests(TestCase):
         """PLAYER is denied by the role check."""
         with self.assertRaises(PermissionDenied):
             require_academy_admin_of_academy(self.player_user, self.academy_a.pk)
+
+
+# ---------------------------------------------------------------------------
+# Finding 7: Academy list/retrieve authorization
+#
+# GET /api/academies/ and GET /api/academies/{id}/ must return 403 for
+# PLAYER and PARENT roles.  COACH and ACADEMY_ADMIN continue to receive 200.
+# ---------------------------------------------------------------------------
+
+class AcademyListRetrieveAuthorizationTests(APITestCase):
+    """Verify that PLAYER and PARENT cannot list or retrieve academy records."""
+
+    def setUp(self):
+        self.academy = make_academy(name="Visibility Academy")
+        self.list_url = reverse("academy-list")
+        self.detail_url = reverse("academy-detail", kwargs={"pk": self.academy.pk})
+
+    def _auth(self, role: str) -> User:
+        user = make_auth_user(email=f"auth_f7_{role}@test.com", role=role)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_coach_can_list_academies(self):
+        self._auth(User.Role.COACH)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_200_OK)
+
+    def test_admin_can_list_academies(self):
+        self._auth(User.Role.ACADEMY_ADMIN)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_list_academies(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_list_academies(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_can_retrieve_academy(self):
+        self._auth(User.Role.COACH)
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_200_OK)
+
+    def test_player_cannot_retrieve_academy(self):
+        self._auth(User.Role.PLAYER)
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_retrieve_academy(self):
+        self._auth(User.Role.PARENT)
+        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)

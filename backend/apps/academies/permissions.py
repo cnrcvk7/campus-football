@@ -16,6 +16,19 @@ from apps.users.models import User
 from .models import AcademyStaffMembership
 
 
+def require_coach_or_admin(request) -> None:
+    """
+    Raise PermissionDenied if the requesting user is not COACH or ACADEMY_ADMIN.
+
+    Role-only check — use this to gate read endpoints that should be invisible
+    to PLAYER and PARENT roles.
+    """
+    if request.user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        raise PermissionDenied(
+            "Only coaches and academy admins can access this resource."
+        )
+
+
 def require_academy_admin(request) -> None:
     """
     Raise PermissionDenied if the requesting user is not ACADEMY_ADMIN.

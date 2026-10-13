@@ -27,6 +27,34 @@ def require_coach_or_admin(request) -> None:
         )
 
 
+def require_staff_affiliated_with_player(user, player) -> None:
+    """
+    Raise PermissionDenied unless the user is staff of at least one academy
+    the player has ever held a membership in (any status).
+
+    Pass-through: if the player has no academy memberships at all, any
+    COACH/ACADEMY_ADMIN may act.  This allows managing newly created players
+    before they are enrolled in an academy.
+
+    Assumes a role check (require_coach_or_admin or equivalent) has already
+    passed — this helper only enforces the object-level academy scope.
+    """
+    from apps.academies.models import PlayerAcademyMembership
+    from apps.academies.permissions import get_user_academy_ids
+
+    player_academy_ids = frozenset(
+        PlayerAcademyMembership.objects.filter(player=player)
+        .values_list("academy_id", flat=True)
+    )
+    if not player_academy_ids:
+        return  # No academy memberships — any coach/admin may manage
+    user_academy_ids = get_user_academy_ids(user)
+    if not (user_academy_ids & player_academy_ids):
+        raise PermissionDenied(
+            "You are not a staff member of any academy this player belongs to."
+        )
+
+
 def get_player_and_check_read_access(request, player_pk):
     """
     Fetch the Player identified by `player_pk` and verify read access.
