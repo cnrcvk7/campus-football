@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from .models import User
@@ -38,5 +39,6 @@ class MeSerializer(serializers.ModelSerializer):
                 "first_name": player.first_name,
                 "last_name": player.last_name,
             }
-        except Exception:
+        except ObjectDoesNotExist:
+            # user has no linked Player record — correct and expected
             return None

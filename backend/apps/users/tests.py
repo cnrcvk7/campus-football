@@ -1,3 +1,5 @@
+from unittest.mock import PropertyMock, patch
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
@@ -252,6 +254,67 @@ class PlayerUserLinkTests(APITestCase):
         self.assertIsNotNone(response.data["player_profile"])
         self.assertIn("football_id", response.data["player_profile"])
         self.assertEqual(response.data["player_profile"]["first_name"], "Phil")
+
+
+# ---------------------------------------------------------------------------
+# MeSerializer.get_player_profile() unit tests
+# ---------------------------------------------------------------------------
+
+
+class MeSerializerPlayerProfileTests(TestCase):
+    """
+    Unit tests for MeSerializer.get_player_profile().
+
+    These tests target the serializer directly (not via the HTTP layer) so
+    that error-propagation behaviour can be verified without needing to wire
+    up middleware or authentication.
+    """
+
+    def test_returns_none_when_no_player_profile(self):
+        """get_player_profile returns None for a user with no linked Player."""
+        from apps.users.serializers import MeSerializer
+
+        user = make_user(email="noprofile@test.com")
+        self.assertIsNone(MeSerializer(user).data["player_profile"])
+
+    def test_returns_player_dict_when_linked(self):
+        """get_player_profile returns the expected dict when a Player is linked."""
+        import uuid
+
+        from apps.players.models import Player
+        from apps.users.serializers import MeSerializer
+
+        user = make_user(email=f"{uuid.uuid4()}@test.com")
+        player = Player.objects.create(
+            first_name="Test",
+            last_name="Player",
+            date_of_birth="2000-01-01",
+            gender="M",
+            user=user,
+        )
+        profile = MeSerializer(user).data["player_profile"]
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["player_id"], str(player.id))
+        self.assertEqual(profile["football_id"], player.football_id)
+        self.assertEqual(profile["first_name"], "Test")
+        self.assertEqual(profile["last_name"], "Player")
+
+    def test_unexpected_error_propagates(self):
+        """
+        Non-ObjectDoesNotExist exceptions are not swallowed.
+
+        A RuntimeError from a broken ORM accessor must propagate out of
+        get_player_profile() rather than being silently converted to None.
+        """
+        from apps.users.serializers import MeSerializer
+
+        user = make_user(email="error@test.com")
+        # Replace the class-level descriptor with a mock that raises an
+        # unexpected error, simulating a broken DB connection or ORM bug.
+        with patch.object(type(user), "player_profile", new_callable=PropertyMock) as mock_pp:
+            mock_pp.side_effect = RuntimeError("unexpected database error")
+            with self.assertRaises(RuntimeError):
+                _ = MeSerializer(user).data
 
 
 # ---------------------------------------------------------------------------
