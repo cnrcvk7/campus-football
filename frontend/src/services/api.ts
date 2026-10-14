@@ -21,6 +21,10 @@ export function getToken(): string | null {
   return localStorage.getItem(ACCESS_KEY)
 }
 
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_KEY)
+}
+
 export function setTokens(access: string, refresh: string): void {
   localStorage.setItem(ACCESS_KEY, access)
   localStorage.setItem(REFRESH_KEY, refresh)
@@ -54,8 +58,14 @@ async function refreshAccessToken(): Promise<string> {
       throw new ApiError(res.status, 'Token refresh failed')
     }
 
-    const data = (await res.json()) as { access: string }
+    // ROTATE_REFRESH_TOKENS is enabled server-side: every successful refresh
+    // returns a new refresh token and blacklists the old one.  Store the
+    // replacement so subsequent calls use the current token.
+    const data = (await res.json()) as { access: string; refresh?: string }
     localStorage.setItem(ACCESS_KEY, data.access)
+    if (data.refresh) {
+      localStorage.setItem(REFRESH_KEY, data.refresh)
+    }
     return data.access
   })().finally(() => {
     refreshPromise = null
@@ -109,13 +119,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       if (retryRes.status === 204) return undefined as T
       return retryRes.json() as Promise<T>
     } catch (err) {
-      // Refresh failed — clear tokens and redirect to login
-      if (err instanceof ApiError && err.status !== 401) {
-        // Retry itself failed with a non-401, surface that error
-        throw err
+      if (err instanceof ApiError) {
+        if (err.status !== 401) {
+          // The retry itself failed with a non-auth server error; surface it
+          // without clearing tokens — the session may still be valid.
+          throw err
+        }
+        // The server explicitly rejected the refresh token (401): force re-login.
+        clearTokens()
+        window.location.href = '/login'
       }
-      clearTokens()
-      window.location.href = '/login'
+      // A non-ApiError (e.g. TypeError from a network failure) means we could
+      // not reach the server.  Do NOT clear tokens — they may still be valid
+      // once connectivity is restored.  Surface the error to the caller.
       throw err
     }
   }

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api, clearTokens, getToken, setTokens } from '../services/api'
+import { api, clearTokens, getRefreshToken, getToken, setTokens } from '../services/api'
 import type { AuthTokens, AuthUser } from '../types'
 
 interface AuthContextValue {
@@ -68,6 +68,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    // Attempt server-side blacklisting of the current refresh token before
+    // clearing local state.  The fetch is fire-and-forget: local tokens are
+    // always cleared immediately regardless of whether the network call
+    // succeeds, so the user is never stuck in a logged-in state due to a
+    // transient network failure.
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      fetch('/api/auth/logout/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      }).catch(() => {
+        // Network failure — local cleanup below still runs.
+        // The refresh token will expire naturally on the server.
+      })
+    }
     clearTokens()
     setIsAuthenticated(false)
     setUser(null)

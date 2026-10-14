@@ -369,3 +369,194 @@ class LoginRateThrottleTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
+
+
+# ---------------------------------------------------------------------------
+# Logout / blacklist tests
+# ---------------------------------------------------------------------------
+
+
+class LogoutTests(APITestCase):
+    """
+    Verify POST /api/auth/logout/ blacklists the submitted refresh token
+    so it cannot be reused, and that all invalid/edge-case inputs are
+    handled without a 5xx error.
+    """
+
+    def setUp(self):
+        self.user = make_user(email="logout@test.com")
+        self.token_url = reverse("token-obtain-pair")
+        self.refresh_url = reverse("token-refresh")
+        self.logout_url = reverse("auth-logout")
+
+    def _obtain_tokens(self):
+        response = self.client.post(
+            self.token_url,
+            {"email": "logout@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["access"], response.data["refresh"]
+
+    def test_logout_returns_204(self):
+        """POST /api/auth/logout/ with a valid refresh token returns 204 No Content."""
+        _, refresh = self._obtain_tokens()
+        response = self.client.post(
+            self.logout_url, {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_blacklisted_token_cannot_refresh(self):
+        """After logout the blacklisted refresh token is rejected by the refresh endpoint."""
+        _, refresh = self._obtain_tokens()
+        self.client.post(self.logout_url, {"refresh": refresh}, format="json")
+        response = self.client.post(
+            self.refresh_url, {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_logout_with_missing_refresh_field_returns_400(self):
+        """POST /api/auth/logout/ with an empty body returns 400 (field required)."""
+        response = self.client.post(self.logout_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_logout_with_malformed_token_returns_401(self):
+        """POST /api/auth/logout/ with a garbage string returns 401, not 500."""
+        response = self.client.post(
+            self.logout_url, {"refresh": "not.a.valid.jwt"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_logout_with_already_blacklisted_token_returns_401(self):
+        """Submitting an already-blacklisted token returns 401, not 500."""
+        _, refresh = self._obtain_tokens()
+        self.client.post(self.logout_url, {"refresh": refresh}, format="json")
+        # Second logout attempt with the same token
+        response = self.client.post(
+            self.logout_url, {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_logout_does_not_require_access_token(self):
+        """
+        POST /api/auth/logout/ succeeds even with no Authorization header.
+        Supports the common case where the access token has expired before logout.
+        """
+        _, refresh = self._obtain_tokens()
+        self.client.credentials()  # clear any stored credentials
+        response = self.client.post(
+            self.logout_url, {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Refresh-token rotation tests
+# ---------------------------------------------------------------------------
+
+
+class RefreshRotationTests(APITestCase):
+    """
+    Verify that ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION cause the
+    refresh endpoint to return a replacement refresh token and invalidate
+    the old one on every use.
+    """
+
+    def setUp(self):
+        self.user = make_user(email="rotation@test.com")
+        self.token_url = reverse("token-obtain-pair")
+        self.refresh_url = reverse("token-refresh")
+
+    def _obtain_tokens(self):
+        response = self.client.post(
+            self.token_url,
+            {"email": "rotation@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["access"], response.data["refresh"]
+
+    def test_refresh_returns_both_tokens(self):
+        """POST /api/auth/token/refresh/ returns access AND refresh tokens when rotation is on."""
+        _, refresh = self._obtain_tokens()
+        response = self.client.post(
+            self.refresh_url, {"refresh": refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+
+    def test_rotated_out_token_is_rejected(self):
+        """After one rotation the original refresh token is blacklisted and returns 401."""
+        _, original_refresh = self._obtain_tokens()
+        rotate_response = self.client.post(
+            self.refresh_url, {"refresh": original_refresh}, format="json"
+        )
+        self.assertEqual(rotate_response.status_code, status.HTTP_200_OK)
+        new_refresh = rotate_response.data["refresh"]
+        self.assertNotEqual(new_refresh, original_refresh)
+
+        reuse_response = self.client.post(
+            self.refresh_url, {"refresh": original_refresh}, format="json"
+        )
+        self.assertEqual(reuse_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_new_refresh_token_is_valid(self):
+        """The replacement refresh token returned after rotation can itself be used."""
+        _, original_refresh = self._obtain_tokens()
+        rotate_response = self.client.post(
+            self.refresh_url, {"refresh": original_refresh}, format="json"
+        )
+        new_refresh = rotate_response.data["refresh"]
+
+        response = self.client.post(
+            self.refresh_url, {"refresh": new_refresh}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+
+# ---------------------------------------------------------------------------
+# Inactive-user token rejection tests
+# ---------------------------------------------------------------------------
+
+
+class InactiveUserTokenTests(APITestCase):
+    """
+    Verify that deactivating a user causes their JWT access token to be
+    rejected on all subsequent authenticated calls.
+    """
+
+    def setUp(self):
+        self.user = make_user(email="inactive@test.com")
+        self.me_url = reverse("auth-me")
+
+    def test_inactive_user_access_token_rejected(self):
+        """An access token belonging to a deactivated user returns 401."""
+        token_response = self.client.post(
+            reverse("token-obtain-pair"),
+            {"email": "inactive@test.com", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(token_response.status_code, status.HTTP_200_OK)
+        access_token = token_response.data["access"]
+
+        # Deactivate the user
+        self.user.is_active = False
+        self.user.save()
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+        response = self.client.get(self.me_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_active_user_token_accepted(self):
+        """Baseline: an active user's access token is accepted normally."""
+        token_response = self.client.post(
+            reverse("token-obtain-pair"),
+            {"email": "inactive@test.com", "password": "securepass123"},
+            format="json",
+        )
+        access_token = token_response.data["access"]
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+        response = self.client.get(self.me_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
