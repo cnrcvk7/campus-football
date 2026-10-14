@@ -1,0 +1,52 @@
+# Python caches — never bake compiled bytecode into the image
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environment — dependencies are installed fresh by pip in the image
+.venv/
+venv/
+env/
+ENV/
+
+# Environment files — secrets must never be baked into the image
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases (used by tests; not needed in image)
+*.sqlite3
+db.sqlite3
+
+# Django collected static (re-generated at container startup)
+staticfiles/
+
+# Test and coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+coverage.xml
+
+# Git — not needed in the image
+.git/
+.gitignore
+.gitattributes
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.orig
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

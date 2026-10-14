@@ -1,0 +1,55 @@
+# Production deployment — standalone Compose file (not an overlay).
+#
+# Usage:
+#   cp .env.prod.example .env.prod   # fill in all required values
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# See docs/PRODUCTION_DEPLOY.md for environment variable requirements,
+# secret-key generation, and a safe deployment checklist.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # No `ports:` — the database is not exposed to the host in production.
+    # All access goes through the internal Docker network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # No source-code bind mount — the immutable image is used as-is.
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.prod
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      POSTGRES_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --no-input &&
+             python manage.py collectstatic --no-input &&
+             gunicorn config.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 2
+               --timeout 60
+               --access-logfile -
+               --error-logfile -"
+
+volumes:
+  postgres_data:
