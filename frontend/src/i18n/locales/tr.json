@@ -1,0 +1,104 @@
+{
+  "nav": {
+    "players": "Oyuncular",
+    "academies": "Akademiler",
+    "teams": "Takımlar",
+    "training": "Antrenman",
+    "matches": "Maçlar",
+    "signIn": "Giriş yap",
+    "signOut": "Çıkış yap",
+    "goToDashboard": "Ana sayfaya git"
+  },
+  "language": {
+    "ariaLabel": "Dil seçin"
+  },
+  "login": {
+    "tagline": "Hesabınıza giriş yapın",
+    "emailLabel": "E-posta",
+    "emailPlaceholder": "siz@ornek.com",
+    "passwordLabel": "Şifre",
+    "passwordPlaceholder": "••••••••",
+    "submit": "Giriş yap",
+    "submitting": "Giriş yapılıyor…",
+    "error": {
+      "tooManyAttempts": "Çok fazla giriş denemesi. Lütfen bir dakika bekleyip tekrar deneyin.",
+      "invalidCredentials": "Geçersiz e-posta veya şifre.",
+      "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
+    }
+  },
+  "dashboard": {
+    "hero": {
+      "platformBadge": "Campus Football",
+      "headline": "Oyuncu her şeyin merkezindedir.",
+      "subheadline": "Her oyuncu kalıcı bir Futbol Kimliği ve eksiksiz bir gelişim geçmişine sahiptir — her akademi, takım, antrenör ve sezon boyunca.",
+      "signedIn": "Oturum açık",
+      "platformLive": "Platform yayında",
+      "signInCta": "Giriş yap →",
+      "viewPlayers": "Oyuncuları Gör →",
+      "myPlayers": "Oyuncularım →",
+      "trainingSessions": "Antrenman Seansları",
+      "matches": "Maçlar"
+    },
+    "sections": {
+      "myChildren": "Çocuklarım",
+      "players": "Oyuncular",
+      "coachTools": "Antrenör Araçları",
+      "comingNext": "Yakında"
+    },
+    "features": {
+      "playerProfiles": {
+        "title": "Oyuncu Profilleri",
+        "description": "Kalıcı Futbol Kimliği, gelişim geçmişi, maç istatistikleri ve antrenman kayıtları — hepsi tek bir yerde."
+      },
+      "myChildren": {
+        "title": "Çocuklarım",
+        "description": "Çocuğunuzun oyuncu profilini, gelişim raporunu, antrenman devam kaydını ve maç geçmişini görüntüleyin."
+      },
+      "trainingSessions": {
+        "title": "Antrenman Seansları",
+        "description": "Egzersizler, odak beceriler, konum ve devam takibi ile seanslar oluşturun ve yönetin."
+      },
+      "matches": {
+        "title": "Maçlar",
+        "description": "Maç sonuçlarını kaydedin ve oyuncu başına istatistikleri girin: goller, asistler, paslar, müdahaleler, puanlar ve daha fazlası."
+      },
+      "assessments": {
+        "title": "Gelişim Değerlendirmeleri",
+        "description": "Teknik, taktik, fiziksel ve zihinsel puanlar zaman içinde takip edilir. Oyuncu profili üzerinden erişin."
+      },
+      "goals": {
+        "title": "Gelişim Hedefleri",
+        "description": "Antrenör tarafından belirlenen hedefler ve başarı takibi. Oyuncu profili üzerinden erişin."
+      },
+      "progressReports": {
+        "title": "İlerleme Raporları",
+        "description": "Aylık özetler ve takım karşılaştırma analizleri."
+      },
+      "teamAverages": {
+        "title": "Takım Ortalamaları",
+        "description": "Tüm metriklerde sorgu zamanında hesaplanan takım kıyaslamaları."
+      }
+    },
+    "card": {
+      "open": "Aç →",
+      "signInToOpen": "Açmak için giriş yapın →"
+    }
+  },
+  "common": {
+    "loading": "Yükleniyor…",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "error": {
+      "generic": "Bir şeyler ters gitti. Lütfen tekrar deneyin."
+    },
+    "empty": {
+      "noResults": "Sonuç bulunamadı.",
+      "noData": "Veri mevcut değil."
+    },
+    "validation": {
+      "required": "Bu alan zorunludur.",
+      "invalidEmail": "Lütfen geçerli bir e-posta adresi girin.",
+      "tooShort": "Bu değer çok kısa."
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "nav": {
+    "players": "Players",
+    "academies": "Academies",
+    "teams": "Teams",
+    "training": "Training",
+    "matches": "Matches",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "goToDashboard": "Go to dashboard"
+  },
+  "language": {
+    "ariaLabel": "Select language"
+  },
+  "login": {
+    "tagline": "Sign in to your account",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "error": {
+      "tooManyAttempts": "Too many login attempts. Please wait a minute and try again.",
+      "invalidCredentials": "Invalid email or password.",
+      "generic": "Something went wrong. Please try again."
+    }
+  },
+  "dashboard": {
+    "hero": {
+      "platformBadge": "Campus Football",
+      "headline": "The player is at the centre of everything.",
+      "subheadline": "Every player carries a permanent Football ID and a complete development history — across every academy, team, coach, and season.",
+      "signedIn": "Signed in",
+      "platformLive": "Platform is live",
+      "signInCta": "Sign in →",
+      "viewPlayers": "View Players →",
+      "myPlayers": "My Players →",
+      "trainingSessions": "Training Sessions",
+      "matches": "Matches"
+    },
+    "sections": {
+      "myChildren": "My Children",
+      "players": "Players",
+      "coachTools": "Coach Tools",
+      "comingNext": "Coming Next"
+    },
+    "features": {
+      "playerProfiles": {
+        "title": "Player Profiles",
+        "description": "Permanent Football ID, development history, match stats, and training records — all in one place."
+      },
+      "myChildren": {
+        "title": "My Children",
+        "description": "View your child's player profile, development report, training attendance, and match history."
+      },
+      "trainingSessions": {
+        "title": "Training Sessions",
+        "description": "Create and manage sessions with exercises, focus skills, location, and attendance tracking."
+      },
+      "matches": {
+        "title": "Matches",
+        "description": "Record match results and log per-player stats: goals, assists, passes, tackles, ratings, and more."
+      },
+      "assessments": {
+        "title": "Development Assessments",
+        "description": "Technical, tactical, physical, and mental scores tracked over time. Access via a player profile."
+      },
+      "goals": {
+        "title": "Development Goals",
+        "description": "Coach-set goals with milestones and achievement tracking. Access via a player profile."
+      },
+      "progressReports": {
+        "title": "Progress Reports",
+        "description": "Monthly summaries and team comparison insights."
+      },
+      "teamAverages": {
+        "title": "Team Averages",
+        "description": "Computed-at-query-time team benchmarks across all metrics."
+      }
+    },
+    "card": {
+      "open": "Open →",
+      "signInToOpen": "Sign in to open →"
+    }
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "error": {
+      "generic": "Something went wrong. Please try again."
+    },
+    "empty": {
+      "noResults": "No results found.",
+      "noData": "No data available."
+    },
+    "validation": {
+      "required": "This field is required.",
+      "invalidEmail": "Please enter a valid email address.",
+      "tooShort": "This value is too short."
+    }
+  }
+}

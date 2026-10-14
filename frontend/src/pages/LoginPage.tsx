@@ -1,31 +1,39 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../services/api'
-import { loginErrorMessage } from '../utils/loginErrorMessage'
 import { resolveDestination } from '../utils/resolveDestination'
+
+/** Map an HTTP status (or null) from a failed login to a translation key. */
+function loginErrorKey(status: number | null): string {
+  if (status === 429) return 'login.error.tooManyAttempts'
+  if (status === 401) return 'login.error.invalidCredentials'
+  return 'login.error.generic'
+}
 
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { t } = useTranslation()
   const from = (location.state as { from?: string } | null)?.from ?? '/'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError(null)
+    setErrorKey(null)
     setSubmitting(true)
     try {
       const user = await login(email, password)
       navigate(resolveDestination(user, from), { replace: true })
     } catch (err) {
       const httpStatus = err instanceof ApiError ? err.status : null
-      setError(loginErrorMessage(httpStatus))
+      setErrorKey(loginErrorKey(httpStatus))
     } finally {
       setSubmitting(false)
     }
@@ -40,7 +48,7 @@ export default function LoginPage() {
             CF
           </div>
           <h1 className="text-xl font-bold text-gray-900">Campus Football</h1>
-          <p className="text-sm text-gray-400">Sign in to your account</p>
+          <p className="text-sm text-gray-400">{t('login.tagline')}</p>
         </div>
 
         {/* Card */}
@@ -51,7 +59,7 @@ export default function LoginPage() {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Email
+                {t('login.emailLabel')}
               </label>
               <input
                 id="email"
@@ -61,7 +69,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition"
-                placeholder="you@example.com"
+                placeholder={t('login.emailPlaceholder')}
               />
             </div>
 
@@ -70,7 +78,7 @@ export default function LoginPage() {
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Password
+                {t('login.passwordLabel')}
               </label>
               <input
                 id="password"
@@ -80,13 +88,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition"
-                placeholder="••••••••"
+                placeholder={t('login.passwordPlaceholder')}
               />
             </div>
 
-            {error && (
+            {errorKey && (
               <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-100">
-                {error}
+                {t(errorKey)}
               </p>
             )}
 
@@ -95,7 +103,7 @@ export default function LoginPage() {
               disabled={submitting}
               className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-60 transition"
             >
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? t('login.submitting') : t('login.submit')}
             </button>
           </form>
         </div>
