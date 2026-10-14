@@ -6,13 +6,14 @@ import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { trainingService } from '../services/trainingService'
 import type { TrainingAttendance, TrainingSession } from '../types'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString('en-GB', {
+function formatDate(d: string, locale: string): string {
+  return new Date(d).toLocaleDateString(locale, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
@@ -47,7 +48,8 @@ const ATTENDANCE_BADGE: Record<string, string> = {
 export default function CoachSessionDetailPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
 
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [attendance, setAttendance] = useState<TrainingAttendance[]>([])
@@ -122,7 +124,7 @@ export default function CoachSessionDetailPage() {
         {/* Header */}
         <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
           <h1 className="text-2xl font-bold text-gray-900">{session.title}</h1>
-          <p className="mt-1 text-sm text-gray-400">{formatDate(session.training_date)}</p>
+          <p className="mt-1 text-sm text-gray-400">{formatDate(session.training_date, displayLocale)}</p>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {session.academy_name && (

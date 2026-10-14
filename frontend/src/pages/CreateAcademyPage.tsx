@@ -10,7 +10,7 @@ import { validateAcademyForm } from '../utils/academyFormValidation'
 // DRF error parser (same pattern as existing form pages)
 // ---------------------------------------------------------------------------
 
-function parseDrfError(err: unknown): string {
+function parseDrfError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     try {
       const body = JSON.parse(err.message) as Record<string, unknown>
@@ -25,7 +25,7 @@ function parseDrfError(err: unknown): string {
       return err.message
     }
   }
-  return 'Something went wrong. Please try again.'
+  return fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ export default function CreateAcademyPage() {
       })
       navigate('/coach/academies')
     } catch (err) {
-      setApiError(parseDrfError(err))
+      setApiError(parseDrfError(err, t('common.error.generic')))
     } finally {
       setSubmitting(false)
     }

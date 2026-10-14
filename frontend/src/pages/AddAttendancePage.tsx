@@ -8,6 +8,7 @@ import { playerService } from '../services/playerService'
 import { teamService } from '../services/teamService'
 import { trainingService } from '../services/trainingService'
 import type { AttendanceStatus, Player, TrainingAttendance, TrainingSession } from '../types'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,7 +32,7 @@ const INACTIVE_STYLE = 'border-gray-200 bg-white text-gray-400 hover:border-gray
 const inputCls =
   'mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20'
 
-function parseDrfError(err: unknown): string {
+function parseDrfError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     try {
       const body = JSON.parse(err.message)
@@ -46,7 +47,7 @@ function parseDrfError(err: unknown): string {
       return err.message
     }
   }
-  return 'Unexpected error — please try again.'
+  return fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,8 @@ function parseDrfError(err: unknown): string {
 export default function AddAttendancePage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
 
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([])
@@ -124,7 +126,7 @@ export default function AddAttendancePage() {
         navigate(`/coach/sessions/${sessionId}`)
       }
     } catch (err) {
-      setSubmitError(parseDrfError(err))
+      setSubmitError(parseDrfError(err, t('common.error.generic')))
       setSubmitting(false)
       setAddAnother(false)
     }
@@ -208,7 +210,7 @@ export default function AddAttendancePage() {
           <h1 className="text-2xl font-bold text-gray-900">{t('attendance.addTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
             {session.title} ·{' '}
-            {new Date(session.training_date).toLocaleDateString('en-GB', {
+            {new Date(session.training_date).toLocaleDateString(displayLocale, {
               day: 'numeric', month: 'short', year: 'numeric',
             })}
           </p>

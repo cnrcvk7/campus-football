@@ -24,7 +24,7 @@ function FieldLabel({ htmlFor, children, required }: { htmlFor: string; children
 const inputCls =
   'mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20'
 
-function parseDrfError(err: unknown): string {
+function parseDrfError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     try {
       const body = JSON.parse(err.message)
@@ -39,7 +39,7 @@ function parseDrfError(err: unknown): string {
       return err.message
     }
   }
-  return 'Unexpected error — please try again.'
+  return fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ export default function EditMatchPage() {
       })
       navigate(`/coach/matches/${matchId}`)
     } catch (err) {
-      setSubmitError(parseDrfError(err))
+      setSubmitError(parseDrfError(err, t('common.error.generic')))
       setSubmitting(false)
     }
   }

@@ -2,6 +2,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
@@ -26,8 +27,8 @@ function calcAge(dob: string): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+function fmtDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function getActiveAcademy(history: PlayerHistory) {
@@ -353,7 +354,8 @@ const PHYS_FIELDS_DEF: PhysField[] = [
 ]
 
 function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   if (measurements.length === 0) {
     return (
       <section>
@@ -372,7 +374,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
       <Card>
         {/* Latest snapshot */}
         <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-          {t('playerReport.latestPrefix')} {fmtDate(latest.measurement_date)}
+          {t('playerReport.latestPrefix')} {fmtDate(latest.measurement_date, displayLocale)}
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
           {PHYS_FIELDS_DEF.map(({ key, labelKey, unit, lowerIsBetter }) => {
@@ -418,7 +420,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
                 <tbody className="divide-y divide-gray-50">
                   {[...measurements].reverse().map((m) => (
                     <tr key={m.id}>
-                      <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{fmtDate(m.measurement_date)}</td>
+                      <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{fmtDate(m.measurement_date, displayLocale)}</td>
                       {PHYS_FIELDS_DEF.map(({ key, unit }) => {
                         const val = m[key] as string | null
                         return (
@@ -574,7 +576,8 @@ const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
 }
 
 function GoalCard({ goal }: { goal: DevelopmentGoal }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const current = goal.current_value !== null ? parseFloat(goal.current_value) : null
   const target = goal.target_value !== null ? parseFloat(goal.target_value) : null
   const progress = current !== null && target !== null && target > 0
@@ -609,9 +612,9 @@ function GoalCard({ goal }: { goal: DevelopmentGoal }) {
         </div>
       )}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
-        <span>{t('playerReport.started')} {fmtDate(goal.start_date)}</span>
-        {goal.target_date && <span>{t('playerProfile.target')} {fmtDate(goal.target_date)}</span>}
-        {goal.completed_at && <span>{t('playerReport.completedOn')} {fmtDate(goal.completed_at)}</span>}
+        <span>{t('playerReport.started')} {fmtDate(goal.start_date, displayLocale)}</span>
+        {goal.target_date && <span>{t('playerProfile.target')} {fmtDate(goal.target_date, displayLocale)}</span>}
+        {goal.completed_at && <span>{t('playerReport.completedOn')} {fmtDate(goal.completed_at, displayLocale)}</span>}
       </div>
     </div>
   )
@@ -717,7 +720,8 @@ function FeedbackSection({
   assessments: Assessment[]
   matches: PlayerMatchStats[]
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const entries = buildFeedback(assessments, matches)
 
   if (entries.length === 0) {
@@ -741,7 +745,7 @@ function FeedbackSection({
             <div key={e.id} className="border-l-2 border-brand-200 pl-4">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className="text-xs font-semibold text-brand-600 uppercase tracking-wide">{e.source}</span>
-                <span className="text-xs text-gray-400">{fmtDate(e.date)}</span>
+                <span className="text-xs text-gray-400">{fmtDate(e.date, displayLocale)}</span>
                 {e.author && <span className="text-xs text-gray-400">· {e.author}</span>}
               </div>
               <p className="text-sm text-gray-700 italic">"{e.comment}"</p>

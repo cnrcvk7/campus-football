@@ -6,13 +6,14 @@ import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { matchService } from '../services/matchService'
 import type { Match, MatchStats } from '../types'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString('en-GB', {
+function formatDate(d: string, locale: string): string {
+  return new Date(d).toLocaleDateString(locale, {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 }
@@ -43,7 +44,8 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function CoachMatchDetailPage() {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
 
   const [match, setMatch] = useState<Match | null>(null)
   const [playerStats, setPlayerStats] = useState<MatchStats[]>([])
@@ -121,9 +123,9 @@ export default function CoachMatchDetailPage() {
                 {match.competition && ` · ${match.competition}`}
               </p>
               <h1 className="mt-1 text-2xl font-bold text-gray-900">
-                vs {match.opponent_name}
+                {t('matches.vsOpponent', { opponent: match.opponent_name })}
               </h1>
-              <p className="mt-0.5 text-sm text-gray-400">{formatDate(match.match_date)}</p>
+              <p className="mt-0.5 text-sm text-gray-400">{formatDate(match.match_date, displayLocale)}</p>
             </div>
 
             <div className="text-right">
@@ -229,12 +231,12 @@ export default function CoachMatchDetailPage() {
                           <td className="px-3 py-3 text-center text-sm text-gray-600">{s.tackles || '—'}</td>
                           <td className="px-3 py-3 text-center text-sm">
                             {s.yellow_cards > 0 ? (
-                              <span className="inline-block h-4 w-3 rounded-sm bg-yellow-400" title={`${s.yellow_cards} yellow`} />
+                              <span className="inline-block h-4 w-3 rounded-sm bg-yellow-400" title={t('matchStats.yellowCardTitle', { count: s.yellow_cards })} />
                             ) : '—'}
                           </td>
                           <td className="px-3 py-3 text-center text-sm">
                             {s.red_cards > 0 ? (
-                              <span className="inline-block h-4 w-3 rounded-sm bg-red-500" title={`${s.red_cards} red`} />
+                              <span className="inline-block h-4 w-3 rounded-sm bg-red-500" title={t('matchStats.redCardTitle', { count: s.red_cards })} />
                             ) : '—'}
                           </td>
                           <td className="px-3 py-3 text-center">
@@ -251,7 +253,7 @@ export default function CoachMatchDetailPage() {
                               onClick={() => navigate(`/coach/matches/${match.id}/edit-stats/${s.id}`)}
                               className="text-xs font-medium text-brand-600 hover:text-brand-700"
                             >
-                              {t('playerProfile.editGoal')}
+                              {t('matchStats.editStats')}
                             </button>
                           </td>
                         </tr>

@@ -6,6 +6,7 @@ import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { trainingService } from '../services/trainingService'
 import type { TrainingSession } from '../types'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,7 +25,8 @@ const SKILL_CATEGORY_COLOR: Record<string, string> = {
 
 function SessionCard({ session }: { session: TrainingSession }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   return (
     <button
       onClick={() => navigate(`/coach/sessions/${session.id}`)}
@@ -34,7 +36,7 @@ function SessionCard({ session }: { session: TrainingSession }) {
         {/* Date block */}
         <div className="flex-shrink-0 w-14 rounded-xl bg-brand-50 px-1 py-2 text-center">
           <p className="text-xs font-medium text-brand-500 uppercase">
-            {new Date(session.training_date).toLocaleDateString('en-GB', { month: 'short' })}
+            {new Date(session.training_date).toLocaleDateString(displayLocale, { month: 'short' })}
           </p>
           <p className="text-2xl font-bold leading-none text-brand-700">
             {new Date(session.training_date).getDate()}

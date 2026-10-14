@@ -6,6 +6,7 @@ import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { matchService } from '../services/matchService'
 import type { Match } from '../types'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,7 +24,8 @@ const RESULT_BADGE: Record<string, string> = {
 
 function MatchCard({ match }: { match: Match }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const date = new Date(match.match_date)
 
   return (
@@ -35,7 +37,7 @@ function MatchCard({ match }: { match: Match }) {
         {/* Date block */}
         <div className="flex-shrink-0 w-14 rounded-xl bg-brand-50 px-1 py-2 text-center">
           <p className="text-xs font-medium text-brand-500 uppercase">
-            {date.toLocaleDateString('en-GB', { month: 'short' })}
+            {date.toLocaleDateString(displayLocale, { month: 'short' })}
           </p>
           <p className="text-2xl font-bold leading-none text-brand-700">{date.getDate()}</p>
         </div>

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
@@ -47,12 +48,12 @@ function calcAge(dob: string): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25))
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+function fmtDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function fmtShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+function fmtShortDate(iso: string, locale: string): string {
+  return new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' })
 }
 
 function initials(firstName: string, lastName: string): string {
@@ -279,7 +280,8 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
 // ---------------------------------------------------------------------------
 
 function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   if (assessments.length === 0) return null
   const latest = assessments[assessments.length - 1]
   if (latest.items.length === 0) return null
@@ -288,7 +290,7 @@ function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.latestAssessment')} {fmtDate(latest.assessment_date)}</SectionTitle>
+      <SectionTitle>{t('playerProfile.latestAssessment')} {fmtDate(latest.assessment_date, displayLocale)}</SectionTitle>
       <Card>
         {latest.overall_comment && (
           <p className="mb-4 text-sm text-gray-600 italic border-l-2 border-brand-400 pl-3">
@@ -368,7 +370,8 @@ function SeasonSummary({ summary }: { summary: MatchSummary | null }) {
 // ---------------------------------------------------------------------------
 
 function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const recent = sessions.slice(0, 6)
   const presentCount = sessions.filter((s) => s.attendance_status === 'PRESENT').length
   const lateCount = sessions.filter((s) => s.attendance_status === 'LATE').length
@@ -413,7 +416,7 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-800 truncate">{session.title}</p>
                       <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                        <span className="text-xs text-gray-400">{fmtShortDate(session.training_date)}</span>
+                        <span className="text-xs text-gray-400">{fmtShortDate(session.training_date, displayLocale)}</span>
                         {session.focus_skills.length > 0 && (
                           <span className="text-xs text-gray-400">
                             · {session.focus_skills.map((s) => s.name).join(', ')}
@@ -444,7 +447,8 @@ const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
 
 function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId: string }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
 
   return (
     <section>
@@ -499,7 +503,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                 ) : null}
                 <div className="mt-3 flex items-center justify-between">
                   {goal.target_date ? (
-                    <p className="text-xs text-gray-400">{t('playerProfile.target')} {fmtDate(goal.target_date)}</p>
+                    <p className="text-xs text-gray-400">{t('playerProfile.target')} {fmtDate(goal.target_date, displayLocale)}</p>
                   ) : (
                     <span />
                   )}
@@ -530,7 +534,8 @@ const RESULT_STYLE: Record<string, string> = {
 }
 
 function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   return (
     <section>
       <SectionTitle>{t('playerProfile.sectionMatchHistory')}</SectionTitle>
@@ -571,7 +576,7 @@ function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
                     className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                      {fmtShortDate(m.match_date)}
+                      {fmtShortDate(m.match_date, displayLocale)}
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-[10rem] truncate">
                       {m.opponent}
@@ -625,7 +630,8 @@ function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
 // ---------------------------------------------------------------------------
 
 function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   if (assessments.length === 0) return null
 
   return (
@@ -645,7 +651,7 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
                   <div className={`absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-white shadow ${idx === 0 ? 'bg-brand-500' : 'bg-gray-300'}`} />
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-gray-800">
-                      {fmtDate(a.assessment_date)}
+                      {fmtDate(a.assessment_date, displayLocale)}
                     </p>
                     {idx === 0 && (
                       <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-600 ring-1 ring-brand-200">
@@ -693,7 +699,8 @@ function PhysicalMeasurementsSection({
   playerId: string
 }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
 
   const fields: { key: keyof PhysicalMeasurement; label: string; unit: string }[] = [
     { key: 'height_cm', label: t('playerProfile.height'), unit: 'cm' },
@@ -730,7 +737,7 @@ function PhysicalMeasurementsSection({
         <EmptyState icon="📏" title={t('playerProfile.empty.noMeasurements')} description={t('playerProfile.empty.noMeasurementsHint')} />
       ) : (
         <Card>
-          <p className="mb-4 text-xs text-gray-400">{t('playerProfile.latestPrefix')} {fmtDate(latest.measurement_date)}</p>
+          <p className="mb-4 text-xs text-gray-400">{t('playerProfile.latestPrefix')} {fmtDate(latest.measurement_date, displayLocale)}</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {visibleFields.map(({ key, label, unit }) => {
               const currVal = latest[key] as string | null
@@ -772,7 +779,8 @@ function MembershipTimeline({
   academyHistory: AcademyMembership[]
   teamHistory: TeamMembership[]
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   return (
     <section>
       <SectionTitle>{t('playerProfile.sectionHistory')}</SectionTitle>
@@ -794,7 +802,7 @@ function MembershipTimeline({
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{m.academy.name}</p>
                     <p className="text-xs text-gray-400">
-                      {t('playerProfile.joined')} {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : t('playerProfile.presentLabel')}
+                      {t('playerProfile.joined')} {fmtDate(m.joined_at, displayLocale)} → {m.left_at ? fmtDate(m.left_at, displayLocale) : t('playerProfile.presentLabel')}
                     </p>
                     {m.academy.city && (
                       <p className="text-xs text-gray-400">{m.academy.city}, {m.academy.country}</p>
@@ -831,7 +839,7 @@ function MembershipTimeline({
                       <p className="text-xs text-brand-500">{m.team.age_group}{m.team.season ? ` · ${m.team.season}` : ''}</p>
                     )}
                     <p className="text-xs text-gray-400">
-                      {t('playerProfile.joined')} {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : t('playerProfile.presentLabel')}
+                      {t('playerProfile.joined')} {fmtDate(m.joined_at, displayLocale)} → {m.left_at ? fmtDate(m.left_at, displayLocale) : t('playerProfile.presentLabel')}
                     </p>
                   </div>
                   {m.status === 'active' && (

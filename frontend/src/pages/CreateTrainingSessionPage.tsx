@@ -68,7 +68,7 @@ const EMPTY: FormState = {
 // Parse DRF errors into a human-readable string
 // ---------------------------------------------------------------------------
 
-function parseDrfError(err: unknown): string {
+function parseDrfError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     try {
       const body = JSON.parse(err.message)
@@ -83,7 +83,7 @@ function parseDrfError(err: unknown): string {
       return err.message
     }
   }
-  return 'Unexpected error — please try again.'
+  return fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ export default function CreateTrainingSessionPage() {
       })
       navigate(`/coach/sessions/${session.id}`)
     } catch (err) {
-      setSubmitError(parseDrfError(err))
+      setSubmitError(parseDrfError(err, t('common.error.generic')))
       setSubmitting(false)
     }
   }
