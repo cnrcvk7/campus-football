@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.academies.models import Academy, AcademyStaffMembership
+from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 from apps.development.models import Skill
 from apps.players.models import Player
 from apps.teams.models import Team
@@ -277,6 +277,10 @@ class AttendanceAPITests(APITestCase):
         AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.session = make_session(self.coach, self.academy)
         self.player = make_player()
+        # Player must be affiliated with the session's academy (Task 2 security fix).
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2024-01-01"
+        )
         self.client.force_authenticate(user=self.coach)
         self.list_url = reverse(
             "training-attendance-list",
@@ -789,3 +793,114 @@ class PlayerTrainingHistoryAuthorizationTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["sessions"]), 2)
+
+
+# ---------------------------------------------------------------------------
+# Attendance player-affiliation regression tests (Task 2)
+# ---------------------------------------------------------------------------
+
+
+class AttendancePlayerAffiliationTests(APITestCase):
+    """
+    Verify that attendance records can only be created for players who are
+    legitimately associated with the session's academy — either via a direct
+    PlayerAcademyMembership or via a PlayerTeamMembership in a team that
+    belongs to the session's academy.
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "aff_coach@training.test")
+        self.academy = make_academy(name="Affiliation Academy")
+        self.other_academy = make_academy(name="Other Affiliation Academy")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        self.session = make_session(self.coach, self.academy)
+        self.client.force_authenticate(user=self.coach)
+        self.url = reverse(
+            "training-attendance-list",
+            kwargs={"session_pk": self.session.pk},
+        )
+
+    def _post_attendance(self, player, session_status="PRESENT"):
+        return self.client.post(
+            self.url, {"player": str(player.pk), "status": session_status}, format="json"
+        )
+
+    def test_player_with_no_affiliation_is_rejected(self):
+        """Player with no academy or team affiliation cannot be added to attendance (400)."""
+        unrelated = make_player(first_name="Unrelated")
+        response = self._post_attendance(unrelated)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("player", response.data)
+
+    def test_player_with_academy_membership_is_accepted(self):
+        """Player with a PlayerAcademyMembership for the session's academy can be recorded (201)."""
+        player = make_player(first_name="Direct")
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.academy, joined_at="2024-01-01"
+        )
+        response = self._post_attendance(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_with_team_membership_in_session_academy_is_accepted(self):
+        """Player with a team membership in the session's academy can be recorded (201)."""
+        from apps.teams.models import PlayerTeamMembership
+        team = make_team(self.academy, name="U15 Aff")
+        player = make_player(first_name="TeamMember")
+        PlayerTeamMembership.objects.create(
+            player=player, team=team, joined_at="2024-01-01"
+        )
+        response = self._post_attendance(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_with_team_membership_in_different_academy_is_rejected(self):
+        """Player affiliated only with a different academy's team is rejected (400)."""
+        from apps.teams.models import PlayerTeamMembership
+        other_team = make_team(self.other_academy, name="Other U15 Aff")
+        player = make_player(first_name="WrongTeam")
+        PlayerTeamMembership.objects.create(
+            player=player, team=other_team, joined_at="2024-01-01"
+        )
+        response = self._post_attendance(player)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("player", response.data)
+
+    def test_player_with_left_academy_membership_still_accepted(self):
+        """Historical (left) academy memberships count as affiliation (alumni scenario)."""
+        player = make_player(first_name="Alumni")
+        PlayerAcademyMembership.objects.create(
+            player=player,
+            academy=self.academy,
+            joined_at="2022-09-01",
+            left_at="2023-06-30",
+            status=PlayerAcademyMembership.Status.LEFT,
+        )
+        response = self._post_attendance(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_multi_academy_player_accepted_via_correct_academy(self):
+        """Multi-academy player is accepted when one of their memberships matches the session's academy."""
+        player = make_player(first_name="MultiAcademy")
+        other_academy = make_academy(name="Multi Other Academy")
+        # Member of both academies; the session is in self.academy
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=other_academy, joined_at="2023-01-01"
+        )
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.academy, joined_at="2024-01-01"
+        )
+        response = self._post_attendance(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_update_attendance_does_not_recheck_affiliation(self):
+        """PATCH on an existing attendance record is not blocked by the affiliation check."""
+        # Create attendance via ORM to bypass the affiliation check
+        unrelated = make_player(first_name="UpdateOnly")
+        attendance = TrainingAttendance.objects.create(
+            session=self.session, player=unrelated, status="PRESENT"
+        )
+        url = reverse(
+            "training-attendance-detail",
+            kwargs={"session_pk": self.session.pk, "pk": attendance.pk},
+        )
+        response = self.client.patch(url, {"notes": "Late arrival"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

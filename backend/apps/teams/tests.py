@@ -468,3 +468,77 @@ class TeamListRetrieveAuthorizationTests(APITestCase):
     def test_parent_cannot_retrieve_team(self):
         self._auth(User.Role.PARENT, "parent_f7tr@test.com")
         self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# Team academy reassignment regression tests (Task 4)
+# ---------------------------------------------------------------------------
+
+
+class TeamAcademyReassignmentTests(APITestCase):
+    """
+    Verify that the team's academy field is immutable after creation.
+
+    A COACH or ACADEMY_ADMIN with staff membership in academy A should not
+    be able to move a team to academy B — even if they happen to be staff of
+    both academies.  The academy field must be silently ignored (read-only)
+    on PATCH, leaving the original academy unchanged.
+    """
+
+    def setUp(self):
+        self.academy_a = make_academy(name="Reassign Academy A")
+        self.academy_b = make_academy(name="Reassign Academy B")
+        self.team = make_team(self.academy_a, name="Reassign Team")
+
+        # Coach who is staff of BOTH academies (worst-case scenario)
+        self.coach = make_auth_user(email="reassign_coach@test.com", role=User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy_b)
+        self.client.force_authenticate(user=self.coach)
+        self.detail_url = reverse("team-detail", kwargs={"pk": self.team.pk})
+
+    def test_patch_with_different_academy_is_ignored(self):
+        """PATCH academy to another value is silently ignored — team stays in original academy."""
+        response = self.client.patch(
+            self.detail_url,
+            {"academy": str(self.academy_b.pk), "name": "Reassign Team Updated"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Name can be updated, but academy must remain academy_a.
+        self.assertEqual(str(response.data["academy"]), str(self.academy_a.pk))
+        self.assertEqual(response.data["name"], "Reassign Team Updated")
+
+    def test_academy_unchanged_in_database_after_patch(self):
+        """The academy FK in the database is unchanged even when a different value is sent."""
+        self.client.patch(
+            self.detail_url,
+            {"academy": str(self.academy_b.pk)},
+            format="json",
+        )
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.academy_id, self.academy_a.pk)
+
+    def test_patch_non_academy_fields_still_work(self):
+        """Other team fields can still be updated via PATCH."""
+        response = self.client.patch(
+            self.detail_url, {"season": "2027/28"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["season"], "2027/28")
+        self.assertEqual(str(response.data["academy"]), str(self.academy_a.pk))
+
+    def test_academy_required_on_create(self):
+        """Creating a team without a valid academy returns 403.
+
+        The staff-membership check (which requires a valid academy in the
+        request body) fires before the serializer, so the caller receives 403
+        rather than 400 — consistent with the existing project behaviour that
+        avoids leaking which academy IDs exist.
+        """
+        response = self.client.post(
+            reverse("team-list"),
+            {"name": "No Academy Team"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -145,6 +145,23 @@ class MatchPlayerStatsWriteSerializer(serializers.ModelSerializer):
         player = data.get("player")
 
         if match and player:
+            if self.instance is None:
+                # On create — verify the player is associated with the match's
+                # academy, either via a direct academy membership or via a team
+                # membership at a team belonging to that academy.
+                from apps.academies.models import PlayerAcademyMembership
+                from apps.teams.models import PlayerTeamMembership
+                has_academy_membership = PlayerAcademyMembership.objects.filter(
+                    player=player, academy=match.academy
+                ).exists()
+                has_team_membership = PlayerTeamMembership.objects.filter(
+                    player=player, team__academy=match.academy
+                ).exists()
+                if not (has_academy_membership or has_team_membership):
+                    raise serializers.ValidationError(
+                        {"player": "Player is not associated with this match's academy."}
+                    )
+
             qs = MatchPlayerStats.objects.filter(match=match, player=player)
             if self.instance is not None:
                 # On update — exclude the current record so a no-op player

@@ -207,10 +207,25 @@ class TrainingAttendanceWriteSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if self.instance is None:
-            # On create — check for duplicate attendance in the same session.
+            # On create — validate player affiliation then check for duplicates.
             session = self.context.get("session")
             player = data.get("player")
             if session and player:
+                # Verify the player is associated with the session's academy,
+                # either through a direct academy membership or via a team
+                # membership at a team that belongs to the same academy.
+                from apps.academies.models import PlayerAcademyMembership
+                from apps.teams.models import PlayerTeamMembership
+                has_academy_membership = PlayerAcademyMembership.objects.filter(
+                    player=player, academy=session.academy
+                ).exists()
+                has_team_membership = PlayerTeamMembership.objects.filter(
+                    player=player, team__academy=session.academy
+                ).exists()
+                if not (has_academy_membership or has_team_membership):
+                    raise serializers.ValidationError(
+                        {"player": "Player is not associated with this session's academy."}
+                    )
                 if TrainingAttendance.objects.filter(
                     session=session, player=player
                 ).exists():

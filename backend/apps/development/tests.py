@@ -1,9 +1,11 @@
+import datetime
 import uuid
 
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 from apps.players.models import Player
 from apps.users.models import User
 
@@ -134,6 +136,12 @@ class AssessmentAPITests(APITestCase):
         self.skill1 = make_skill("Passing", "TECHNICAL")
         self.skill2 = make_skill("Speed", "PHYSICAL")
         self.list_url = reverse("player-assessment-list", kwargs={"player_pk": self.player.pk})
+        # Affiliation required for write operations (Task 1 security fix).
+        self.academy = Academy.objects.create(name="Assessment Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
 
     def _coach_post(self, payload):
         self.client.force_authenticate(user=self.coach)
@@ -283,6 +291,12 @@ class GoalAPITests(APITestCase):
         self.skill = make_skill("Weak Foot", "TECHNICAL")
         self.list_url = reverse("player-goal-list", kwargs={"player_pk": self.player.pk})
         self.client.force_authenticate(user=self.coach)
+        # Affiliation required for write operations (Task 1 security fix).
+        self.academy = Academy.objects.create(name="Goal Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
 
     def _payload(self, **overrides):
         base = {
@@ -368,6 +382,12 @@ class MeasurementAPITests(APITestCase):
         self.player = make_player()
         self.list_url = reverse("player-measurement-list", kwargs={"player_pk": self.player.pk})
         self.client.force_authenticate(user=self.coach)
+        # Affiliation required for write operations (Task 1 security fix).
+        self.academy = Academy.objects.create(name="Measurement Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
 
     def _payload(self, **overrides):
         base = {
@@ -452,6 +472,14 @@ class DevelopmentPermissionTests(APITestCase):
         self.coach = make_user(User.Role.COACH, "permcoach@test.com")
         self.admin = make_user(User.Role.ACADEMY_ADMIN, "admin@test.com")
         self.skill = make_skill("Shooting", "TECHNICAL")
+
+        # Academy affiliations required by the Task 1 cross-academy write fix.
+        self.academy = Academy.objects.create(name="Perm Test Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player1, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
 
     def test_player_cannot_access_other_player_assessments(self):
         """A PLAYER user cannot read another player's assessments (403)."""
@@ -628,3 +656,189 @@ class DevelopmentTimelineTests(APITestCase):
         # Try to access self.player's timeline (not linked to player_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# Cross-academy development write authorization regression tests (Task 1)
+# ---------------------------------------------------------------------------
+
+
+class CrossAcademyDevelopmentWriteTests(APITestCase):
+    """
+    Verify that COACH and ACADEMY_ADMIN can only write development records
+    (assessments, goals, measurements) for players affiliated with one of
+    their academies.  A player with memberships in multiple academies must
+    remain accessible to coaches of each of those academies.
+    """
+
+    def setUp(self):
+        self.skill = make_skill("Crossing", "TECHNICAL")
+
+        # Two academies
+        self.academy_a = Academy.objects.create(name="Dev Academy A", city="London", country="England")
+        self.academy_b = Academy.objects.create(name="Dev Academy B", city="Manchester", country="England")
+
+        # Coach affiliated with academy A only
+        self.coach_a = make_user(User.Role.COACH, "dev_coach_a@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach_a, academy=self.academy_a)
+
+        # Academy admin affiliated with academy A only
+        self.admin_a = make_user(User.Role.ACADEMY_ADMIN, "dev_admin_a@test.com")
+        AcademyStaffMembership.objects.create(user=self.admin_a, academy=self.academy_a)
+
+        # Coach affiliated with academy B only
+        self.coach_b = make_user(User.Role.COACH, "dev_coach_b@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach_b, academy=self.academy_b)
+
+        # Player in academy A only
+        self.player_in_a = make_player(first_name="Alice")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_a, academy=self.academy_a, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Player in academy B only
+        self.player_in_b = make_player(first_name="Bob")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_b, academy=self.academy_b, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Multi-academy player — member of both A and B
+        self.player_in_ab = make_player(first_name="Charlie")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_ab, academy=self.academy_a, joined_at=datetime.date(2023, 9, 1)
+        )
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_ab, academy=self.academy_b, joined_at=datetime.date(2024, 7, 1)
+        )
+
+        # Player with no academy affiliations
+        self.unaffiliated_player = make_player(first_name="Dave")
+
+    # ---- assessment POST ----
+
+    def _assessment_payload(self):
+        return {
+            "assessment_date": "2026-10-01",
+            "items": [{"skill": str(self.skill.pk), "score": 75}],
+        }
+
+    def test_coach_a_can_post_assessment_for_player_in_a(self):
+        """Coach of academy A can create an assessment for a player in academy A."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_coach_a_cannot_post_assessment_for_player_in_b_only(self):
+        """Coach of academy A is denied when creating an assessment for a player only in academy B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_a_cannot_post_assessment_for_unaffiliated_player(self):
+        """Coach of academy A is denied when the player has no academy affiliations."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.unaffiliated_player.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_multi_academy_player_accessible_to_coach_a(self):
+        """Coach of academy A can write for a player who has memberships in both A and B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_ab.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_multi_academy_player_accessible_to_coach_b(self):
+        """Coach of academy B can also write for the multi-academy player."""
+        self.client.force_authenticate(user=self.coach_b)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_ab.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_academy_admin_a_can_post_assessment_for_player_in_a(self):
+        """Academy admin of A can create an assessment for a player in A."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_academy_admin_a_cannot_post_assessment_for_player_in_b_only(self):
+        """Academy admin of A is denied for a player only in B."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- goal POST and PATCH ----
+
+    def test_coach_a_can_post_goal_for_player_in_a(self):
+        """Coach of academy A can create a goal for a player in A."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(
+            url, {"title": "Speed goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_coach_a_cannot_post_goal_for_player_in_b_only(self):
+        """Coach of academy A is denied when posting a goal for a player only in B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(
+            url, {"title": "Speed goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_coach_a_can_patch_goal_for_player_in_a(self):
+        """Coach of academy A can PATCH a goal for a player in A."""
+        self.client.force_authenticate(user=self.coach_a)
+        goal = DevelopmentGoal.objects.create(
+            player=self.player_in_a, title="Endurance", start_date="2026-01-01",
+            created_by=self.coach_a,
+        )
+        url = reverse("player-goal-detail", kwargs={"player_pk": self.player_in_a.pk, "pk": goal.pk})
+        response = self.client.patch(url, {"status": "COMPLETED"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_coach_a_cannot_patch_goal_for_player_in_b_only(self):
+        """Coach of academy A is denied when PATCHing a goal for a player only in B."""
+        self.client.force_authenticate(user=self.coach_b)
+        goal = DevelopmentGoal.objects.create(
+            player=self.player_in_b, title="Endurance", start_date="2026-01-01",
+            created_by=self.coach_b,
+        )
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-goal-detail", kwargs={"player_pk": self.player_in_b.pk, "pk": goal.pk})
+        response = self.client.patch(url, {"status": "COMPLETED"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- measurement POST ----
+
+    def test_coach_a_can_post_measurement_for_player_in_a(self):
+        """Coach of academy A can create a measurement for a player in A."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(
+            url, {"measurement_date": "2026-10-01", "height_cm": "175.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_coach_a_cannot_post_measurement_for_player_in_b_only(self):
+        """Coach of academy A is denied when posting a measurement for a player only in B."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(
+            url, {"measurement_date": "2026-10-01", "height_cm": "175.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- reads remain open for coaches (no affiliation required for GET) ----
+
+    def test_coach_a_can_read_assessments_for_player_in_b(self):
+        """Coaches can still READ any player's development data regardless of affiliation."""
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

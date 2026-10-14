@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.academies.models import Academy, AcademyStaffMembership
+from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 from apps.players.models import Player
 from apps.teams.models import Team
 from apps.users.models import ParentPlayerLink, User
@@ -197,6 +197,10 @@ class MatchPlayerStatsTests(APITestCase):
         self.team = make_team(self.academy)
         make_staff_membership(self.coach, self.academy)
         self.player = make_player()
+        # Player must be affiliated with the match's academy (Task 3 security fix).
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2024-01-01"
+        )
         self.match = make_match(self.coach, self.academy, self.team)
         self.client.force_authenticate(user=self.coach)
         self.list_url = reverse("match-player-stats-list", args=[self.match.pk])
@@ -875,3 +879,106 @@ class MatchPlayerStatsDuplicateUpdateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.stats1.refresh_from_db()
         self.assertEqual(self.stats1.goals, 3)
+
+
+# ---------------------------------------------------------------------------
+# Match player-affiliation regression tests (Task 3)
+# ---------------------------------------------------------------------------
+
+
+class MatchPlayerAffiliationTests(APITestCase):
+    """
+    Verify that player stats can only be created for players who are
+    legitimately associated with the match's academy — either via a direct
+    PlayerAcademyMembership or via a PlayerTeamMembership at a team belonging
+    to that academy.  PATCH on an existing record is not rechecked.
+    """
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "aff_mcoach@test.com")
+        self.academy = make_academy("Match Affiliation Academy")
+        self.other_academy = make_academy("Other Match Academy")
+        self.team = make_team(self.academy, "U15 Match")
+        make_staff_membership(self.coach, self.academy)
+        self.match = make_match(self.coach, self.academy, self.team)
+        self.client.force_authenticate(user=self.coach)
+        self.list_url = reverse("match-player-stats-list", args=[self.match.pk])
+
+    def _post_stats(self, player):
+        return self.client.post(
+            self.list_url, {"player": str(player.pk), "started": True}, format="json"
+        )
+
+    def test_player_with_no_affiliation_is_rejected(self):
+        """Player with no academy or team membership cannot be added to match stats (400)."""
+        unrelated = make_player(first_name="NoAff")
+        response = self._post_stats(unrelated)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("player", response.data)
+
+    def test_player_with_academy_membership_is_accepted(self):
+        """Player with a direct academy membership for the match's academy is accepted (201)."""
+        player = make_player(first_name="DirectAcad")
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.academy, joined_at="2024-01-01"
+        )
+        response = self._post_stats(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_with_team_membership_in_match_academy_is_accepted(self):
+        """Player with a team membership in the match's academy is accepted (201)."""
+        from apps.teams.models import PlayerTeamMembership
+        player = make_player(first_name="TeamMem")
+        PlayerTeamMembership.objects.create(
+            player=player, team=self.team, joined_at="2024-01-01"
+        )
+        response = self._post_stats(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_player_with_team_membership_in_different_academy_is_rejected(self):
+        """Player affiliated only with a different academy's team is rejected (400)."""
+        from apps.teams.models import PlayerTeamMembership
+        other_team = make_team(self.other_academy, "Other U15")
+        player = make_player(first_name="WrongAcad")
+        PlayerTeamMembership.objects.create(
+            player=player, team=other_team, joined_at="2024-01-01"
+        )
+        response = self._post_stats(player)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("player", response.data)
+
+    def test_historical_academy_membership_counts_as_affiliation(self):
+        """A player with a LEFT academy membership is still accepted (alumni scenario)."""
+        from apps.academies.models import PlayerAcademyMembership
+        player = make_player(first_name="MatchAlumni")
+        PlayerAcademyMembership.objects.create(
+            player=player,
+            academy=self.academy,
+            joined_at="2022-09-01",
+            left_at="2023-06-30",
+            status=PlayerAcademyMembership.Status.LEFT,
+        )
+        response = self._post_stats(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_multi_academy_player_accepted_via_correct_academy(self):
+        """Multi-academy player is accepted when one of their memberships matches the match's academy."""
+        player = make_player(first_name="MultiAcad")
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.other_academy, joined_at="2023-01-01"
+        )
+        PlayerAcademyMembership.objects.create(
+            player=player, academy=self.academy, joined_at="2024-01-01"
+        )
+        response = self._post_stats(player)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_patch_existing_stats_does_not_recheck_affiliation(self):
+        """PATCH on an existing stats record is not blocked by the affiliation check."""
+        unrelated = make_player(first_name="PatchOnly")
+        stats = MatchPlayerStats.objects.create(
+            match=self.match, player=unrelated, started=False
+        )
+        url = reverse("match-player-stats-detail", args=[self.match.pk, stats.pk])
+        response = self.client.patch(url, {"goals": 1}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
