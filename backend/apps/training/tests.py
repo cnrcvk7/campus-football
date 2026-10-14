@@ -223,6 +223,131 @@ class ExerciseAPITests(APITestCase):
 
 
 # ---------------------------------------------------------------------------
+# Exercise ownership tests
+# ---------------------------------------------------------------------------
+
+
+class ExerciseOwnershipTests(APITestCase):
+    """
+    Verify that PATCH /api/training/exercises/{id}/ is restricted to the
+    exercise's creator.  Any other COACH or ACADEMY_ADMIN receives 403.
+    PLAYER and PARENT are blocked by the existing role check before the
+    ownership check is even reached.
+    """
+
+    def setUp(self):
+        self.creator = make_user(User.Role.COACH, "owner@exercise.test")
+        self.other_coach = make_user(User.Role.COACH, "other@exercise.test")
+        self.admin = make_user(User.Role.ACADEMY_ADMIN, "admin@exercise.test")
+        self.player_user = make_user(User.Role.PLAYER, "player@exercise.test")
+        self.parent_user = make_user(User.Role.PARENT, "parent@exercise.test")
+        # Exercise created by self.creator
+        self.exercise = make_exercise(self.creator, name="Ownership Drill")
+        self.detail_url = reverse("exercise-detail", kwargs={"pk": self.exercise.pk})
+
+    # ---- creator ----
+
+    def test_creator_can_update_own_exercise(self):
+        """Creator can PATCH their own exercise (200)."""
+        self.client.force_authenticate(user=self.creator)
+        response = self.client.patch(
+            self.detail_url, {"description": "Updated by creator."}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["description"], "Updated by creator.")
+
+    def test_creator_update_preserves_created_by(self):
+        """created_by is read-only; the creator field does not change on PATCH."""
+        self.client.force_authenticate(user=self.creator)
+        # Attempt to supply a different created_by — should be silently ignored.
+        response = self.client.patch(
+            self.detail_url,
+            {"created_by": str(self.other_coach.pk), "name": "Renamed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data["created_by"]), str(self.creator.pk))
+
+    # ---- other coaches ----
+
+    def test_other_coach_cannot_update_exercise(self):
+        """A different COACH receives 403 when PATCHing another coach's exercise."""
+        self.client.force_authenticate(user=self.other_coach)
+        response = self.client.patch(
+            self.detail_url, {"description": "Tampered."}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_other_coach_cannot_deactivate_exercise(self):
+        """A different COACH cannot set is_active=False on another user's exercise."""
+        self.client.force_authenticate(user=self.other_coach)
+        response = self.client.patch(
+            self.detail_url, {"is_active": False}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.exercise.refresh_from_db()
+        self.assertTrue(self.exercise.is_active)
+
+    # ---- academy admin ----
+
+    def test_academy_admin_cannot_update_another_users_exercise(self):
+        """ACADEMY_ADMIN receives 403 when PATCHing an exercise they did not create."""
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(
+            self.detail_url, {"name": "Admin Override"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_academy_admin_can_update_own_exercise(self):
+        """ACADEMY_ADMIN can PATCH an exercise they personally created."""
+        own_exercise = make_exercise(self.admin, name="Admin Exercise")
+        url = reverse("exercise-detail", kwargs={"pk": own_exercise.pk})
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(url, {"description": "Admin edit."}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["description"], "Admin edit.")
+
+    # ---- other roles ----
+
+    def test_player_cannot_update_exercise(self):
+        """PLAYER role is blocked by the existing role check (403)."""
+        self.client.force_authenticate(user=self.player_user)
+        response = self.client.patch(
+            self.detail_url, {"description": "Player attempt."}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_cannot_update_exercise(self):
+        """PARENT role is blocked by the existing role check (403)."""
+        self.client.force_authenticate(user=self.parent_user)
+        response = self.client.patch(
+            self.detail_url, {"description": "Parent attempt."}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- reads are unaffected ----
+
+    def test_other_coach_can_read_any_exercise(self):
+        """A different COACH can still GET any exercise from the global library (200)."""
+        self.client.force_authenticate(user=self.other_coach)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(response.data["id"]), str(self.exercise.pk))
+
+    def test_exercise_list_unaffected_by_ownership(self):
+        """GET /api/training/exercises/ returns all exercises regardless of creator."""
+        extra = make_exercise(self.other_coach, name="Other Coach Drill")
+        self.client.force_authenticate(user=self.creator)
+        url = reverse("exercise-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data["results"] if "results" in response.data else response.data
+        ids = [str(r["id"]) for r in results]
+        self.assertIn(str(self.exercise.pk), ids)
+        self.assertIn(str(extra.pk), ids)
+
+
+# ---------------------------------------------------------------------------
 # 10–11. Session Exercise API tests
 # ---------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -51,6 +52,11 @@ class ExerciseViewSet(
 
     def perform_update(self, serializer):
         require_coach_or_admin(self.request)
+        # Object-level ownership check: only the user who created an exercise
+        # may update it.  created_by is read-only in the serializer, so it
+        # cannot be spoofed through request data.
+        if serializer.instance.created_by_id != self.request.user.pk:
+            raise PermissionDenied("You can only update exercises you created.")
         serializer.save()
 
 
