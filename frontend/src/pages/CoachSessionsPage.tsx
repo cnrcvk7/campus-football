@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -23,6 +24,7 @@ const SKILL_CATEGORY_COLOR: Record<string, string> = {
 
 function SessionCard({ session }: { session: TrainingSession }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   return (
     <button
       onClick={() => navigate(`/coach/sessions/${session.id}`)}
@@ -66,11 +68,11 @@ function SessionCard({ session }: { session: TrainingSession }) {
           )}
           <div className="mt-2 flex items-center gap-3">
             {session.duration_minutes && (
-              <span className="text-xs text-gray-400">{session.duration_minutes} min</span>
+              <span className="text-xs text-gray-400">{t('training.durationMin', { n: session.duration_minutes })}</span>
             )}
             {session.session_exercises.length > 0 && (
               <span className="text-xs text-gray-400">
-                {session.session_exercises.length} exercise{session.session_exercises.length !== 1 ? 's' : ''}
+                {t('training.exercises', { count: session.session_exercises.length })}
               </span>
             )}
           </div>
@@ -90,6 +92,7 @@ function SessionCard({ session }: { session: TrainingSession }) {
 
 export default function CoachSessionsPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -116,21 +119,21 @@ export default function CoachSessionsPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load sessions.')
+        setError(err instanceof Error ? err.message : t('training.error.loadFailed'))
         setLoading(false)
       })
-  }, [myOnly, page])
+  }, [myOnly, page, t])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Training Sessions" />
+      <AppNav label={t('training.sessionsNavLabel')} />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Training Sessions</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('training.listTitle')}</h1>
             <p className="mt-1 text-sm text-gray-400">
-              All training sessions — click a card to view exercises and attendance.
+              {t('training.listSubtitle')}
             </p>
           </div>
           <div className="flex flex-shrink-0 items-center gap-3">
@@ -141,13 +144,13 @@ export default function CoachSessionsPage() {
                 onChange={(e) => setMyOnly(e.target.checked)}
                 className="accent-brand-600"
               />
-              My sessions only
+              {t('training.mySessionsOnly')}
             </label>
             <button
               onClick={() => navigate('/coach/sessions/new')}
               className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
-              + New Session
+              {t('training.addButton')}
             </button>
           </div>
         </div>
@@ -155,27 +158,23 @@ export default function CoachSessionsPage() {
         {loading && sessions.length === 0 && <LoadingSpinner />}
 
         {!loading && error && (
-          <EmptyState icon="⚠️" title="Could not load sessions" description={error} />
+          <EmptyState icon="⚠️" title={t('training.error.loadFailed')} description={error} />
         )}
 
         {(!loading || sessions.length > 0) && !error && (
           <>
             <div className="mb-4 text-sm text-gray-400">
               {loading ? (
-                <span className="text-gray-300">Loading…</span>
+                <span className="text-gray-300">{t('common.loading')}</span>
               ) : (
-                <>
-                  <span className="font-semibold text-gray-700">{total}</span>{' '}
-                  {total === 1 ? 'session' : 'sessions'}
-                </>
+                t('training.sessionCount', { count: total })
               )}
             </div>
 
             {sessions.length === 0 && !loading ? (
               <EmptyState
                 icon="🏃"
-                title="No training sessions found"
-                description={myOnly ? 'You have not created any sessions yet.' : 'No sessions have been created yet.'}
+                title={t('common.empty.noResults')}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -192,11 +191,11 @@ export default function CoachSessionsPage() {
                   disabled={!hasPrev || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ← Previous
+                  {t('pagination.previous')}
                 </button>
                 <p className="text-sm text-gray-400">
-                  Page <span className="font-semibold text-gray-700">{page}</span>
-                  {' '}of{' '}
+                  {t('pagination.page')} <span className="font-semibold text-gray-700">{page}</span>
+                  {' '}{t('pagination.of')}{' '}
                   <span className="font-semibold text-gray-700">{Math.ceil(total / 20)}</span>
                 </p>
                 <button
@@ -204,7 +203,7 @@ export default function CoachSessionsPage() {
                   disabled={!hasNext || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Next →
+                  {t('pagination.next')}
                 </button>
               </div>
             )}

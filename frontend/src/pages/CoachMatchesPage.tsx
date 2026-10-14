@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -22,6 +23,7 @@ const RESULT_BADGE: Record<string, string> = {
 
 function MatchCard({ match }: { match: Match }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const date = new Date(match.match_date)
 
   return (
@@ -44,7 +46,7 @@ function MatchCard({ match }: { match: Match }) {
             <p className="font-semibold text-gray-900">vs {match.opponent_name}</p>
             {match.result && (
               <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${RESULT_BADGE[match.result] ?? 'bg-gray-100 text-gray-600'}`}>
-                {match.result}
+                {match.result === 'WIN' ? t('matches.winBadge') : match.result === 'DRAW' ? t('matches.drawBadge') : t('matches.lossBadge')}
               </span>
             )}
             {match.score_display && (
@@ -57,7 +59,7 @@ function MatchCard({ match }: { match: Match }) {
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${match.home_away === 'HOME' ? 'bg-brand-50 text-brand-600' : 'bg-gray-100 text-gray-500'}`}>
-              {match.home_away}
+              {match.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')}
             </span>
             {match.venue && (
               <span className="text-xs text-gray-400">{match.venue}</span>
@@ -79,6 +81,7 @@ function MatchCard({ match }: { match: Match }) {
 
 export default function CoachMatchesPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [matches, setMatches] = useState<Match[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -100,55 +103,51 @@ export default function CoachMatchesPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load matches.')
+        setError(err instanceof Error ? err.message : t('matches.error.loadFailed'))
         setLoading(false)
       })
-  }, [page])
+  }, [page, t])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Matches" />
+      <AppNav label={t('matches.listNavLabel')} />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('matches.listTitle')}</h1>
             <p className="mt-1 text-sm text-gray-400">
-              All match records — click a card to view player statistics.
+              {t('matches.listSubtitle')}
             </p>
           </div>
           <button
             onClick={() => navigate('/coach/matches/new')}
             className="flex-shrink-0 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
-            + New Match
+            {t('matches.addButton')}
           </button>
         </div>
 
         {loading && matches.length === 0 && <LoadingSpinner />}
 
         {!loading && error && (
-          <EmptyState icon="⚠️" title="Could not load matches" description={error} />
+          <EmptyState icon="⚠️" title={t('matches.error.loadFailed')} description={error} />
         )}
 
         {(!loading || matches.length > 0) && !error && (
           <>
             <div className="mb-4 text-sm text-gray-400">
               {loading ? (
-                <span className="text-gray-300">Loading…</span>
+                <span className="text-gray-300">{t('common.loading')}</span>
               ) : (
-                <>
-                  <span className="font-semibold text-gray-700">{total}</span>{' '}
-                  {total === 1 ? 'match' : 'matches'}
-                </>
+                t('matches.matchCount', { count: total })
               )}
             </div>
 
             {matches.length === 0 && !loading ? (
               <EmptyState
                 icon="⚽"
-                title="No matches recorded yet"
-                description="Match records will appear here once created."
+                title={t('common.empty.noResults')}
               />
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -165,11 +164,11 @@ export default function CoachMatchesPage() {
                   disabled={!hasPrev || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ← Previous
+                  {t('pagination.previous')}
                 </button>
                 <p className="text-sm text-gray-400">
-                  Page <span className="font-semibold text-gray-700">{page}</span>
-                  {' '}of{' '}
+                  {t('pagination.page')} <span className="font-semibold text-gray-700">{page}</span>
+                  {' '}{t('pagination.of')}{' '}
                   <span className="font-semibold text-gray-700">{Math.ceil(total / 20)}</span>
                 </p>
                 <button
@@ -177,7 +176,7 @@ export default function CoachMatchesPage() {
                   disabled={!hasNext || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Next →
+                  {t('pagination.next')}
                 </button>
               </div>
             )}

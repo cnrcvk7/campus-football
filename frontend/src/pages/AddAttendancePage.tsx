@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -12,12 +13,14 @@ import type { AttendanceStatus, Player, TrainingAttendance, TrainingSession } fr
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_OPTIONS: { value: AttendanceStatus; label: string; style: string }[] = [
-  { value: 'PRESENT', label: 'Present',  style: 'border-green-300 bg-green-50 text-green-700' },
-  { value: 'ABSENT',  label: 'Absent',   style: 'border-red-300 bg-red-50 text-red-700' },
-  { value: 'LATE',    label: 'Late',     style: 'border-yellow-300 bg-yellow-50 text-yellow-700' },
-  { value: 'EXCUSED', label: 'Excused',  style: 'border-gray-300 bg-gray-50 text-gray-500' },
-]
+const STATUS_STYLES: Record<AttendanceStatus, string> = {
+  PRESENT: 'border-green-300 bg-green-50 text-green-700',
+  ABSENT:  'border-red-300 bg-red-50 text-red-700',
+  LATE:    'border-yellow-300 bg-yellow-50 text-yellow-700',
+  EXCUSED: 'border-gray-300 bg-gray-50 text-gray-500',
+}
+
+const STATUS_VALUES: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']
 
 const INACTIVE_STYLE = 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
 
@@ -53,6 +56,7 @@ function parseDrfError(err: unknown): string {
 export default function AddAttendancePage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([])
@@ -90,10 +94,10 @@ export default function AddAttendancePage() {
         })
       })
       .catch((err: unknown) => {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load data.')
+        setLoadError(err instanceof Error ? err.message : t('training.error.formLoadFailed'))
         setLoading(false)
       })
-  }, [sessionId])
+  }, [sessionId, t])
 
   function resetForm() {
     setPlayer('')
@@ -133,7 +137,7 @@ export default function AddAttendancePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Add Attendance" />
+        <AppNav label={t('attendance.addNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -144,10 +148,10 @@ export default function AddAttendancePage() {
   if (loadError || !session) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Add Attendance" />
+        <AppNav label={t('attendance.addNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {loadError ?? 'Session not found.'}
+            {loadError ?? t('training.error.notFound')}
           </div>
         </main>
       </div>
@@ -157,26 +161,27 @@ export default function AddAttendancePage() {
   if (availablePlayers.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Add Attendance" />
+        <AppNav label={t('attendance.addNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <button
             onClick={() => navigate(`/coach/sessions/${sessionId}`)}
             className="mb-6 text-sm text-brand-600 hover:text-brand-700"
           >
-            ← Back to session
+            {t('attendance.backToSession')}
           </button>
           <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-gray-100">
             <p className="text-3xl">✓</p>
-            <p className="mt-3 font-semibold text-gray-900">All players recorded</p>
+            <p className="mt-3 font-semibold text-gray-900">{t('attendance.allRecordedTitle')}</p>
             <p className="mt-1 text-sm text-gray-400">
-              Attendance has been recorded for every
-              {session.team_name ? ` player on ${session.team_name}` : ' available player'}.
+              {session.team_name
+                ? t('attendance.allRecordedTeam', { team: session.team_name })
+                : t('attendance.allRecordedGeneric')}
             </p>
             <button
               onClick={() => navigate(`/coach/sessions/${sessionId}`)}
               className="mt-5 rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
-              Back to session
+              {t('attendance.backToSessionButton')}
             </button>
           </div>
         </main>
@@ -190,17 +195,17 @@ export default function AddAttendancePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Add Attendance" />
+      <AppNav label={t('attendance.addNavLabel')} />
 
       <main className="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/coach/sessions/${sessionId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
         >
-          ← Back to session
+          {t('attendance.backToSession')}
         </button>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Add Attendance</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('attendance.addTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
             {session.title} ·{' '}
             {new Date(session.training_date).toLocaleDateString('en-GB', {
@@ -209,7 +214,7 @@ export default function AddAttendancePage() {
           </p>
           {!session.team && (
             <p className="mt-1 text-xs text-yellow-600">
-              This session has no team — showing up to the first 20 registered players.
+              {t('attendance.noTeamNote')}
             </p>
           )}
         </div>
@@ -222,10 +227,7 @@ export default function AddAttendancePage() {
               <div className="space-y-5">
                 <div>
                   <label htmlFor="player" className="block text-sm font-medium text-gray-700">
-                    Player <span className="text-red-500">*</span>
-                    <span className="ml-2 text-xs font-normal text-gray-400">
-                      ({availablePlayers.length} remaining)
-                    </span>
+                    {t('attendance.playerRemaining', { count: availablePlayers.length })} <span className="text-red-500">*</span>
                   </label>
                   <select
                     id="player"
@@ -234,7 +236,7 @@ export default function AddAttendancePage() {
                     onChange={(e) => { setPlayer(e.target.value); setSubmitError(null) }}
                     className={`${inputCls} bg-white`}
                   >
-                    <option value="">Select player…</option>
+                    <option value="">{t('attendance.selectPlayer')}</option>
                     {availablePlayers.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.first_name} {p.last_name}
@@ -248,25 +250,25 @@ export default function AddAttendancePage() {
                 {/* ── Status ── */}
                 <div>
                   <p className="block text-sm font-medium text-gray-700 mb-2">
-                    Status <span className="text-red-500">*</span>
+                    {t('attendance.status')} <span className="text-red-500">*</span>
                   </p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {STATUS_OPTIONS.map((opt) => (
+                    {STATUS_VALUES.map((val) => (
                       <label
-                        key={opt.value}
+                        key={val}
                         className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition ${
-                          status === opt.value ? opt.style : INACTIVE_STYLE
+                          status === val ? STATUS_STYLES[val] : INACTIVE_STYLE
                         }`}
                       >
                         <input
                           type="radio"
                           name="status"
-                          value={opt.value}
-                          checked={status === opt.value}
-                          onChange={() => setStatus(opt.value)}
+                          value={val}
+                          checked={status === val}
+                          onChange={() => setStatus(val)}
                           className="sr-only"
                         />
-                        {opt.label}
+                        {val.charAt(0) + val.slice(1).toLowerCase()}
                       </label>
                     ))}
                   </div>
@@ -275,7 +277,7 @@ export default function AddAttendancePage() {
                 {/* ── Notes ── */}
                 <div>
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                    Notes <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('attendance.notes')}
                   </label>
                   <textarea
                     id="notes"
@@ -283,7 +285,7 @@ export default function AddAttendancePage() {
                     value={notes}
                     onChange={(e) => { setNotes(e.target.value); setSubmitError(null) }}
                     className={`${inputCls} resize-none`}
-                    placeholder="e.g. Left early due to injury"
+                    placeholder={t('attendance.notesPlaceholder')}
                   />
                 </div>
               </div>
@@ -303,7 +305,7 @@ export default function AddAttendancePage() {
                 onClick={() => navigate(`/coach/sessions/${sessionId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <div className="flex flex-wrap gap-3">
                 {availablePlayers.length > 1 && (
@@ -313,7 +315,7 @@ export default function AddAttendancePage() {
                     onClick={() => setAddAnother(true)}
                     className="rounded-xl border border-brand-300 bg-white px-5 py-2 text-sm font-semibold text-brand-600 transition hover:bg-brand-50 disabled:opacity-60"
                   >
-                    {submitting && addAnother ? 'Saving…' : 'Save & Add Another'}
+                    {submitting && addAnother ? t('attendance.saving') : t('attendance.saveAndAnother')}
                   </button>
                 )}
                 <button
@@ -322,7 +324,7 @@ export default function AddAttendancePage() {
                   onClick={() => setAddAnother(false)}
                   className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
                 >
-                  {submitting && !addAnother ? 'Saving…' : 'Save Attendance'}
+                  {submitting && !addAnother ? t('attendance.saving') : t('attendance.saveButton')}
                 </button>
               </div>
             </div>

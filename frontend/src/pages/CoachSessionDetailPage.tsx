@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -46,6 +47,7 @@ const ATTENDANCE_BADGE: Record<string, string> = {
 export default function CoachSessionDetailPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [attendance, setAttendance] = useState<TrainingAttendance[]>([])
@@ -64,15 +66,15 @@ export default function CoachSessionDetailPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load session.')
+        setError(err instanceof Error ? err.message : t('training.error.sessionLoadFailed'))
         setLoading(false)
       })
-  }, [sessionId])
+  }, [sessionId, t])
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Training Session" />
+        <AppNav label={t('training.sessionNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -83,9 +85,9 @@ export default function CoachSessionDetailPage() {
   if (error || !session) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Training Session" />
+        <AppNav label={t('training.sessionNavLabel')} />
         <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-          <EmptyState icon="⚠️" title="Could not load session" description={error ?? 'Session not found.'} />
+          <EmptyState icon="⚠️" title={t('training.error.sessionLoadFailed')} description={error ?? t('training.error.notFound')} />
         </main>
       </div>
     )
@@ -98,7 +100,7 @@ export default function CoachSessionDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Training Session" />
+      <AppNav label={t('training.sessionNavLabel')} />
 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         {/* Back + actions */}
@@ -107,13 +109,13 @@ export default function CoachSessionDetailPage() {
             onClick={() => navigate('/coach/sessions')}
             className="text-sm text-brand-600 hover:text-brand-700"
           >
-            ← All sessions
+            {t('training.backToSessions')}
           </button>
           <button
             onClick={() => navigate(`/coach/sessions/${session.id}/edit`)}
             className="rounded-xl border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900"
           >
-            Edit Session
+            {t('training.editSession')}
           </button>
         </div>
 
@@ -125,36 +127,36 @@ export default function CoachSessionDetailPage() {
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {session.academy_name && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Academy</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailAcademy')}</p>
                 <p className="mt-0.5 text-sm font-medium text-gray-700">{session.academy_name}</p>
               </div>
             )}
             {session.team_name && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Team</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailTeam')}</p>
                 <p className="mt-0.5 text-sm font-medium text-gray-700">{session.team_name}</p>
               </div>
             )}
             {session.location && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Location</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailLocation')}</p>
                 <p className="mt-0.5 text-sm font-medium text-gray-700">{session.location}</p>
               </div>
             )}
             {session.start_time && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Start time</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailStartTime')}</p>
                 <p className="mt-0.5 text-sm font-medium text-gray-700">{session.start_time}</p>
               </div>
             )}
             {session.duration_minutes && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Duration</p>
-                <p className="mt-0.5 text-sm font-medium text-gray-700">{session.duration_minutes} min</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailDuration')}</p>
+                <p className="mt-0.5 text-sm font-medium text-gray-700">{t('training.durationMin', { n: session.duration_minutes })}</p>
               </div>
             )}
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Coach</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">{t('training.detailCoach')}</p>
               <p className="mt-0.5 text-sm font-medium text-gray-700">{session.coach_name}</p>
             </div>
           </div>
@@ -165,7 +167,7 @@ export default function CoachSessionDetailPage() {
 
           {session.focus_skills.length > 0 && (
             <div className="mt-4">
-              <p className="mb-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Focus skills</p>
+              <p className="mb-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">{t('training.detailFocusSkills')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {session.focus_skills.map((s) => (
                   <span
@@ -183,10 +185,10 @@ export default function CoachSessionDetailPage() {
         {/* Exercises */}
         <section className="mt-6">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
-            Exercises ({session.session_exercises.length})
+            {t('training.exercises', { count: session.session_exercises.length })}
           </h2>
           {session.session_exercises.length === 0 ? (
-            <p className="text-sm text-gray-400">No exercises added to this session.</p>
+            <p className="text-sm text-gray-400">{t('training.noExercises')}</p>
           ) : (
             <div className="space-y-2">
               {session.session_exercises
@@ -207,7 +209,7 @@ export default function CoachSessionDetailPage() {
                           {ex.exercise_category}
                         </span>
                         {ex.duration_minutes && (
-                          <span className="text-xs text-gray-400">{ex.duration_minutes} min</span>
+                          <span className="text-xs text-gray-400">{t('training.durationMin', { n: ex.duration_minutes })}</span>
                         )}
                       </div>
                       {ex.notes && <p className="mt-0.5 text-xs text-gray-400">{ex.notes}</p>}
@@ -222,7 +224,7 @@ export default function CoachSessionDetailPage() {
         <section className="mt-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-              Attendance ({attendance.length})
+              {t('training.attendanceSection', { count: attendance.length })}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
               {attendance.length > 0 && (
@@ -240,22 +242,22 @@ export default function CoachSessionDetailPage() {
                 onClick={() => navigate(`/coach/sessions/${session.id}/add-attendance`)}
                 className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
               >
-                + Add Attendance
+                {t('training.addAttendance')}
               </button>
             </div>
           </div>
 
           {attendance.length === 0 ? (
-            <p className="text-sm text-gray-400">No attendance recorded for this session.</p>
+            <p className="text-sm text-gray-400">{t('training.noAttendance')}</p>
           ) : (
             <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="py-3 pl-4 pr-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Player</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">ID</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Status</th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">Notes</th>
+                    <th className="py-3 pl-4 pr-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">{t('playerProfile.tablePlayer')}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">{t('playerProfile.tableId')}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">{t('playerProfile.tableStatus')}</th>
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">{t('playerProfile.tableNotes')}</th>
                     <th className="pl-3 pr-4 py-3" />
                   </tr>
                 </thead>
@@ -275,7 +277,7 @@ export default function CoachSessionDetailPage() {
                           onClick={() => navigate(`/coach/sessions/${session.id}/edit-attendance/${a.id}`)}
                           className="text-xs font-medium text-brand-600 hover:text-brand-700"
                         >
-                          Edit
+                          {t('playerProfile.editGoal')}
                         </button>
                       </td>
                     </tr>

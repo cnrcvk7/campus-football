@@ -15,9 +15,9 @@ export function validateAcademyForm(values: AcademyFormValues): AcademyFormError
   const errors: AcademyFormErrors = {}
   const name = values.name.trim()
   if (!name) {
-    errors.name = 'Academy name is required.'
+    errors.name = 'academies.validation.nameRequired'
   } else if (name.length > 200) {
-    errors.name = 'Academy name must be 200 characters or fewer.'
+    errors.name = 'academies.validation.nameTooLong'
   }
   return errors
 }

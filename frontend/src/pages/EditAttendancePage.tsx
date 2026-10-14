@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -10,12 +11,14 @@ import type { AttendanceStatus, TrainingAttendance, TrainingSession } from '../t
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_OPTIONS: { value: AttendanceStatus; label: string; style: string }[] = [
-  { value: 'PRESENT', label: 'Present', style: 'border-green-300 bg-green-50 text-green-700' },
-  { value: 'ABSENT',  label: 'Absent',  style: 'border-red-300 bg-red-50 text-red-700' },
-  { value: 'LATE',    label: 'Late',    style: 'border-yellow-300 bg-yellow-50 text-yellow-700' },
-  { value: 'EXCUSED', label: 'Excused', style: 'border-gray-300 bg-gray-50 text-gray-500' },
-]
+const STATUS_STYLES: Record<AttendanceStatus, string> = {
+  PRESENT: 'border-green-300 bg-green-50 text-green-700',
+  ABSENT:  'border-red-300 bg-red-50 text-red-700',
+  LATE:    'border-yellow-300 bg-yellow-50 text-yellow-700',
+  EXCUSED: 'border-gray-300 bg-gray-50 text-gray-500',
+}
+
+const STATUS_VALUES: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']
 
 const INACTIVE_STYLE = 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
 
@@ -51,6 +54,7 @@ function parseDrfError(err: unknown): string {
 export default function EditAttendancePage() {
   const { sessionId, attendanceId } = useParams<{ sessionId: string; attendanceId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [session, setSession] = useState<TrainingSession | null>(null)
   const [record, setRecord] = useState<TrainingAttendance | null>(null)
@@ -71,7 +75,7 @@ export default function EditAttendancePage() {
       .then(([s, all]) => {
         const found = all.find((a) => a.id === attendanceId)
         if (!found) {
-          setLoadError('Attendance record not found.')
+          setLoadError(t('attendance.error.notFound'))
           setLoading(false)
           return
         }
@@ -82,10 +86,10 @@ export default function EditAttendancePage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load data.')
+        setLoadError(err instanceof Error ? err.message : t('training.error.formLoadFailed'))
         setLoading(false)
       })
-  }, [sessionId, attendanceId])
+  }, [sessionId, attendanceId, t])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -112,7 +116,7 @@ export default function EditAttendancePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Attendance" />
+        <AppNav label={t('attendance.editNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -123,10 +127,10 @@ export default function EditAttendancePage() {
   if (loadError || !session || !record) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Attendance" />
+        <AppNav label={t('attendance.editNavLabel')} />
         <main className="mx-auto max-w-xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {loadError ?? 'Record not found.'}
+            {loadError ?? t('attendance.error.notFound')}
           </div>
         </main>
       </div>
@@ -139,17 +143,17 @@ export default function EditAttendancePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Edit Attendance" />
+      <AppNav label={t('attendance.editNavLabel')} />
 
       <main className="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/coach/sessions/${sessionId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
         >
-          ← Back to session
+          {t('attendance.backToSession')}
         </button>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Edit Attendance</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('attendance.editTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
             {session.title} ·{' '}
             {new Date(session.training_date).toLocaleDateString('en-GB', {
@@ -166,7 +170,7 @@ export default function EditAttendancePage() {
 
                 {/* Player — read-only */}
                 <div>
-                  <p className="block text-sm font-medium text-gray-700 mb-1">Player</p>
+                  <p className="block text-sm font-medium text-gray-700 mb-1">{t('attendance.playerLabel')}</p>
                   <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                     <span className="text-sm font-medium text-gray-900">{record.player_name}</span>
                     <span className="ml-2 font-mono text-xs text-brand-500">{record.football_id}</span>
@@ -176,25 +180,25 @@ export default function EditAttendancePage() {
                 {/* Status */}
                 <div>
                   <p className="block text-sm font-medium text-gray-700 mb-2">
-                    Status <span className="text-red-500">*</span>
+                    {t('attendance.status')} <span className="text-red-500">*</span>
                   </p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {STATUS_OPTIONS.map((opt) => (
+                    {STATUS_VALUES.map((val) => (
                       <label
-                        key={opt.value}
+                        key={val}
                         className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium transition ${
-                          attendanceStatus === opt.value ? opt.style : INACTIVE_STYLE
+                          attendanceStatus === val ? STATUS_STYLES[val] : INACTIVE_STYLE
                         }`}
                       >
                         <input
                           type="radio"
                           name="status"
-                          value={opt.value}
-                          checked={attendanceStatus === opt.value}
-                          onChange={() => { setAttendanceStatus(opt.value); setSubmitError(null) }}
+                          value={val}
+                          checked={attendanceStatus === val}
+                          onChange={() => { setAttendanceStatus(val); setSubmitError(null) }}
                           className="sr-only"
                         />
-                        {opt.label}
+                        {val.charAt(0) + val.slice(1).toLowerCase()}
                       </label>
                     ))}
                   </div>
@@ -203,7 +207,7 @@ export default function EditAttendancePage() {
                 {/* Notes */}
                 <div>
                   <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                    Notes <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('attendance.notes')}
                   </label>
                   <textarea
                     id="notes"
@@ -211,7 +215,7 @@ export default function EditAttendancePage() {
                     value={notes}
                     onChange={(e) => { setNotes(e.target.value); setSubmitError(null) }}
                     className={`${inputCls} resize-none`}
-                    placeholder="e.g. Left early due to injury"
+                    placeholder={t('attendance.notesPlaceholder')}
                   />
                 </div>
               </div>
@@ -231,14 +235,14 @@ export default function EditAttendancePage() {
                 onClick={() => navigate(`/coach/sessions/${sessionId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save Changes'}
+                {submitting ? t('attendance.saving') : t('attendance.saveChanges')}
               </button>
             </div>
 

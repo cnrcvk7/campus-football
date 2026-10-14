@@ -1,10 +1,10 @@
 // frontend/src/pages/PlayerReportPage.tsx
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
-import { POSITIONS } from '../constants/football'
 import type {
   Assessment,
   DevelopmentGoal,
@@ -62,22 +62,17 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 // Category metadata (matches PlayerProfilePage)
 // ---------------------------------------------------------------------------
 
-const CATEGORY_META: Record<SkillCategory, { label: string; color: string; bar: string; bg: string }> = {
-  TECHNICAL: { label: 'Technical',  color: 'text-brand-600',   bar: 'bg-brand-500',   bg: 'bg-brand-50'   },
-  TACTICAL:  { label: 'Tactical',   color: 'text-violet-600',  bar: 'bg-violet-500',  bg: 'bg-violet-50'  },
-  PHYSICAL:  { label: 'Physical',   color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
-  MENTAL:    { label: 'Mental',     color: 'text-amber-600',   bar: 'bg-amber-500',   bg: 'bg-amber-50'   },
+const CATEGORY_META: Record<SkillCategory, { color: string; bar: string; bg: string }> = {
+  TECHNICAL: { color: 'text-brand-600',   bar: 'bg-brand-500',   bg: 'bg-brand-50'   },
+  TACTICAL:  { color: 'text-violet-600',  bar: 'bg-violet-500',  bg: 'bg-violet-50'  },
+  PHYSICAL:  { color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
+  MENTAL:    { color: 'text-amber-600',   bar: 'bg-amber-500',   bg: 'bg-amber-50'   },
 }
 
 // ---------------------------------------------------------------------------
 // Aggregation helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Computes the average score per skill category from a single assessment's items.
- * Only includes skills that have recorded scores — missing skills are never
- * treated as zero.
- */
 function computeCategoryAvg(
   assessment: Assessment,
 ): Partial<Record<SkillCategory, { score: number; count: number }>> {
@@ -95,13 +90,6 @@ function computeCategoryAvg(
   return result
 }
 
-/**
- * Builds a per-skill score history from all assessments.
- * assessments must be in chronological order (earliest first), as returned
- * by GET /api/players/{id}/development/timeline/.
- *
- * Never assigns a score of 0 to a skill that was simply not assessed.
- */
 interface SkillHistory {
   skillId: string
   skillName: string
@@ -130,9 +118,6 @@ function buildSkillHistory(assessments: Assessment[]): SkillHistory[] {
   return Array.from(map.values())
 }
 
-/**
- * Safe pass accuracy: returns null when passes_attempted is 0 or unavailable.
- */
 function passAccuracy(completed: number, attempted: number): number | null {
   if (attempted <= 0) return null
   return Math.round((completed / attempted) * 100)
@@ -144,8 +129,9 @@ function passAccuracy(completed: number, attempted: number): number | null {
 
 function ReportHeader({ player, history }: { player: Player; history: PlayerHistory | null }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const age = calcAge(player.date_of_birth)
-  const position = player.preferred_position ? POSITIONS[player.preferred_position] : null
+  const position = player.preferred_position ? t('positions.' + player.preferred_position) : null
   const activeAcademy = history ? getActiveAcademy(history) : null
   const activeTeam = history ? getActiveTeam(history) : null
 
@@ -155,14 +141,14 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-brand-400">
-              Development Report · All Time
+              {t('playerReport.title')}
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
               {player.first_name} {player.last_name}
             </h1>
             <p className="mt-1 font-mono text-sm text-gray-400">{player.football_id}</p>
             <div className="mt-3 flex flex-wrap gap-2 text-sm text-gray-300">
-              {age > 0 && <span>{age} years old</span>}
+              {age > 0 && <span>{t('players.yearsOld', { count: age })}</span>}
               {position && <span>· {position}</span>}
               {activeTeam && <span>· {activeTeam.team.name}</span>}
               {activeAcademy && <span>· {activeAcademy.academy.name}</span>}
@@ -172,7 +158,7 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
             onClick={() => navigate(`/players/${player.id}`)}
             className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20 self-start"
           >
-            ← Player Profile
+            {t('playerProfile.navLabel')} ←
           </button>
         </div>
       </div>
@@ -185,34 +171,33 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
 // ---------------------------------------------------------------------------
 
 function CategorySection({ assessments }: { assessments: Assessment[] }) {
+  const { t } = useTranslation()
   if (assessments.length === 0) {
     return (
       <section>
-        <SectionTitle>Development by Category</SectionTitle>
-        <EmptyState icon="📊" title="No assessments recorded" description="Category scores appear after the first coach assessment." />
+        <SectionTitle>{t('playerReport.sectionDevelopment')}</SectionTitle>
+        <EmptyState icon="📊" title={t('playerReport.empty.noAssessments')} description={t('playerReport.empty.noAssessmentsHint')} />
       </section>
     )
   }
 
-  // assessments is chronological (earliest first) from the timeline endpoint
   const latest = assessments[assessments.length - 1]
   const first = assessments[0]
   const latestScores = computeCategoryAvg(latest)
-  // A delta is only meaningful when there are ≥2 different assessments
   const firstScores = assessments.length >= 2 ? computeCategoryAvg(first) : null
   const categories: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
 
   return (
     <section>
-      <SectionTitle>Development by Category</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionDevelopment')}</SectionTitle>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {categories.map((cat) => {
           const meta = CATEGORY_META[cat]
           const data = latestScores[cat]
           if (!data) return (
             <Card key={cat} className="opacity-50">
-              <p className={`text-xs font-semibold uppercase tracking-widest ${meta.color}`}>{meta.label}</p>
-              <p className="mt-2 text-sm text-gray-400">No data</p>
+              <p className={`text-xs font-semibold uppercase tracking-widest ${meta.color}`}>{t('skillCategories.' + cat)}</p>
+              <p className="mt-2 text-sm text-gray-400">{t('common.empty.noData')}</p>
             </Card>
           )
           const prevData = firstScores?.[cat]
@@ -222,15 +207,15 @@ function CategorySection({ assessments }: { assessments: Assessment[] }) {
             <Card key={cat} className="relative overflow-hidden">
               <div className={`absolute inset-0 ${meta.bg} opacity-40 rounded-2xl`} />
               <div className="relative">
-                <p className={`text-xs font-semibold uppercase tracking-widest ${meta.color}`}>{meta.label}</p>
+                <p className={`text-xs font-semibold uppercase tracking-widest ${meta.color}`}>{t('skillCategories.' + cat)}</p>
                 <p className="mt-1 text-4xl font-bold text-gray-900">{data.score}</p>
-                <p className="text-xs text-gray-400">/ 100 · {data.count} skill{data.count !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-gray-400">/ 100 · {t('playerProfile.basedOn', { count: data.count })}</p>
                 <div className="mt-3 h-1.5 rounded-full bg-gray-200">
                   <div className={`h-1.5 rounded-full ${meta.bar}`} style={{ width: `${data.score}%` }} />
                 </div>
                 {delta !== null && (
                   <p className={`mt-2 text-xs font-semibold ${delta > 0 ? 'text-emerald-600' : delta < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                    {delta > 0 ? `+${delta}` : delta} vs first assessment
+                    {delta > 0 ? `+${delta}` : delta} {t('playerReport.vsFirstAssessment')}
                   </p>
                 )}
               </div>
@@ -239,7 +224,7 @@ function CategorySection({ assessments }: { assessments: Assessment[] }) {
         })}
       </div>
       {assessments.length < 2 && (
-        <p className="mt-3 text-xs text-gray-400">Score changes will appear after a second assessment is recorded.</p>
+        <p className="mt-3 text-xs text-gray-400">{t('playerReport.noSecondAssessment')}</p>
       )}
     </section>
   )
@@ -250,11 +235,12 @@ function CategorySection({ assessments }: { assessments: Assessment[] }) {
 // ---------------------------------------------------------------------------
 
 function SkillProgressionSection({ assessments }: { assessments: Assessment[] }) {
+  const { t } = useTranslation()
   if (assessments.length === 0) {
     return (
       <section>
-        <SectionTitle>Skill Progression</SectionTitle>
-        <EmptyState icon="📈" title="No skill data recorded" description="Skill scores appear after the first assessment." />
+        <SectionTitle>{t('playerReport.sectionSkillProgression')}</SectionTitle>
+        <EmptyState icon="📈" title={t('playerReport.empty.noSkillData')} description={t('playerReport.empty.noSkillDataHint')} />
       </section>
     )
   }
@@ -263,13 +249,12 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
   if (skillHistories.length === 0) {
     return (
       <section>
-        <SectionTitle>Skill Progression</SectionTitle>
-        <EmptyState icon="📈" title="No skills assessed yet" />
+        <SectionTitle>{t('playerReport.sectionSkillProgression')}</SectionTitle>
+        <EmptyState icon="📈" title={t('playerReport.empty.noSkillsAssessed')} />
       </section>
     )
   }
 
-  // Sort by latest score descending for strengths/improvement display
   const withLatest = skillHistories.map((sh) => ({
     ...sh,
     latestScore: sh.entries[sh.entries.length - 1].score,
@@ -280,7 +265,7 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
 
   const sorted = [...withLatest].sort((a, b) => {
     if (b.latestScore !== a.latestScore) return b.latestScore - a.latestScore
-    return a.skillName.localeCompare(b.skillName) // deterministic tie-breaking
+    return a.skillName.localeCompare(b.skillName)
   })
 
   const strengths = sorted.slice(0, 3)
@@ -288,11 +273,11 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
 
   return (
     <section>
-      <SectionTitle>Skill Progression</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionSkillProgression')}</SectionTitle>
       <div className="grid gap-6 lg:grid-cols-2">
         {/* All skills */}
         <Card>
-          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">All Assessed Skills</p>
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('playerReport.sectionAllSkills')}</p>
           <div className="space-y-3">
             {sorted.map((sh) => {
               const meta = CATEGORY_META[sh.category]
@@ -313,15 +298,15 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
             })}
           </div>
           <p className="mt-3 text-xs text-gray-400">
-            Scores are averages of assessment items. &#916; shown only when &#8805;2 comparable assessments exist for the same skill.
+            {t('playerReport.scoreNote')}
           </p>
         </Card>
 
         {/* Strengths & needs work */}
         <div className="space-y-4">
           <Card>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-600">Top Strengths</p>
-            <p className="mb-3 text-xs text-gray-400">Highest scored assessed skills only — unassessed skills are not included.</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-600">{t('playerReport.sectionStrengths')}</p>
+            <p className="mb-3 text-xs text-gray-400">{t('playerReport.strengthsNote')}</p>
             <div className="space-y-2">
               {strengths.map((sh) => (
                 <div key={sh.skillId} className="flex items-center justify-between">
@@ -332,8 +317,8 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
             </div>
           </Card>
           <Card>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-amber-600">Improvement Areas</p>
-            <p className="mb-3 text-xs text-gray-400">Lowest scored assessed skills — not a measure of overall ability.</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-amber-600">{t('playerReport.sectionImprovements')}</p>
+            <p className="mb-3 text-xs text-gray-400">{t('playerReport.improvementsNote')}</p>
             <div className="space-y-2">
               {needsWork.map((sh) => (
                 <div key={sh.skillId} className="flex items-center justify-between">
@@ -355,46 +340,45 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
 
 interface PhysField {
   key: keyof PhysicalMeasurement
-  label: string
+  labelKey: string
   unit: string
   lowerIsBetter: boolean
 }
 
-const PHYS_FIELDS: PhysField[] = [
-  { key: 'height_cm',              label: 'Height',    unit: 'cm', lowerIsBetter: false },
-  { key: 'weight_kg',              label: 'Weight',    unit: 'kg', lowerIsBetter: false },
-  { key: 'body_fat_percentage',    label: 'Body Fat',  unit: '%',  lowerIsBetter: false },
-  { key: 'sprint_time_seconds',    label: '10m Sprint', unit: 's', lowerIsBetter: true  },
+const PHYS_FIELDS_DEF: PhysField[] = [
+  { key: 'height_cm',              labelKey: 'playerReport.height',    unit: 'cm', lowerIsBetter: false },
+  { key: 'weight_kg',              labelKey: 'playerReport.weight',    unit: 'kg', lowerIsBetter: false },
+  { key: 'body_fat_percentage',    labelKey: 'playerReport.bodyFat',   unit: '%',  lowerIsBetter: false },
+  { key: 'sprint_time_seconds',    labelKey: 'playerReport.sprint10m', unit: 's',  lowerIsBetter: true  },
 ]
 
 function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[] }) {
+  const { t } = useTranslation()
   if (measurements.length === 0) {
     return (
       <section>
-        <SectionTitle>Physical Measurements</SectionTitle>
-        <EmptyState icon="📏" title="No measurements recorded" description="Physical measurements appear here once recorded." />
+        <SectionTitle>{t('playerReport.sectionMeasurements')}</SectionTitle>
+        <EmptyState icon="📏" title={t('playerReport.empty.noMeasurements')} description={t('playerReport.empty.noMeasurementsHint')} />
       </section>
     )
   }
 
-  // measurements is chronological (earliest first) from the timeline endpoint
   const latest = measurements[measurements.length - 1]
   const first = measurements[0]
 
   return (
     <section>
-      <SectionTitle>Physical Measurements</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionMeasurements')}</SectionTitle>
       <Card>
         {/* Latest snapshot */}
         <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Latest · {fmtDate(latest.measurement_date)}
+          {t('playerReport.latestPrefix')} {fmtDate(latest.measurement_date)}
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
-          {PHYS_FIELDS.map(({ key, label, unit, lowerIsBetter }) => {
+          {PHYS_FIELDS_DEF.map(({ key, labelKey, unit, lowerIsBetter }) => {
             const currVal = latest[key] as string | null
             if (currVal === null) return null
             const firstVal = measurements.length >= 2 ? (first[key] as string | null) : null
-            // Only show delta when both values are non-null and differ
             let delta: number | null = null
             if (firstVal !== null) {
               const d = parseFloat(currVal) - parseFloat(firstVal)
@@ -402,7 +386,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
             }
             return (
               <div key={key} className="rounded-xl bg-gray-50 p-4 text-center">
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</p>
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t(labelKey)}</p>
                 <p className="mt-1 text-2xl font-bold text-gray-900">{parseFloat(currVal).toFixed(1)}</p>
                 <p className="text-xs text-gray-400">{unit}</p>
                 {delta !== null && (
@@ -420,14 +404,14 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
         {/* Full history table if ≥2 records */}
         {measurements.length >= 2 && (
           <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">History</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">{t('playerReport.measurementHistory')}</p>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="pb-2 text-left text-xs font-semibold text-gray-400">Date</th>
-                    {PHYS_FIELDS.map(({ key, label }) => (
-                      <th key={key} className="pb-2 px-3 text-right text-xs font-semibold text-gray-400">{label}</th>
+                    <th className="pb-2 text-left text-xs font-semibold text-gray-400">{t('playerReport.tableDate')}</th>
+                    {PHYS_FIELDS_DEF.map(({ key, labelKey }) => (
+                      <th key={key} className="pb-2 px-3 text-right text-xs font-semibold text-gray-400">{t(labelKey)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -435,7 +419,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
                   {[...measurements].reverse().map((m) => (
                     <tr key={m.id}>
                       <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{fmtDate(m.measurement_date)}</td>
-                      {PHYS_FIELDS.map(({ key, unit }) => {
+                      {PHYS_FIELDS_DEF.map(({ key, unit }) => {
                         const val = m[key] as string | null
                         return (
                           <td key={key} className="py-2 px-3 text-right text-sm text-gray-700 whitespace-nowrap">
@@ -451,7 +435,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
           </>
         )}
         <p className="mt-3 text-xs text-gray-400">
-          Numerical changes are shown for context only. &#916; is shown only when &#8805;2 records exist for that metric. Height/weight changes are not automatically positive or negative.
+          {t('playerReport.measurementNote')}
         </p>
       </Card>
     </section>
@@ -469,36 +453,36 @@ function MatchSection({
   summary: MatchSummary | null
   matches: PlayerMatchStats[]
 }) {
+  const { t } = useTranslation()
   if (!summary || summary.matches_played === 0) {
     return (
       <section>
-        <SectionTitle>Match Performance</SectionTitle>
-        <EmptyState icon="⚽" title="No matches recorded" />
+        <SectionTitle>{t('playerReport.sectionMatchPerformance')}</SectionTitle>
+        <EmptyState icon="⚽" title={t('playerReport.empty.noMatches')} />
       </section>
     )
   }
 
-  // Pass accuracy: aggregate from individual match records to have total attempts
   const totalAttempted = matches.reduce((acc, m) => acc + m.passes_attempted, 0)
   const totalCompleted = matches.reduce((acc, m) => acc + m.passes_completed, 0)
   const accuracy = passAccuracy(totalCompleted, totalAttempted)
 
   const stats: { label: string; value: string }[] = [
-    { label: 'Matches',      value: String(summary.matches_played) },
-    { label: 'Starts',       value: String(summary.starts) },
-    { label: 'Minutes',      value: String(summary.total_minutes) },
-    { label: 'Goals',        value: String(summary.goals) },
-    { label: 'Assists',      value: String(summary.assists) },
-    { label: 'Shots',        value: String(summary.total_shots) },
-    { label: 'Pass Acc.',    value: accuracy !== null ? `${accuracy}%` : '—' },
-    { label: 'Avg Rating',   value: summary.average_rating ? parseFloat(summary.average_rating).toFixed(1) : '—' },
-    { label: 'Yellow',       value: String(summary.yellow_cards) },
-    { label: 'Red',          value: String(summary.red_cards) },
+    { label: t('playerReport.matches'),    value: String(summary.matches_played) },
+    { label: t('playerReport.starts'),     value: String(summary.starts) },
+    { label: t('playerReport.minutes'),    value: String(summary.total_minutes) },
+    { label: t('playerReport.goals'),      value: String(summary.goals) },
+    { label: t('playerReport.assists'),    value: String(summary.assists) },
+    { label: t('playerReport.shots'),      value: String(summary.total_shots) },
+    { label: t('playerReport.passAcc'),    value: accuracy !== null ? `${accuracy}%` : '—' },
+    { label: t('playerReport.avgRating'),  value: summary.average_rating ? parseFloat(summary.average_rating).toFixed(1) : '—' },
+    { label: t('playerReport.yellow'),     value: String(summary.yellow_cards) },
+    { label: t('playerReport.red'),        value: String(summary.red_cards) },
   ]
 
   return (
     <section>
-      <SectionTitle>Match Performance</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionMatchPerformance')}</SectionTitle>
       <Card>
         <div className="grid grid-cols-3 gap-4 sm:grid-cols-5 mb-6">
           {stats.map(({ label, value }) => (
@@ -509,8 +493,7 @@ function MatchSection({
           ))}
         </div>
         <p className="text-xs text-gray-400">
-          Pass accuracy = completed ÷ attempted across all matches with recorded stats. "—" means no attempts recorded.
-          Average rating is only shown when the coach has entered a rating.
+          {t('playerReport.passNote')}
         </p>
       </Card>
     </section>
@@ -522,23 +505,21 @@ function MatchSection({
 // ---------------------------------------------------------------------------
 
 function TrainingSection({ sessions }: { sessions: TrainingSessionSummary[] }) {
+  const { t } = useTranslation()
   if (sessions.length === 0) {
     return (
       <section>
-        <SectionTitle>Training Attendance</SectionTitle>
-        <EmptyState icon="🏃" title="No training sessions recorded" description="Only sessions with an attendance record are shown." />
+        <SectionTitle>{t('playerReport.sectionTraining')}</SectionTitle>
+        <EmptyState icon="🏃" title={t('playerReport.empty.noTraining')} description={t('playerReport.trainingNote')} />
       </section>
     )
   }
 
-  // Attendance rate uses sessions with an attendance record as the denominator.
-  // Sessions without a record cannot be classified as absences and are not counted.
   const withRecord = sessions.filter((s) => s.attendance_status !== null)
   const presentCount = withRecord.filter((s) => s.attendance_status === 'PRESENT').length
   const lateCount = withRecord.filter((s) => s.attendance_status === 'LATE').length
   const absentCount = withRecord.filter((s) => s.attendance_status === 'ABSENT').length
   const excusedCount = withRecord.filter((s) => s.attendance_status === 'EXCUSED').length
-  // Rate = (PRESENT + LATE) / all sessions with a record
   const attendanceRate = withRecord.length > 0
     ? Math.round(((presentCount + lateCount) / withRecord.length) * 100)
     : null
@@ -552,17 +533,17 @@ function TrainingSection({ sessions }: { sessions: TrainingSessionSummary[] }) {
 
   return (
     <section>
-      <SectionTitle>Training Attendance</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionTraining')}</SectionTitle>
       <Card>
         <div className="flex flex-wrap items-end gap-8 mb-4">
           <div>
             <p className="text-4xl font-bold text-gray-900">{sessions.length}</p>
-            <p className="text-xs text-gray-400">Sessions with attendance record</p>
+            <p className="text-xs text-gray-400">{t('playerReport.sessionsWithRecord')}</p>
           </div>
           {attendanceRate !== null && (
             <div>
               <p className="text-4xl font-bold text-emerald-600">{attendanceRate}%</p>
-              <p className="text-xs text-gray-400">Attendance rate (present + late)</p>
+              <p className="text-xs text-gray-400">{t('playerReport.attendanceRate')}</p>
             </div>
           )}
         </div>
@@ -575,7 +556,7 @@ function TrainingSection({ sessions }: { sessions: TrainingSessionSummary[] }) {
           ))}
         </div>
         <p className="mt-4 text-xs text-gray-400">
-          Only sessions with an attendance record are included. Sessions not linked to this player via an attendance record are not counted as absences.
+          {t('playerReport.attendanceNote')}
         </p>
       </Card>
     </section>
@@ -593,6 +574,7 @@ const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
 }
 
 function GoalCard({ goal }: { goal: DevelopmentGoal }) {
+  const { t } = useTranslation()
   const current = goal.current_value !== null ? parseFloat(goal.current_value) : null
   const target = goal.target_value !== null ? parseFloat(goal.target_value) : null
   const progress = current !== null && target !== null && target > 0
@@ -627,20 +609,21 @@ function GoalCard({ goal }: { goal: DevelopmentGoal }) {
         </div>
       )}
       <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
-        <span>Started: {fmtDate(goal.start_date)}</span>
-        {goal.target_date && <span>Target: {fmtDate(goal.target_date)}</span>}
-        {goal.completed_at && <span>Completed: {fmtDate(goal.completed_at)}</span>}
+        <span>{t('playerReport.started')} {fmtDate(goal.start_date)}</span>
+        {goal.target_date && <span>{t('playerProfile.target')} {fmtDate(goal.target_date)}</span>}
+        {goal.completed_at && <span>{t('playerReport.completedOn')} {fmtDate(goal.completed_at)}</span>}
       </div>
     </div>
   )
 }
 
 function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
+  const { t } = useTranslation()
   if (goals.length === 0) {
     return (
       <section>
-        <SectionTitle>Development Goals</SectionTitle>
-        <EmptyState icon="🎯" title="No goals set" description="Goals appear here once set by a coach." />
+        <SectionTitle>{t('playerReport.sectionGoals')}</SectionTitle>
+        <EmptyState icon="🎯" title={t('playerReport.empty.noGoals')} description={t('playerReport.empty.noGoalsHint')} />
       </section>
     )
   }
@@ -651,7 +634,7 @@ function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
 
   return (
     <section>
-      <SectionTitle>Development Goals</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionGoals')}</SectionTitle>
       <Card>
         <div className="flex gap-4 mb-6 text-sm">
           <span className="text-brand-600 font-medium">{active.length} Active</span>
@@ -687,7 +670,7 @@ function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
 
 interface FeedbackEntry {
   id: string
-  source: 'Assessment' | 'Match'
+  source: string
   date: string
   author: string
   comment: string
@@ -723,7 +706,6 @@ function buildFeedback(
     }
   }
 
-  // Sort chronologically newest first
   entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   return entries
 }
@@ -735,23 +717,24 @@ function FeedbackSection({
   assessments: Assessment[]
   matches: PlayerMatchStats[]
 }) {
+  const { t } = useTranslation()
   const entries = buildFeedback(assessments, matches)
 
   if (entries.length === 0) {
     return (
       <section>
-        <SectionTitle>Recorded Feedback</SectionTitle>
-        <EmptyState icon="💬" title="No feedback recorded" description="Coach comments from assessments and matches appear here." />
+        <SectionTitle>{t('playerReport.sectionFeedback')}</SectionTitle>
+        <EmptyState icon="💬" title={t('playerReport.empty.noFeedback')} description={t('playerReport.empty.noFeedbackHint')} />
       </section>
     )
   }
 
   return (
     <section>
-      <SectionTitle>Recorded Feedback</SectionTitle>
+      <SectionTitle>{t('playerReport.sectionFeedback')}</SectionTitle>
       <Card>
         <p className="mb-4 text-xs text-gray-400">
-          These are verbatim recorded comments by coaches. They are not AI-generated conclusions.
+          {t('playerReport.feedbackNote')}
         </p>
         <div className="space-y-4">
           {entries.map((e) => (
@@ -776,13 +759,15 @@ function FeedbackSection({
 
 export default function PlayerReportPage() {
   const { playerId } = useParams<{ playerId: string }>()
+  const { t } = useTranslation()
   if (!playerId) {
-    return <div className="p-8 text-center text-gray-400">No player ID provided.</div>
+    return <div className="p-8 text-center text-gray-400">{t('players.error.noId')}</div>
   }
   return <PlayerReportContent playerId={playerId} />
 }
 
 function PlayerReportContent({ playerId }: { playerId: string }) {
+  const { t } = useTranslation()
   const {
     loading,
     error,
@@ -797,26 +782,25 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
   if (loading) {
     return (
       <>
-        <AppNav label="Development Report" />
+        <AppNav label={t('playerReport.navLabel')} />
         <LoadingSpinner />
       </>
     )
   }
 
   if (error || !player) {
-    // Distinguish 403 from other errors
     const is403 = error?.includes('403') || error?.includes('Forbidden') || error?.includes('permission') || error?.includes('authorized')
     return (
       <>
-        <AppNav label="Development Report" />
+        <AppNav label={t('playerReport.navLabel')} />
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <EmptyState
             icon={is403 ? '🔒' : '⚠️'}
-            title={is403 ? 'Access denied' : 'Could not load report'}
+            title={is403 ? t('playerReport.accessDeniedTitle') : t('players.error.loadPlayerFailed')}
             description={
               is403
-                ? 'You are not authorized to view this player\'s report.'
-                : (error ?? 'Player not found.')
+                ? t('playerReport.accessDeniedDesc')
+                : (error ?? t('players.error.notFound'))
             }
           />
         </div>
@@ -832,7 +816,7 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Development Report" />
+      <AppNav label={t('playerReport.navLabel')} />
       <ReportHeader player={player} history={history} />
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">

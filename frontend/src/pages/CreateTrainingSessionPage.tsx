@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -13,12 +14,14 @@ import type { Academy, Skill, SkillCategory, Team } from '../types'
 // Constants
 // ---------------------------------------------------------------------------
 
-const SKILL_CATEGORIES: { value: SkillCategory; label: string; color: string }[] = [
-  { value: 'TECHNICAL', label: 'Technical', color: 'text-blue-600' },
-  { value: 'TACTICAL',  label: 'Tactical',  color: 'text-purple-600' },
-  { value: 'PHYSICAL',  label: 'Physical',  color: 'text-orange-600' },
-  { value: 'MENTAL',    label: 'Mental',    color: 'text-teal-600' },
-]
+const SKILL_CATEGORY_COLORS: Record<SkillCategory, string> = {
+  TECHNICAL: 'text-blue-600',
+  TACTICAL: 'text-purple-600',
+  PHYSICAL: 'text-orange-600',
+  MENTAL: 'text-teal-600',
+}
+
+const SKILL_CATEGORIES: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
 
 // ---------------------------------------------------------------------------
 // Small reusable UI helpers
@@ -89,6 +92,7 @@ function parseDrfError(err: unknown): string {
 
 export default function CreateTrainingSessionPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   // Reference data
   const [academies, setAcademies] = useState<Academy[]>([])
@@ -105,7 +109,7 @@ export default function CreateTrainingSessionPage() {
 
   // Teams filtered to chosen academy
   const teamsForAcademy = form.academy
-    ? allTeams.filter((t) => t.academy === form.academy)
+    ? allTeams.filter((tm) => tm.academy === form.academy)
     : []
 
   // Load reference data in parallel
@@ -122,10 +126,10 @@ export default function CreateTrainingSessionPage() {
         setRefLoading(false)
       })
       .catch((err: unknown) => {
-        setRefError(err instanceof Error ? err.message : 'Failed to load form data.')
+        setRefError(err instanceof Error ? err.message : t('training.error.formLoadFailed'))
         setRefLoading(false)
       })
-  }, [])
+  }, [t])
 
   function set(field: keyof FormState, value: string) {
     setForm((prev) => {
@@ -177,7 +181,7 @@ export default function CreateTrainingSessionPage() {
   if (refLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="New Training Session" />
+        <AppNav label={t('training.newNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -188,7 +192,7 @@ export default function CreateTrainingSessionPage() {
   if (refError) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="New Training Session" />
+        <AppNav label={t('training.newNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
             {refError}
@@ -198,21 +202,20 @@ export default function CreateTrainingSessionPage() {
     )
   }
 
-  const skillsByCategory = SKILL_CATEGORIES.map(({ value, label, color }) => ({
-    value, label, color,
-    items: skills.filter((s) => s.category === value),
+  const skillsByCategory = SKILL_CATEGORIES.map((cat) => ({
+    value: cat,
+    label: t('skillCategories.' + cat),
+    color: SKILL_CATEGORY_COLORS[cat],
+    items: skills.filter((s) => s.category === cat),
   })).filter((g) => g.items.length > 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="New Training Session" />
+      <AppNav label={t('training.newNavLabel')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">New Training Session</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            Fill in the session details below. Fields marked * are required.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('training.newNavLabel')}</h1>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
@@ -221,11 +224,11 @@ export default function CreateTrainingSessionPage() {
             {/* ── Session details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Session Details
+                {t('training.sectionDetails')}
               </h2>
               <div className="space-y-5">
                 <div>
-                  <FieldLabel htmlFor="title" required>Title</FieldLabel>
+                  <FieldLabel htmlFor="title" required>{t('training.titleField')}</FieldLabel>
                   <input
                     id="title"
                     type="text"
@@ -233,13 +236,13 @@ export default function CreateTrainingSessionPage() {
                     value={form.title}
                     onChange={(e) => set('title', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. Wednesday Passing Drill"
+                    placeholder={t('training.titlePlaceholder')}
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <FieldLabel htmlFor="training_date" required>Date</FieldLabel>
+                    <FieldLabel htmlFor="training_date" required>{t('training.date')}</FieldLabel>
                     <input
                       id="training_date"
                       type="date"
@@ -250,7 +253,7 @@ export default function CreateTrainingSessionPage() {
                     />
                   </div>
                   <div>
-                    <FieldLabel htmlFor="academy" required>Academy</FieldLabel>
+                    <FieldLabel htmlFor="academy" required>{t('training.academy')}</FieldLabel>
                     <select
                       id="academy"
                       required
@@ -258,7 +261,7 @@ export default function CreateTrainingSessionPage() {
                       onChange={(e) => set('academy', e.target.value)}
                       className={`${inputCls} bg-white`}
                     >
-                      <option value="">Select academy…</option>
+                      <option value="">{t('training.selectAcademy')}</option>
                       {academies.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.name}
@@ -269,7 +272,7 @@ export default function CreateTrainingSessionPage() {
                 </div>
 
                 <div>
-                  <FieldLabel htmlFor="team">Team</FieldLabel>
+                  <FieldLabel htmlFor="team">{t('training.team')}</FieldLabel>
                   <select
                     id="team"
                     value={form.team}
@@ -279,16 +282,16 @@ export default function CreateTrainingSessionPage() {
                   >
                     <option value="">
                       {!form.academy
-                        ? 'Select an academy first'
+                        ? t('training.selectAcademyFirst')
                         : teamsForAcademy.length === 0
-                        ? 'No teams in this academy'
-                        : 'No specific team (academy-wide)'}
+                        ? t('training.noTeamsInAcademy')
+                        : t('training.noSpecificTeam')}
                     </option>
-                    {teamsForAcademy.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                        {t.age_group && ` · ${t.age_group}`}
-                        {t.season && ` (${t.season})`}
+                    {teamsForAcademy.map((tm) => (
+                      <option key={tm.id} value={tm.id}>
+                        {tm.name}
+                        {tm.age_group && ` · ${tm.age_group}`}
+                        {tm.season && ` (${tm.season})`}
                       </option>
                     ))}
                   </select>
@@ -299,22 +302,22 @@ export default function CreateTrainingSessionPage() {
             {/* ── Logistics ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Logistics
+                {t('training.sectionLogistics')}
               </h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
                 <div>
-                  <FieldLabel htmlFor="location">Location</FieldLabel>
+                  <FieldLabel htmlFor="location">{t('training.location')}</FieldLabel>
                   <input
                     id="location"
                     type="text"
                     value={form.location}
                     onChange={(e) => set('location', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. Main Pitch"
+                    placeholder={t('training.locationPlaceholder')}
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="start_time">Start time</FieldLabel>
+                  <FieldLabel htmlFor="start_time">{t('training.startTime')}</FieldLabel>
                   <input
                     id="start_time"
                     type="time"
@@ -324,7 +327,7 @@ export default function CreateTrainingSessionPage() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="duration_minutes">Duration (min)</FieldLabel>
+                  <FieldLabel htmlFor="duration_minutes">{t('training.duration')}</FieldLabel>
                   <input
                     id="duration_minutes"
                     type="number"
@@ -333,7 +336,7 @@ export default function CreateTrainingSessionPage() {
                     value={form.duration_minutes}
                     onChange={(e) => set('duration_minutes', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. 90"
+                    placeholder={t('training.durationPlaceholder')}
                   />
                 </div>
               </div>
@@ -342,17 +345,17 @@ export default function CreateTrainingSessionPage() {
             {/* ── Description ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Description
+                {t('training.sectionDescription')}
               </h2>
               <div>
-                <FieldLabel htmlFor="description">Notes / plan</FieldLabel>
+                <FieldLabel htmlFor="description">{t('training.notes')}</FieldLabel>
                 <textarea
                   id="description"
                   rows={3}
                   value={form.description}
                   onChange={(e) => set('description', e.target.value)}
                   className={`${inputCls} resize-none`}
-                  placeholder="Optional overview of the session plan…"
+                  placeholder={t('training.notesPlaceholder')}
                 />
               </div>
             </section>
@@ -362,11 +365,11 @@ export default function CreateTrainingSessionPage() {
               <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
                 <div className="mb-5 flex items-center justify-between">
                   <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400">
-                    Focus Skills
+                    {t('training.sectionFocusSkills')}
                   </h2>
                   {selectedSkills.size > 0 && (
                     <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-600">
-                      {selectedSkills.size} selected
+                      {t('training.skillsSelected', { count: selectedSkills.size })}
                     </span>
                   )}
                 </div>
@@ -420,14 +423,14 @@ export default function CreateTrainingSessionPage() {
                 onClick={() => navigate('/coach/sessions')}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Creating…' : 'Create Session'}
+                {submitting ? t('training.creating') : t('training.createButton')}
               </button>
             </div>
 

@@ -17,12 +17,12 @@ export function validateTeamForm(values: TeamFormValues): TeamFormErrors {
   const errors: TeamFormErrors = {}
   const name = values.name.trim()
   if (!name) {
-    errors.name = 'Team name is required.'
+    errors.name = 'teams.validation.nameRequired'
   } else if (name.length > 200) {
-    errors.name = 'Team name must be 200 characters or fewer.'
+    errors.name = 'teams.validation.nameTooLong'
   }
   if (!values.academy) {
-    errors.academy = 'Please select an academy.'
+    errors.academy = 'teams.validation.academyRequired'
   }
   return errors
 }

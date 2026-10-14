@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -32,11 +33,9 @@ function parseDrfError(err: unknown): string {
   return 'Unexpected error — please try again.'
 }
 
-const STATUS_OPTIONS: { value: DevelopmentGoal['status']; label: string; color: string }[] = [
-  { value: 'ACTIVE',    label: 'Active',    color: 'text-brand-600'   },
-  { value: 'COMPLETED', label: 'Completed', color: 'text-emerald-600' },
-  { value: 'CANCELLED', label: 'Cancelled', color: 'text-gray-400'    },
-]
+type GoalStatus = DevelopmentGoal['status']
+
+const GOAL_STATUS_VALUES: GoalStatus[] = ['ACTIVE', 'COMPLETED', 'CANCELLED']
 
 // ---------------------------------------------------------------------------
 // Page
@@ -45,6 +44,7 @@ const STATUS_OPTIONS: { value: DevelopmentGoal['status']; label: string; color: 
 export default function EditGoalPage() {
   const { playerId, goalId } = useParams<{ playerId: string; goalId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [player, setPlayer] = useState<Player | null>(null)
   const [skills, setSkills] = useState<Skill[]>([])
@@ -58,7 +58,7 @@ export default function EditGoalPage() {
   const [targetDate, setTargetDate] = useState('')
   const [targetValue, setTargetValue] = useState('')
   const [currentValue, setCurrentValue] = useState('')
-  const [goalStatus, setGoalStatus] = useState<DevelopmentGoal['status']>('ACTIVE')
+  const [goalStatus, setGoalStatus] = useState<GoalStatus>('ACTIVE')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -84,10 +84,10 @@ export default function EditGoalPage() {
         setRefLoading(false)
       })
       .catch((err: unknown) => {
-        setRefError(err instanceof Error ? err.message : 'Failed to load data.')
+        setRefError(err instanceof Error ? err.message : t('goal.error.loadFailed'))
         setRefLoading(false)
       })
-  }, [playerId, goalId])
+  }, [playerId, goalId, t])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -121,7 +121,7 @@ export default function EditGoalPage() {
   if (refLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Goal" />
+        <AppNav label={t('goal.editNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -132,10 +132,10 @@ export default function EditGoalPage() {
   if (refError || !player) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Goal" />
+        <AppNav label={t('goal.editNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {refError ?? 'Goal not found.'}
+            {refError ?? t('goal.error.notFound')}
           </div>
         </main>
       </div>
@@ -144,17 +144,17 @@ export default function EditGoalPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Edit Goal" />
+      <AppNav label={t('goal.editNavLabel')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/players/${playerId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
         >
-          ← Back to profile
+          {t('goal.backToProfile')}
         </button>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Edit Goal</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('goal.editTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
             {player.first_name} {player.last_name} ·{' '}
             <span className="font-mono text-brand-500">{player.football_id}</span>
@@ -167,13 +167,13 @@ export default function EditGoalPage() {
             {/* ── Goal details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Goal Details
+                {t('goal.sectionDetails')}
               </h2>
               <div className="space-y-5">
 
                 <div>
                   <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                    Title <span className="text-red-500">*</span>
+                    {t('goal.title')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="title"
@@ -187,7 +187,7 @@ export default function EditGoalPage() {
 
                 <div>
                   <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                    Description <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('goal.description')}
                   </label>
                   <textarea
                     id="description"
@@ -200,7 +200,7 @@ export default function EditGoalPage() {
 
                 <div>
                   <label htmlFor="skill" className="block text-sm font-medium text-gray-700">
-                    Related skill <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('goal.relatedSkill')}
                   </label>
                   <select
                     id="skill"
@@ -208,12 +208,12 @@ export default function EditGoalPage() {
                     onChange={(e) => setSkillId(e.target.value)}
                     className={inputCls}
                   >
-                    <option value="">— None —</option>
+                    <option value="">{t('goal.skillNone')}</option>
                     {['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL'].map((cat) => {
                       const catSkills = skills.filter((s) => s.category === cat)
                       if (catSkills.length === 0) return null
                       return (
-                        <optgroup key={cat} label={cat.charAt(0) + cat.slice(1).toLowerCase()}>
+                        <optgroup key={cat} label={t('skillCategories.' + cat)}>
                           {catSkills.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}
@@ -229,14 +229,14 @@ export default function EditGoalPage() {
             {/* ── Status ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Status
+                {t('goal.sectionStatus')}
               </h2>
               <div className="flex flex-wrap gap-3">
-                {STATUS_OPTIONS.map((opt) => (
+                {GOAL_STATUS_VALUES.map((val) => (
                   <label
-                    key={opt.value}
+                    key={val}
                     className={`flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-                      goalStatus === opt.value
+                      goalStatus === val
                         ? 'border-brand-300 bg-brand-50 text-brand-700'
                         : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
@@ -244,16 +244,16 @@ export default function EditGoalPage() {
                     <input
                       type="radio"
                       name="status"
-                      value={opt.value}
-                      checked={goalStatus === opt.value}
-                      onChange={() => setGoalStatus(opt.value)}
+                      value={val}
+                      checked={goalStatus === val}
+                      onChange={() => setGoalStatus(val)}
                       className="sr-only"
                     />
                     <span className={`h-2 w-2 rounded-full ${
-                      opt.value === 'ACTIVE' ? 'bg-brand-500' :
-                      opt.value === 'COMPLETED' ? 'bg-emerald-500' : 'bg-gray-300'
+                      val === 'ACTIVE' ? 'bg-brand-500' :
+                      val === 'COMPLETED' ? 'bg-emerald-500' : 'bg-gray-300'
                     }`} />
-                    {opt.label}
+                    {val.charAt(0) + val.slice(1).toLowerCase()}
                   </label>
                 ))}
               </div>
@@ -262,12 +262,12 @@ export default function EditGoalPage() {
             {/* ── Dates ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Dates
+                {t('goal.sectionDates')}
               </h2>
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="start_date" className="block text-sm font-medium text-gray-700">
-                    Start date <span className="text-red-500">*</span>
+                    {t('goal.startDate')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="start_date"
@@ -280,7 +280,7 @@ export default function EditGoalPage() {
                 </div>
                 <div>
                   <label htmlFor="target_date" className="block text-sm font-medium text-gray-700">
-                    Target date <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('goal.targetDate')}
                   </label>
                   <input
                     id="target_date"
@@ -296,15 +296,15 @@ export default function EditGoalPage() {
             {/* ── Progress values ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-1 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Progress Values
+                {t('goal.sectionProgress')}
               </h2>
               <p className="mb-5 text-xs text-gray-400">
-                Optional numeric targets — useful for measurable goals like sprint time or skill score.
+                {t('goal.progressHint')}
               </p>
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
                   <label htmlFor="current_value" className="block text-sm font-medium text-gray-700">
-                    Current value
+                    {t('goal.currentValue')}
                   </label>
                   <input
                     id="current_value"
@@ -318,7 +318,7 @@ export default function EditGoalPage() {
                 </div>
                 <div>
                   <label htmlFor="target_value" className="block text-sm font-medium text-gray-700">
-                    Target value
+                    {t('goal.targetValue')}
                   </label>
                   <input
                     id="target_value"
@@ -347,14 +347,14 @@ export default function EditGoalPage() {
                 onClick={() => navigate(`/players/${playerId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting || !title.trim()}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save Changes'}
+                {submitting ? t('common.loading') : t('goal.saveChangesButton')}
               </button>
             </div>
 

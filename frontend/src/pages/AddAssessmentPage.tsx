@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -11,12 +12,21 @@ import type { Player, Skill, SkillCategory } from '../types'
 // Constants
 // ---------------------------------------------------------------------------
 
-const SKILL_CATEGORIES: { value: SkillCategory; label: string; color: string; bar: string }[] = [
-  { value: 'TECHNICAL', label: 'Technical', color: 'text-brand-600',   bar: 'bg-brand-500'   },
-  { value: 'TACTICAL',  label: 'Tactical',  color: 'text-violet-600',  bar: 'bg-violet-500'  },
-  { value: 'PHYSICAL',  label: 'Physical',  color: 'text-emerald-600', bar: 'bg-emerald-500' },
-  { value: 'MENTAL',    label: 'Mental',    color: 'text-amber-600',   bar: 'bg-amber-500'   },
-]
+const SKILL_CATEGORY_COLORS: Record<SkillCategory, string> = {
+  TECHNICAL: 'text-brand-600',
+  TACTICAL:  'text-violet-600',
+  PHYSICAL:  'text-emerald-600',
+  MENTAL:    'text-amber-600',
+}
+
+const SKILL_CATEGORY_BARS: Record<SkillCategory, string> = {
+  TECHNICAL: 'bg-brand-500',
+  TACTICAL:  'bg-violet-500',
+  PHYSICAL:  'bg-emerald-500',
+  MENTAL:    'bg-amber-500',
+}
+
+const SKILL_CATEGORIES: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,6 +128,7 @@ function ScoreInput({
 export default function AddAssessmentPage() {
   const { playerId } = useParams<{ playerId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [player, setPlayer] = useState<Player | null>(null)
   const [rows, setRows] = useState<SkillRow[]>([])
@@ -150,10 +161,10 @@ export default function AddAssessmentPage() {
         setRefLoading(false)
       })
       .catch((err: unknown) => {
-        setRefError(err instanceof Error ? err.message : 'Failed to load data.')
+        setRefError(err instanceof Error ? err.message : t('assessment.error.loadFailed'))
         setRefLoading(false)
       })
-  }, [playerId])
+  }, [playerId, t])
 
   function toggleSkill(skillId: string) {
     setRows((prev) =>
@@ -182,7 +193,7 @@ export default function AddAssessmentPage() {
 
     const included = rows.filter((r) => r.included)
     if (included.length === 0) {
-      setSubmitError('Select at least one skill to assess.')
+      setSubmitError(t('assessment.skillRequired'))
       return
     }
 
@@ -213,7 +224,7 @@ export default function AddAssessmentPage() {
   if (refLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="New Assessment" />
+        <AppNav label={t('assessment.navLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -224,10 +235,10 @@ export default function AddAssessmentPage() {
   if (refError || !player) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="New Assessment" />
+        <AppNav label={t('assessment.navLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {refError ?? 'Player not found.'}
+            {refError ?? t('assessment.error.notFound')}
           </div>
         </main>
       </div>
@@ -235,29 +246,32 @@ export default function AddAssessmentPage() {
   }
 
   const skillsByCategory = SKILL_CATEGORIES.map((cat) => ({
-    ...cat,
-    rows: rows.filter((r) => r.skill.category === cat.value),
+    value: cat,
+    label: t('skillCategories.' + cat),
+    color: SKILL_CATEGORY_COLORS[cat],
+    bar: SKILL_CATEGORY_BARS[cat],
+    rows: rows.filter((r) => r.skill.category === cat),
   })).filter((g) => g.rows.length > 0)
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="New Assessment" />
+      <AppNav label={t('assessment.navLabel')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/players/${playerId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
         >
-          ← Back to profile
+          {t('assessment.backToProfile')}
         </button>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">New Assessment</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('assessment.title')}</h1>
           <p className="mt-1 text-sm text-gray-400">
             {player.first_name} {player.last_name} ·{' '}
             <span className="font-mono text-brand-500">{player.football_id}</span>
           </p>
           <p className="mt-1 text-xs text-gray-400">
-            Assessments are permanent records and cannot be edited after saving.
+            {t('assessment.immutableNote')}
           </p>
         </div>
 
@@ -267,12 +281,12 @@ export default function AddAssessmentPage() {
             {/* ── Assessment details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Assessment Details
+                {t('assessment.sectionDetails')}
               </h2>
               <div className="space-y-5">
                 <div className="sm:max-w-xs">
                   <label htmlFor="assessment_date" className="block text-sm font-medium text-gray-700">
-                    Date <span className="text-red-500">*</span>
+                    {t('assessment.date')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="assessment_date"
@@ -285,7 +299,7 @@ export default function AddAssessmentPage() {
                 </div>
                 <div>
                   <label htmlFor="overall_comment" className="block text-sm font-medium text-gray-700">
-                    Overall comment <span className="text-xs font-normal text-gray-400">(optional)</span>
+                    {t('assessment.overallComment')}
                   </label>
                   <textarea
                     id="overall_comment"
@@ -293,7 +307,7 @@ export default function AddAssessmentPage() {
                     value={overallComment}
                     onChange={(e) => setOverallComment(e.target.value)}
                     className={`${inputCls} resize-none`}
-                    placeholder="General observations about the player's development…"
+                    placeholder={t('assessment.overallCommentPlaceholder')}
                   />
                 </div>
               </div>
@@ -307,7 +321,7 @@ export default function AddAssessmentPage() {
                     {label}
                   </h2>
                   <span className="text-xs text-gray-400">
-                    {catRows.filter((r) => r.included).length} / {catRows.length} selected
+                    {catRows.filter((r) => r.included).length} / {catRows.length} {t('assessment.selected')}
                   </span>
                 </div>
 
@@ -347,7 +361,7 @@ export default function AddAssessmentPage() {
                             type="text"
                             value={row.comment}
                             onChange={(e) => setComment(row.skill.id, e.target.value)}
-                            placeholder="Skill comment (optional)"
+                            placeholder={t('assessment.skillCommentPlaceholder')}
                             className="block w-full rounded-xl border border-gray-200 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
                           />
                         </div>
@@ -361,7 +375,7 @@ export default function AddAssessmentPage() {
             {/* ── Summary ── */}
             {includedCount > 0 && (
               <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-200">
-                {includedCount} {includedCount === 1 ? 'skill' : 'skills'} selected for this assessment.
+                {t('assessment.skillCount', { count: includedCount })}
               </div>
             )}
 
@@ -379,14 +393,14 @@ export default function AddAssessmentPage() {
                 onClick={() => navigate(`/players/${playerId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting || includedCount === 0}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save Assessment'}
+                {submitting ? t('common.loading') : t('assessment.saveButton')}
               </button>
             </div>
 

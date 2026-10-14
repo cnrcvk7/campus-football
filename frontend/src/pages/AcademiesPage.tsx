@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -25,6 +26,7 @@ function AcademyCard({ academy }: { academy: Academy }) {
 
 export default function AcademiesPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user } = useAuth()
   const isAdmin = user?.role === 'ACADEMY_ADMIN'
 
@@ -36,25 +38,25 @@ export default function AcademiesPage() {
     academyService
       .list()
       .then((res) => setAcademies(res.results))
-      .catch(() => setError('Failed to load academies.'))
+      .catch(() => setError(t('academies.error.loadFailed')))
       .finally(() => setLoading(false))
-  }, [])
+  }, [t])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Academies" />
+      <AppNav label={t('academies.navLabel')} />
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Academies</h1>
-            <p className="mt-1 text-sm text-gray-400">All registered football academies.</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t('academies.title')}</h1>
+            <p className="mt-1 text-sm text-gray-400">{t('academies.subtitle')}</p>
           </div>
           {isAdmin && (
             <button
               onClick={() => navigate('/coach/academies/new')}
               className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
             >
-              + New Academy
+              {t('academies.addButton')}
             </button>
           )}
         </div>
@@ -70,8 +72,8 @@ export default function AcademiesPage() {
         {!loading && !error && academies.length === 0 && (
           <EmptyState
             icon="🏟️"
-            title="No academies yet"
-            description={isAdmin ? 'Create the first academy to get started.' : undefined}
+            title={t('academies.empty.noAcademies')}
+            description={isAdmin ? t('academies.empty.noAcademiesHint') : undefined}
           />
         )}
 

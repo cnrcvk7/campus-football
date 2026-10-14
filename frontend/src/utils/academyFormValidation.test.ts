@@ -8,17 +8,17 @@ describe('validateAcademyForm', () => {
 
   it('requires a non-empty name', () => {
     const errors = validateAcademyForm({ name: '' })
-    expect(errors.name).toBe('Academy name is required.')
+    expect(errors.name).toBe('academies.validation.nameRequired')
   })
 
   it('treats a whitespace-only name as empty', () => {
     const errors = validateAcademyForm({ name: '   ' })
-    expect(errors.name).toBe('Academy name is required.')
+    expect(errors.name).toBe('academies.validation.nameRequired')
   })
 
   it('rejects names longer than 200 characters', () => {
     const errors = validateAcademyForm({ name: 'A'.repeat(201) })
-    expect(errors.name).toBe('Academy name must be 200 characters or fewer.')
+    expect(errors.name).toBe('academies.validation.nameTooLong')
   })
 
   it('accepts names exactly 200 characters long', () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -65,6 +66,7 @@ interface FormState {
 export default function EditMatchPage() {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [academies, setAcademies] = useState<Academy[]>([])
   const [allTeams, setAllTeams] = useState<Team[]>([])
@@ -100,13 +102,13 @@ export default function EditMatchPage() {
         setRefLoading(false)
       })
       .catch((err: unknown) => {
-        setRefError(err instanceof Error ? err.message : 'Failed to load match data.')
+        setRefError(err instanceof Error ? err.message : t('matches.error.matchDataFailed'))
         setRefLoading(false)
       })
-  }, [matchId])
+  }, [matchId, t])
 
   const teamsForAcademy = form?.academy
-    ? allTeams.filter((t) => t.academy === form.academy)
+    ? allTeams.filter((tm) => tm.academy === form.academy)
     : []
 
   function set(field: keyof FormState, value: string) {
@@ -155,7 +157,7 @@ export default function EditMatchPage() {
   if (refLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Match" />
+        <AppNav label={t('matches.editNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -166,10 +168,10 @@ export default function EditMatchPage() {
   if (refError || !form) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Match" />
+        <AppNav label={t('matches.editNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {refError ?? 'Match not found.'}
+            {refError ?? t('matches.error.notFound')}
           </div>
         </main>
       </div>
@@ -178,14 +180,11 @@ export default function EditMatchPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Edit Match" />
+      <AppNav label={t('matches.editNavLabel')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Edit Match</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            Update match details. Score can be left blank until after the game.
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('matches.editNavLabel')}</h1>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
@@ -194,12 +193,12 @@ export default function EditMatchPage() {
             {/* ── Match details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Match Details
+                {t('matches.sectionDetails')}
               </h2>
               <div className="space-y-5">
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <FieldLabel htmlFor="opponent_name" required>Opponent</FieldLabel>
+                    <FieldLabel htmlFor="opponent_name" required>{t('matches.opponent')}</FieldLabel>
                     <input
                       id="opponent_name"
                       type="text"
@@ -207,11 +206,11 @@ export default function EditMatchPage() {
                       value={form.opponent_name}
                       onChange={(e) => set('opponent_name', e.target.value)}
                       className={inputCls}
-                      placeholder="e.g. City FC"
+                      placeholder={t('matches.opponentPlaceholder')}
                     />
                   </div>
                   <div>
-                    <FieldLabel htmlFor="match_date" required>Date</FieldLabel>
+                    <FieldLabel htmlFor="match_date" required>{t('matches.date')}</FieldLabel>
                     <input
                       id="match_date"
                       type="date"
@@ -225,7 +224,7 @@ export default function EditMatchPage() {
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <FieldLabel htmlFor="academy" required>Academy</FieldLabel>
+                    <FieldLabel htmlFor="academy" required>{t('matches.academy')}</FieldLabel>
                     <select
                       id="academy"
                       required
@@ -233,14 +232,14 @@ export default function EditMatchPage() {
                       onChange={(e) => set('academy', e.target.value)}
                       className={`${inputCls} bg-white`}
                     >
-                      <option value="">Select academy…</option>
+                      <option value="">{t('matches.selectAcademy')}</option>
                       {academies.map((a) => (
                         <option key={a.id} value={a.id}>{a.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <FieldLabel htmlFor="team" required>Team</FieldLabel>
+                    <FieldLabel htmlFor="team" required>{t('matches.team')}</FieldLabel>
                     <select
                       id="team"
                       required
@@ -251,16 +250,16 @@ export default function EditMatchPage() {
                     >
                       <option value="">
                         {!form.academy
-                          ? 'Select an academy first'
+                          ? t('matches.selectAcademyFirst')
                           : teamsForAcademy.length === 0
-                          ? 'No teams in this academy'
-                          : 'Select team…'}
+                          ? t('matches.noTeamsInAcademy')
+                          : t('matches.selectTeam')}
                       </option>
-                      {teamsForAcademy.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                          {t.age_group && ` · ${t.age_group}`}
-                          {t.season && ` (${t.season})`}
+                      {teamsForAcademy.map((tm) => (
+                        <option key={tm.id} value={tm.id}>
+                          {tm.name}
+                          {tm.age_group && ` · ${tm.age_group}`}
+                          {tm.season && ` (${tm.season})`}
                         </option>
                       ))}
                     </select>
@@ -268,7 +267,7 @@ export default function EditMatchPage() {
                 </div>
 
                 <div>
-                  <FieldLabel htmlFor="home_away" required>Home / Away</FieldLabel>
+                  <FieldLabel htmlFor="home_away" required>{t('matches.homeAwayLabel')}</FieldLabel>
                   <div className="mt-1 flex gap-3">
                     {(['HOME', 'AWAY'] as const).map((val) => (
                       <label
@@ -287,7 +286,7 @@ export default function EditMatchPage() {
                           onChange={(e) => set('home_away', e.target.value)}
                           className="sr-only"
                         />
-                        {val === 'HOME' ? '🏠 Home' : '✈️ Away'}
+                        {val === 'HOME' ? t('matches.homeOption') : t('matches.awayOption')}
                       </label>
                     ))}
                   </div>
@@ -298,29 +297,29 @@ export default function EditMatchPage() {
             {/* ── Venue & competition ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Venue &amp; Competition
+                {t('matches.sectionVenue')}
               </h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <FieldLabel htmlFor="venue">Venue</FieldLabel>
+                  <FieldLabel htmlFor="venue">{t('matches.venue')}</FieldLabel>
                   <input
                     id="venue"
                     type="text"
                     value={form.venue}
                     onChange={(e) => set('venue', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. Home Ground"
+                    placeholder={t('matches.venuePlaceholder')}
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="competition">Competition</FieldLabel>
+                  <FieldLabel htmlFor="competition">{t('matches.competition')}</FieldLabel>
                   <input
                     id="competition"
                     type="text"
                     value={form.competition}
                     onChange={(e) => set('competition', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. County League"
+                    placeholder={t('matches.competitionPlaceholder')}
                   />
                 </div>
               </div>
@@ -329,12 +328,12 @@ export default function EditMatchPage() {
             {/* ── Score ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-1 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Score
+                {t('matches.sectionScore')}
               </h2>
-              <p className="mb-5 text-xs text-gray-400">Leave blank to record later.</p>
+              <p className="mb-5 text-xs text-gray-400">{t('matches.scoreLater')}</p>
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <FieldLabel htmlFor="team_score">Our score</FieldLabel>
+                  <FieldLabel htmlFor="team_score">{t('matches.ourScore')}</FieldLabel>
                   <input
                     id="team_score"
                     type="number"
@@ -348,7 +347,7 @@ export default function EditMatchPage() {
                 </div>
                 <span className="mt-6 flex-shrink-0 text-2xl font-black text-gray-300">–</span>
                 <div className="flex-1">
-                  <FieldLabel htmlFor="opponent_score">Opponent score</FieldLabel>
+                  <FieldLabel htmlFor="opponent_score">{t('matches.opponentScore')}</FieldLabel>
                   <input
                     id="opponent_score"
                     type="number"
@@ -366,16 +365,16 @@ export default function EditMatchPage() {
             {/* ── Notes ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Notes
+                {t('matches.sectionNotes')}
               </h2>
-              <FieldLabel htmlFor="notes">Match notes</FieldLabel>
+              <FieldLabel htmlFor="notes">{t('matches.matchNotes')}</FieldLabel>
               <textarea
                 id="notes"
                 rows={3}
                 value={form.notes}
                 onChange={(e) => set('notes', e.target.value)}
                 className={`${inputCls} resize-none`}
-                placeholder="Optional match notes or observations…"
+                placeholder={t('matches.matchNotesPlaceholder')}
               />
             </section>
 
@@ -393,14 +392,14 @@ export default function EditMatchPage() {
                 onClick={() => navigate(`/coach/matches/${matchId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save Changes'}
+                {submitting ? t('matches.saving') : t('matches.saveButton')}
               </button>
             </div>
 

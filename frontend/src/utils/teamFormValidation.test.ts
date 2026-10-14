@@ -8,17 +8,17 @@ describe('validateTeamForm', () => {
 
   it('requires a non-empty name', () => {
     const errors = validateTeamForm({ name: '', academy: 'abc-123' })
-    expect(errors.name).toBe('Team name is required.')
+    expect(errors.name).toBe('teams.validation.nameRequired')
   })
 
   it('treats a whitespace-only name as empty', () => {
     const errors = validateTeamForm({ name: '   ', academy: 'abc-123' })
-    expect(errors.name).toBe('Team name is required.')
+    expect(errors.name).toBe('teams.validation.nameRequired')
   })
 
   it('rejects names longer than 200 characters', () => {
     const errors = validateTeamForm({ name: 'A'.repeat(201), academy: 'abc-123' })
-    expect(errors.name).toBe('Team name must be 200 characters or fewer.')
+    expect(errors.name).toBe('teams.validation.nameTooLong')
   })
 
   it('accepts names exactly 200 characters long', () => {
@@ -27,7 +27,7 @@ describe('validateTeamForm', () => {
 
   it('requires an academy to be selected', () => {
     const errors = validateTeamForm({ name: 'U15 Boys', academy: '' })
-    expect(errors.academy).toBe('Please select an academy.')
+    expect(errors.academy).toBe('teams.validation.academyRequired')
   })
 
   it('reports both errors when name and academy are missing', () => {

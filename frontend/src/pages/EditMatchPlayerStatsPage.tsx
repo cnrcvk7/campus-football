@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
@@ -142,6 +143,7 @@ function statsToForm(s: MatchStats): FormState {
 export default function EditMatchPlayerStatsPage() {
   const { matchId, statsId } = useParams<{ matchId: string; statsId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [match, setMatch] = useState<Match | null>(null)
   const [stats, setStats] = useState<MatchStats | null>(null)
@@ -165,10 +167,10 @@ export default function EditMatchPlayerStatsPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load stats.')
+        setLoadError(err instanceof Error ? err.message : t('matchStats.error.statsFailed'))
         setLoading(false)
       })
-  }, [matchId, statsId])
+  }, [matchId, statsId, t])
 
   function setNum(field: keyof FormState, value: number) {
     setForm((prev) => prev ? { ...prev, [field]: value } : prev)
@@ -187,12 +189,12 @@ export default function EditMatchPlayerStatsPage() {
     setSubmitError(null)
 
     if (form.shots_on_target > form.shots) {
-      setSubmitError('Shots on target cannot exceed total shots.')
+      setSubmitError(t('matchStats.errorShotsOnTarget'))
       setSubmitting(false)
       return
     }
     if (form.passes_completed > form.passes_attempted) {
-      setSubmitError('Passes completed cannot exceed passes attempted.')
+      setSubmitError(t('matchStats.errorPassCompleted'))
       setSubmitting(false)
       return
     }
@@ -201,7 +203,7 @@ export default function EditMatchPlayerStatsPage() {
     if (ratingVal !== '') {
       const r = parseFloat(ratingVal)
       if (isNaN(r) || r < 0 || r > 10) {
-        setSubmitError('Rating must be a number between 0 and 10.')
+        setSubmitError(t('matchStats.errorRating'))
         setSubmitting(false)
         return
       }
@@ -240,7 +242,7 @@ export default function EditMatchPlayerStatsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Player Stats" />
+        <AppNav label={t('matchStats.editNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -251,10 +253,10 @@ export default function EditMatchPlayerStatsPage() {
   if (loadError || !match || !stats || !form) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Edit Player Stats" />
+        <AppNav label={t('matchStats.editNavLabel')} />
         <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {loadError ?? 'Stats not found.'}
+            {loadError ?? t('matchStats.error.statsNotFound')}
           </div>
         </main>
       </div>
@@ -267,19 +269,22 @@ export default function EditMatchPlayerStatsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Edit Player Stats" />
+      <AppNav label={t('matchStats.editNavLabel')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/coach/matches/${matchId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
         >
-          ← Back to match
+          {t('matchStats.backToMatch')}
         </button>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Edit Player Stats</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('matchStats.editTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            vs {match.opponent_name} · {new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {t('matchStats.vsDate', {
+              opponent: match.opponent_name,
+              date: new Date(match.match_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+            })}
           </p>
         </div>
 
@@ -289,13 +294,13 @@ export default function EditMatchPlayerStatsPage() {
             {/* ── Player (read-only) + participation ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Player
+                {t('matchStats.sectionPlayer')}
               </h2>
 
               <div className="space-y-5">
                 {/* Player display — not editable */}
                 <div>
-                  <p className="block text-sm font-medium text-gray-700 mb-1">Player</p>
+                  <p className="block text-sm font-medium text-gray-700 mb-1">{t('matchStats.sectionPlayer')}</p>
                   <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                     <span className="text-sm font-medium text-gray-900">{stats.player_name}</span>
                     <span className="ml-2 font-mono text-xs text-brand-500">{stats.football_id}</span>
@@ -305,7 +310,7 @@ export default function EditMatchPlayerStatsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* Started toggle */}
                   <div>
-                    <p className="text-xs font-medium text-gray-500 mb-1">Started</p>
+                    <p className="text-xs font-medium text-gray-500 mb-1">{t('matchStats.started')}</p>
                     <button
                       type="button"
                       onClick={() => setForm((prev) => prev ? { ...prev, started: !prev.started } : prev)}
@@ -315,13 +320,13 @@ export default function EditMatchPlayerStatsPage() {
                           : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
                       }`}
                     >
-                      {form.started ? '✓ Starter' : 'Sub / Did not start'}
+                      {form.started ? t('matchStats.starterYes') : t('matchStats.starterNo')}
                     </button>
                   </div>
 
                   <Counter
                     id="minutes_played"
-                    label="Minutes played"
+                    label={t('matchStats.minutesPlayed')}
                     value={form.minutes_played}
                     onChange={(v) => setNum('minutes_played', v)}
                     max={120}
@@ -333,60 +338,60 @@ export default function EditMatchPlayerStatsPage() {
             {/* ── Attacking ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Attacking
+                {t('matchStats.sectionAttacking')}
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <Counter id="goals"           label="Goals"     value={form.goals}           onChange={(v) => setNum('goals', v)} />
-                <Counter id="assists"         label="Assists"   value={form.assists}         onChange={(v) => setNum('assists', v)} />
-                <Counter id="shots"           label="Shots"     value={form.shots}           onChange={(v) => setNum('shots', v)} />
-                <Counter id="shots_on_target" label="On target" value={form.shots_on_target} onChange={(v) => setNum('shots_on_target', v)} />
+                <Counter id="goals"           label={t('matchStats.goals')}     value={form.goals}           onChange={(v) => setNum('goals', v)} />
+                <Counter id="assists"         label={t('matchStats.assists')}   value={form.assists}         onChange={(v) => setNum('assists', v)} />
+                <Counter id="shots"           label={t('matchStats.shots')}     value={form.shots}           onChange={(v) => setNum('shots', v)} />
+                <Counter id="shots_on_target" label={t('matchStats.onTarget')}  value={form.shots_on_target} onChange={(v) => setNum('shots_on_target', v)} />
               </div>
             </section>
 
             {/* ── Passing ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Passing
+                {t('matchStats.sectionPassing')}
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <Counter id="passes_attempted" label="Attempted"  value={form.passes_attempted}  onChange={(v) => setNum('passes_attempted', v)} />
-                <Counter id="passes_completed" label="Completed"  value={form.passes_completed}  onChange={(v) => setNum('passes_completed', v)} />
-                <Counter id="key_passes"       label="Key passes" value={form.key_passes}        onChange={(v) => setNum('key_passes', v)} />
+                <Counter id="passes_attempted" label={t('matchStats.attempted')}  value={form.passes_attempted}  onChange={(v) => setNum('passes_attempted', v)} />
+                <Counter id="passes_completed" label={t('matchStats.completed')}  value={form.passes_completed}  onChange={(v) => setNum('passes_completed', v)} />
+                <Counter id="key_passes"       label={t('matchStats.keyPasses')}  value={form.key_passes}        onChange={(v) => setNum('key_passes', v)} />
               </div>
             </section>
 
             {/* ── Defensive ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Defensive
+                {t('matchStats.sectionDefensive')}
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <Counter id="dribbles"      label="Dribbles"      value={form.dribbles}      onChange={(v) => setNum('dribbles', v)} />
-                <Counter id="tackles"       label="Tackles"       value={form.tackles}       onChange={(v) => setNum('tackles', v)} />
-                <Counter id="interceptions" label="Interceptions" value={form.interceptions} onChange={(v) => setNum('interceptions', v)} />
+                <Counter id="dribbles"      label={t('matchStats.dribbles')}      value={form.dribbles}      onChange={(v) => setNum('dribbles', v)} />
+                <Counter id="tackles"       label={t('matchStats.tackles')}       value={form.tackles}       onChange={(v) => setNum('tackles', v)} />
+                <Counter id="interceptions" label={t('matchStats.interceptions')} value={form.interceptions} onChange={(v) => setNum('interceptions', v)} />
               </div>
             </section>
 
             {/* ── Discipline ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Discipline
+                {t('matchStats.sectionDiscipline')}
               </h2>
               <div className="grid grid-cols-2 gap-4">
-                <Counter id="yellow_cards" label="Yellow cards" value={form.yellow_cards} onChange={(v) => setNum('yellow_cards', v)} max={2} />
-                <Counter id="red_cards"    label="Red cards"    value={form.red_cards}    onChange={(v) => setNum('red_cards', v)}    max={1} />
+                <Counter id="yellow_cards" label={t('matchStats.yellowCards')} value={form.yellow_cards} onChange={(v) => setNum('yellow_cards', v)} max={2} />
+                <Counter id="red_cards"    label={t('matchStats.redCards')}    value={form.red_cards}    onChange={(v) => setNum('red_cards', v)}    max={1} />
               </div>
             </section>
 
             {/* ── Coach evaluation ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Coach Evaluation
+                {t('matchStats.sectionCoachEval')}
               </h2>
               <div className="space-y-4">
                 <div>
                   <label htmlFor="rating" className="block text-sm font-medium text-gray-700">
-                    Rating <span className="text-gray-400 font-normal">(0–10, optional)</span>
+                    {t('matchStats.rating')}
                   </label>
                   <input
                     id="rating"
@@ -397,12 +402,12 @@ export default function EditMatchPlayerStatsPage() {
                     value={form.rating}
                     onChange={(e) => setStr('rating', e.target.value)}
                     className={`${inputCls} max-w-[120px]`}
-                    placeholder="e.g. 7.5"
+                    placeholder={t('matchStats.ratingPlaceholder')}
                   />
                 </div>
                 <div>
                   <label htmlFor="coach_comment" className="block text-sm font-medium text-gray-700">
-                    Comment
+                    {t('matchStats.comment')}
                   </label>
                   <textarea
                     id="coach_comment"
@@ -410,7 +415,7 @@ export default function EditMatchPlayerStatsPage() {
                     value={form.coach_comment}
                     onChange={(e) => setStr('coach_comment', e.target.value)}
                     className={`${inputCls} resize-none`}
-                    placeholder="Optional notes on this player's performance…"
+                    placeholder={t('matchStats.commentPlaceholder')}
                   />
                 </div>
               </div>
@@ -430,14 +435,14 @@ export default function EditMatchPlayerStatsPage() {
                 onClick={() => navigate(`/coach/matches/${matchId}`)}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Save Changes'}
+                {submitting ? t('matchStats.saving') : t('matchStats.saveChanges')}
               </button>
             </div>
 

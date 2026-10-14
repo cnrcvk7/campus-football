@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import { POSITIONS } from '../constants/football'
 import { playerService } from '../services/playerService'
@@ -29,13 +30,6 @@ const EMPTY: FormState = {
   profile_photo_url: '',
 }
 
-const GENDER_OPTIONS = [
-  { value: 'M', label: 'Male' },
-  { value: 'F', label: 'Female' },
-  { value: 'O', label: 'Other' },
-  { value: 'P', label: 'Prefer not to say' },
-]
-
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
@@ -58,6 +52,7 @@ const inputCls =
 
 export default function AddPlayerPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -101,7 +96,7 @@ export default function AddPlayerPage() {
           setError(err.message)
         }
       } else {
-        setError('Unexpected error — please try again.')
+        setError(t('common.error.generic'))
       }
       setSubmitting(false)
     }
@@ -109,13 +104,13 @@ export default function AddPlayerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Add Player" />
+      <AppNav label={t('playerForm.addTitle')} />
 
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Add Player</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('playerForm.addTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            A permanent Football ID will be generated automatically.
+            {t('playerForm.addSubtitle')}
           </p>
         </div>
 
@@ -125,11 +120,11 @@ export default function AddPlayerPage() {
             {/* ── Personal details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Personal Details
+                {t('playerForm.sectionPersonal')}
               </h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <FieldLabel htmlFor="first_name" required>First name</FieldLabel>
+                  <FieldLabel htmlFor="first_name" required>{t('playerForm.firstName')}</FieldLabel>
                   <input
                     id="first_name"
                     type="text"
@@ -137,11 +132,11 @@ export default function AddPlayerPage() {
                     value={form.first_name}
                     onChange={(e) => set('first_name', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. Liam"
+                    placeholder={t('playerForm.firstNamePlaceholder')}
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="last_name" required>Last name</FieldLabel>
+                  <FieldLabel htmlFor="last_name" required>{t('playerForm.lastName')}</FieldLabel>
                   <input
                     id="last_name"
                     type="text"
@@ -149,11 +144,11 @@ export default function AddPlayerPage() {
                     value={form.last_name}
                     onChange={(e) => set('last_name', e.target.value)}
                     className={inputCls}
-                    placeholder="e.g. Johnson"
+                    placeholder={t('playerForm.lastNamePlaceholder')}
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="date_of_birth" required>Date of birth</FieldLabel>
+                  <FieldLabel htmlFor="date_of_birth" required>{t('playerForm.dateOfBirth')}</FieldLabel>
                   <input
                     id="date_of_birth"
                     type="date"
@@ -164,7 +159,7 @@ export default function AddPlayerPage() {
                   />
                 </div>
                 <div>
-                  <FieldLabel htmlFor="gender" required>Gender</FieldLabel>
+                  <FieldLabel htmlFor="gender" required>{t('playerForm.gender')}</FieldLabel>
                   <select
                     id="gender"
                     required
@@ -172,10 +167,11 @@ export default function AddPlayerPage() {
                     onChange={(e) => set('gender', e.target.value)}
                     className={`${inputCls} bg-white`}
                   >
-                    <option value="">Select…</option>
-                    {GENDER_OPTIONS.map((g) => (
-                      <option key={g.value} value={g.value}>{g.label}</option>
-                    ))}
+                    <option value="">{t('playerForm.genderPlaceholder')}</option>
+                    <option value="M">{t('genders.M')}</option>
+                    <option value="F">{t('genders.F')}</option>
+                    <option value="O">{t('genders.O')}</option>
+                    <option value="P">{t('genders.P')}</option>
                   </select>
                 </div>
               </div>
@@ -184,25 +180,25 @@ export default function AddPlayerPage() {
             {/* ── Football details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Football Details
+                {t('playerForm.sectionFootball')}
               </h2>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <FieldLabel htmlFor="preferred_position">Preferred position</FieldLabel>
+                  <FieldLabel htmlFor="preferred_position">{t('playerForm.position')}</FieldLabel>
                   <select
                     id="preferred_position"
                     value={form.preferred_position}
                     onChange={(e) => set('preferred_position', e.target.value)}
                     className={`${inputCls} bg-white`}
                   >
-                    <option value="">None / unknown</option>
-                    {Object.entries(POSITIONS).map(([code, label]) => (
-                      <option key={code} value={code}>{label}</option>
+                    <option value="">{t('playerForm.noneUnknown')}</option>
+                    {Object.keys(POSITIONS).map((code) => (
+                      <option key={code} value={code}>{t('positions.' + code)}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <FieldLabel htmlFor="jersey_number">Jersey number</FieldLabel>
+                  <FieldLabel htmlFor="jersey_number">{t('playerForm.jerseyNumber')}</FieldLabel>
                   <input
                     id="jersey_number"
                     type="number"
@@ -211,7 +207,7 @@ export default function AddPlayerPage() {
                     value={form.jersey_number}
                     onChange={(e) => set('jersey_number', e.target.value)}
                     className={inputCls}
-                    placeholder="1–99"
+                    placeholder={t('playerForm.jerseyHint')}
                   />
                 </div>
               </div>
@@ -220,17 +216,17 @@ export default function AddPlayerPage() {
             {/* ── Optional extras ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
               <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
-                Optional
+                {t('playerForm.sectionOptional')}
               </h2>
               <div>
-                <FieldLabel htmlFor="profile_photo_url">Profile photo URL</FieldLabel>
+                <FieldLabel htmlFor="profile_photo_url">{t('playerForm.photoUrl')}</FieldLabel>
                 <input
                   id="profile_photo_url"
                   type="url"
                   value={form.profile_photo_url}
                   onChange={(e) => set('profile_photo_url', e.target.value)}
                   className={inputCls}
-                  placeholder="https://…"
+                  placeholder={t('playerForm.photoPlaceholder')}
                 />
               </div>
             </section>
@@ -249,14 +245,14 @@ export default function AddPlayerPage() {
                 onClick={() => navigate('/players')}
                 className="rounded-xl px-5 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Saving…' : 'Add Player'}
+                {submitting ? t('common.loading') : t('playerForm.addButton')}
               </button>
             </div>
 

@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
-import { POSITIONS } from '../constants/football'
 import type {
   Assessment,
   AssessmentItem,
@@ -24,11 +24,11 @@ import type {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CATEGORY_META: Record<SkillCategory, { label: string; color: string; bar: string; bg: string }> = {
-  TECHNICAL: { label: 'Technical',  color: 'text-brand-600',   bar: 'bg-brand-500',   bg: 'bg-brand-50'   },
-  TACTICAL:  { label: 'Tactical',   color: 'text-violet-600',  bar: 'bg-violet-500',  bg: 'bg-violet-50'  },
-  PHYSICAL:  { label: 'Physical',   color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
-  MENTAL:    { label: 'Mental',     color: 'text-amber-600',   bar: 'bg-amber-500',   bg: 'bg-amber-50'   },
+const CATEGORY_META: Record<SkillCategory, { color: string; bar: string; bg: string }> = {
+  TECHNICAL: { color: 'text-brand-600',   bar: 'bg-brand-500',   bg: 'bg-brand-50'   },
+  TACTICAL:  { color: 'text-violet-600',  bar: 'bg-violet-500',  bg: 'bg-violet-50'  },
+  PHYSICAL:  { color: 'text-emerald-600', bar: 'bg-emerald-500', bg: 'bg-emerald-50' },
+  MENTAL:    { color: 'text-amber-600',   bar: 'bg-amber-500',   bg: 'bg-amber-50'   },
 }
 
 const ATTENDANCE_META: Record<AttendanceStatus, { icon: string; color: string }> = {
@@ -126,10 +126,11 @@ function PlayerHeader({
   history: PlayerHistory | null
 }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const activeAcademy = history ? getActiveAcademy(history) : null
   const activeTeam = history ? getActiveTeam(history) : null
   const age = calcAge(player.date_of_birth)
-  const position = player.preferred_position ? POSITIONS[player.preferred_position] : null
+  const position = player.preferred_position ? t('positions.' + player.preferred_position) : null
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-brand-900 text-white">
@@ -172,7 +173,7 @@ function PlayerHeader({
                 </span>
               )}
               <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium ring-1 ring-white/20">
-                {age} years old
+                {t('players.yearsOld', { count: age })}
               </span>
             </div>
 
@@ -199,13 +200,13 @@ function PlayerHeader({
                 onClick={() => navigate(`/players/${player.id}/edit`)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
               >
-                Edit Profile
+                {t('playerProfile.editProfile')}
               </button>
               <button
                 onClick={() => navigate(`/players/${player.id}/report`)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600/80 px-4 py-2 text-sm font-medium text-white ring-1 ring-brand-400/40 transition hover:bg-brand-600"
               >
-                Development Report
+                {t('playerProfile.developmentReport')}
               </button>
             </div>
           </div>
@@ -221,6 +222,7 @@ function PlayerHeader({
 
 function DevelopmentOverview({ assessments, playerId }: { assessments: Assessment[]; playerId: string }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const scores = computeCategoryScores(assessments)
   const categories: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
   const hasData = Object.keys(scores).length > 0
@@ -228,16 +230,16 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Development Overview</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">{t('playerProfile.sectionDevelopment')}</h2>
         <button
           onClick={() => navigate(`/players/${playerId}/assessments/new`)}
           className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
         >
-          + New Assessment
+          {t('playerProfile.newAssessment')}
         </button>
       </div>
       {!hasData ? (
-        <EmptyState icon="📊" title="No assessments yet" description="Category scores appear after the first coach assessment." />
+        <EmptyState icon="📊" title={t('playerProfile.empty.noAssessments')} description={t('playerProfile.empty.noAssessmentsHint')} />
       ) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {categories.map((cat) => {
@@ -249,10 +251,10 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
                 <div className={`absolute inset-0 ${meta.bg} opacity-40 rounded-2xl`} />
                 <div className="relative">
                   <p className={`text-xs font-semibold uppercase tracking-widest ${meta.color}`}>
-                    {meta.label}
+                    {t('skillCategories.' + cat)}
                   </p>
                   <p className="mt-1 text-4xl font-bold text-gray-900">{data.score}</p>
-                  <p className="text-xs text-gray-400">/ 100</p>
+                  <p className="text-xs text-gray-400">{t('playerProfile.scoreOf100')}</p>
                   <div className="mt-3 h-1.5 rounded-full bg-gray-200">
                     <div
                       className={`h-1.5 rounded-full ${meta.bar} transition-all`}
@@ -260,7 +262,7 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
                     />
                   </div>
                   <p className="mt-2 text-xs text-gray-400">
-                    Based on {data.count} {data.count === 1 ? 'skill' : 'skills'}
+                    {t('playerProfile.basedOn', { count: data.count })}
                   </p>
                 </div>
               </Card>
@@ -277,6 +279,7 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
 // ---------------------------------------------------------------------------
 
 function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
+  const { t } = useTranslation()
   if (assessments.length === 0) return null
   const latest = assessments[assessments.length - 1]
   if (latest.items.length === 0) return null
@@ -285,7 +288,7 @@ function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
 
   return (
     <section>
-      <SectionTitle>Latest Assessment · {fmtDate(latest.assessment_date)}</SectionTitle>
+      <SectionTitle>{t('playerProfile.latestAssessment')} {fmtDate(latest.assessment_date)}</SectionTitle>
       <Card>
         {latest.overall_comment && (
           <p className="mb-4 text-sm text-gray-600 italic border-l-2 border-brand-400 pl-3">
@@ -323,25 +326,26 @@ function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
 // ---------------------------------------------------------------------------
 
 function SeasonSummary({ summary }: { summary: MatchSummary | null }) {
+  const { t } = useTranslation()
   if (!summary) return null
   const noMatches = summary.matches_played === 0
 
   return (
     <section>
-      <SectionTitle>Season Summary</SectionTitle>
+      <SectionTitle>{t('playerProfile.seasonSummary')}</SectionTitle>
       <Card>
         {noMatches ? (
-          <EmptyState icon="🏆" title="No match data yet" />
+          <EmptyState icon="🏆" title={t('playerProfile.empty.noMatches')} />
         ) : (
           <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
             {[
-              { label: 'Matches', value: String(summary.matches_played) },
-              { label: 'Starts', value: String(summary.starts) },
-              { label: 'Minutes', value: String(summary.total_minutes) },
-              { label: 'Goals', value: String(summary.goals) },
-              { label: 'Assists', value: String(summary.assists) },
+              { label: t('playerProfile.matches'), value: String(summary.matches_played) },
+              { label: t('playerProfile.starts'), value: String(summary.starts) },
+              { label: t('playerProfile.minutes'), value: String(summary.total_minutes) },
+              { label: t('playerProfile.goals'), value: String(summary.goals) },
+              { label: t('playerProfile.assists'), value: String(summary.assists) },
               {
-                label: 'Avg Rating',
+                label: t('playerProfile.avgRating'),
                 value: summary.average_rating
                   ? parseFloat(summary.average_rating).toFixed(1)
                   : '—',
@@ -364,6 +368,7 @@ function SeasonSummary({ summary }: { summary: MatchSummary | null }) {
 // ---------------------------------------------------------------------------
 
 function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
+  const { t } = useTranslation()
   const recent = sessions.slice(0, 6)
   const presentCount = sessions.filter((s) => s.attendance_status === 'PRESENT').length
   const lateCount = sessions.filter((s) => s.attendance_status === 'LATE').length
@@ -373,27 +378,27 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
 
   return (
     <section>
-      <SectionTitle>Training</SectionTitle>
+      <SectionTitle>{t('playerProfile.sectionTraining')}</SectionTitle>
       <Card>
         {sessions.length === 0 ? (
-          <EmptyState icon="🏃" title="No training sessions recorded" />
+          <EmptyState icon="🏃" title={t('playerProfile.empty.noTraining')} />
         ) : (
           <>
             <div className="mb-5 flex items-center gap-6">
               <div>
                 <p className="text-3xl font-bold text-gray-900">{sessions.length}</p>
-                <p className="text-xs text-gray-400">Sessions</p>
+                <p className="text-xs text-gray-400">{t('playerProfile.sessions')}</p>
               </div>
               {attendanceRate !== null && (
                 <div>
                   <p className="text-3xl font-bold text-emerald-600">{attendanceRate}%</p>
-                  <p className="text-xs text-gray-400">Attendance</p>
+                  <p className="text-xs text-gray-400">{t('playerProfile.attendancePct')}</p>
                 </div>
               )}
             </div>
 
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
-              Recent sessions
+              {t('playerProfile.recentSessions')}
             </p>
             <ul className="space-y-2">
               {recent.map((session) => {
@@ -439,20 +444,21 @@ const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
 
 function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId: string }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Goals</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">{t('playerProfile.sectionGoals')}</h2>
         <button
           onClick={() => navigate(`/players/${playerId}/goals/new`)}
           className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
         >
-          + New Goal
+          {t('playerProfile.newGoal')}
         </button>
       </div>
       {goals.length === 0 ? (
-        <EmptyState icon="🎯" title="No goals yet" description="Goals appear here once set by a coach." />
+        <EmptyState icon="🎯" title={t('playerProfile.empty.noGoals')} description={t('playerProfile.empty.noGoalsHint')} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {goals.map((goal) => {
@@ -493,7 +499,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                 ) : null}
                 <div className="mt-3 flex items-center justify-between">
                   {goal.target_date ? (
-                    <p className="text-xs text-gray-400">Target: {fmtDate(goal.target_date)}</p>
+                    <p className="text-xs text-gray-400">{t('playerProfile.target')} {fmtDate(goal.target_date)}</p>
                   ) : (
                     <span />
                   )}
@@ -501,7 +507,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                     onClick={() => navigate(`/players/${playerId}/goals/${goal.id}/edit`)}
                     className="text-xs font-medium text-brand-600 hover:text-brand-700"
                   >
-                    Edit
+                    {t('playerProfile.editGoal')}
                   </button>
                 </div>
               </Card>
@@ -524,18 +530,29 @@ const RESULT_STYLE: Record<string, string> = {
 }
 
 function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
+  const { t } = useTranslation()
   return (
     <section>
-      <SectionTitle>Match History</SectionTitle>
+      <SectionTitle>{t('playerProfile.sectionMatchHistory')}</SectionTitle>
       {matches.length === 0 ? (
-        <EmptyState icon="⚽" title="No matches recorded" />
+        <EmptyState icon="⚽" title={t('playerProfile.empty.noMatchesRecorded')} />
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Date', 'Opponent', 'Result', 'H/A', 'Start', 'Min', 'G', 'A', 'Rating'].map(
+                  {[
+                    t('playerProfile.tableDate'),
+                    t('playerProfile.tableOpponent'),
+                    t('playerProfile.tableResult'),
+                    t('playerProfile.tableHomeAway'),
+                    t('playerProfile.tableStart'),
+                    t('playerProfile.tableMin'),
+                    t('playerProfile.tableG'),
+                    t('playerProfile.tableA'),
+                    t('playerProfile.tableRating'),
+                  ].map(
                     (h) => (
                       <th
                         key={h}
@@ -608,11 +625,12 @@ function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
 // ---------------------------------------------------------------------------
 
 function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
+  const { t } = useTranslation()
   if (assessments.length === 0) return null
 
   return (
     <section>
-      <SectionTitle>Assessment History</SectionTitle>
+      <SectionTitle>{t('playerProfile.sectionAssessmentHistory')}</SectionTitle>
       <Card>
         <div className="relative">
           {/* Vertical line */}
@@ -631,11 +649,11 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
                     </p>
                     {idx === 0 && (
                       <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-600 ring-1 ring-brand-200">
-                        Latest
+                        {t('playerProfile.latestBadge')}
                       </span>
                     )}
                     {a.coach_name && (
-                      <span className="text-xs text-gray-400">by {a.coach_name}</span>
+                      <span className="text-xs text-gray-400">{t('playerProfile.byCoach', { coach: a.coach_name })}</span>
                     )}
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -646,7 +664,7 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
                       return (
                         <div key={cat} className="flex items-center gap-2">
                           <span className={`text-xs font-medium ${meta.color} w-16 shrink-0`}>
-                            {meta.label}
+                            {t('skillCategories.' + cat)}
                           </span>
                           <span className="text-sm font-bold text-gray-700">{data.score}</span>
                         </div>
@@ -675,12 +693,13 @@ function PhysicalMeasurementsSection({
   playerId: string
 }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const fields: { key: keyof PhysicalMeasurement; label: string; unit: string }[] = [
-    { key: 'height_cm', label: 'Height', unit: 'cm' },
-    { key: 'weight_kg', label: 'Weight', unit: 'kg' },
-    { key: 'body_fat_percentage', label: 'Body Fat', unit: '%' },
-    { key: 'sprint_time_seconds', label: '10m Sprint', unit: 's' },
+    { key: 'height_cm', label: t('playerProfile.height'), unit: 'cm' },
+    { key: 'weight_kg', label: t('playerProfile.weight'), unit: 'kg' },
+    { key: 'body_fat_percentage', label: t('playerProfile.bodyFat'), unit: '%' },
+    { key: 'sprint_time_seconds', label: t('playerProfile.sprint10m'), unit: 's' },
   ]
 
   // Timeline is chronological (earliest first) — most recent is last
@@ -699,19 +718,19 @@ function PhysicalMeasurementsSection({
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">Physical Measurements</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">{t('playerProfile.sectionMeasurements')}</h2>
         <button
           onClick={() => navigate(`/players/${playerId}/measurements/new`)}
           className="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700"
         >
-          + New Measurement
+          {t('playerProfile.newMeasurement')}
         </button>
       </div>
       {!latest || visibleFields.length === 0 ? (
-        <EmptyState icon="📏" title="No measurements yet" description="Physical measurements appear here once recorded." />
+        <EmptyState icon="📏" title={t('playerProfile.empty.noMeasurements')} description={t('playerProfile.empty.noMeasurementsHint')} />
       ) : (
         <Card>
-          <p className="mb-4 text-xs text-gray-400">Latest: {fmtDate(latest.measurement_date)}</p>
+          <p className="mb-4 text-xs text-gray-400">{t('playerProfile.latestPrefix')} {fmtDate(latest.measurement_date)}</p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {visibleFields.map(({ key, label, unit }) => {
               const currVal = latest[key] as string | null
@@ -753,17 +772,18 @@ function MembershipTimeline({
   academyHistory: AcademyMembership[]
   teamHistory: TeamMembership[]
 }) {
+  const { t } = useTranslation()
   return (
     <section>
-      <SectionTitle>Academy & Team History</SectionTitle>
+      <SectionTitle>{t('playerProfile.sectionHistory')}</SectionTitle>
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Academy history */}
         <Card>
           <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Academies
+            {t('playerProfile.academyHistory')}
           </p>
           {academyHistory.length === 0 ? (
-            <p className="text-sm text-gray-400">No academy history.</p>
+            <p className="text-sm text-gray-400">{t('playerProfile.noAcademyHistory')}</p>
           ) : (
             <ol className="space-y-4">
               {academyHistory.map((m: AcademyMembership) => (
@@ -774,7 +794,7 @@ function MembershipTimeline({
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{m.academy.name}</p>
                     <p className="text-xs text-gray-400">
-                      {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : 'Present'}
+                      {t('playerProfile.joined')} {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : t('playerProfile.presentLabel')}
                     </p>
                     {m.academy.city && (
                       <p className="text-xs text-gray-400">{m.academy.city}, {m.academy.country}</p>
@@ -782,7 +802,7 @@ function MembershipTimeline({
                   </div>
                   {m.status === 'active' && (
                     <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200">
-                      Active
+                      {t('playerProfile.activeBadge')}
                     </span>
                   )}
                 </li>
@@ -794,10 +814,10 @@ function MembershipTimeline({
         {/* Team history */}
         <Card>
           <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Teams
+            {t('playerProfile.teamHistory')}
           </p>
           {teamHistory.length === 0 ? (
-            <p className="text-sm text-gray-400">No team history.</p>
+            <p className="text-sm text-gray-400">{t('playerProfile.noTeamHistory')}</p>
           ) : (
             <ol className="space-y-4">
               {teamHistory.map((m: TeamMembership) => (
@@ -811,12 +831,12 @@ function MembershipTimeline({
                       <p className="text-xs text-brand-500">{m.team.age_group}{m.team.season ? ` · ${m.team.season}` : ''}</p>
                     )}
                     <p className="text-xs text-gray-400">
-                      {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : 'Present'}
+                      {t('playerProfile.joined')} {fmtDate(m.joined_at)} → {m.left_at ? fmtDate(m.left_at) : t('playerProfile.presentLabel')}
                     </p>
                   </div>
                   {m.status === 'active' && (
                     <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200">
-                      Active
+                      {t('playerProfile.activeBadge')}
                     </span>
                   )}
                 </li>
@@ -835,15 +855,17 @@ function MembershipTimeline({
 
 export default function PlayerProfilePage() {
   const { playerId } = useParams<{ playerId: string }>()
+  const { t } = useTranslation()
 
   if (!playerId) {
-    return <div className="p-8 text-center text-gray-400">No player ID provided.</div>
+    return <div className="p-8 text-center text-gray-400">{t('players.error.noId')}</div>
   }
 
   return <PlayerProfileContent playerId={playerId} />
 }
 
 function PlayerProfileContent({ playerId }: { playerId: string }) {
+  const { t } = useTranslation()
   const {
     loading,
     error,
@@ -855,17 +877,17 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
     trainingHistory,
   } = usePlayerProfile(playerId)
 
-  if (loading) return <><AppNav label="Player Profile" /><LoadingSpinner /></>
+  if (loading) return <><AppNav label={t('playerProfile.navLabel')} /><LoadingSpinner /></>
 
   if (error || !player) {
     return (
       <>
-        <AppNav label="Player Profile" />
+        <AppNav label={t('playerProfile.navLabel')} />
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <EmptyState
             icon="⚠️"
-            title="Could not load player"
-            description={error ?? 'Player not found.'}
+            title={t('players.error.loadPlayerFailed')}
+            description={error ?? t('players.error.notFound')}
           />
         </div>
       </>
@@ -880,7 +902,7 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Player Profile" />
+      <AppNav label={t('playerProfile.navLabel')} />
       <PlayerHeader player={player} history={history} />
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -19,19 +20,15 @@ function initials(p: Player): string {
   return `${p.first_name[0] ?? ''}${p.last_name[0] ?? ''}`.toUpperCase()
 }
 
-// Gender labels
-const GENDER: Record<string, string> = {
-  M: 'Male', F: 'Female', O: 'Other', P: 'Undisclosed',
-}
-
 // ---------------------------------------------------------------------------
 // Player card
 // ---------------------------------------------------------------------------
 
 function PlayerCard({ player }: { player: Player }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const age = calcAge(player.date_of_birth)
-  const position = player.preferred_position ? POSITIONS[player.preferred_position] : null
+  const position = player.preferred_position ? t('positions.' + player.preferred_position) : null
 
   return (
     <button
@@ -72,9 +69,9 @@ function PlayerCard({ player }: { player: Player }) {
                 #{player.jersey_number}
               </span>
             )}
-            <span className="text-xs text-gray-400">{age} yrs</span>
+            <span className="text-xs text-gray-400">{t('players.yearsOld', { count: age })}</span>
             <span className="text-xs text-gray-300">·</span>
-            <span className="text-xs text-gray-400">{GENDER[player.gender] ?? player.gender}</span>
+            <span className="text-xs text-gray-400">{t('genders.' + player.gender) ?? player.gender}</span>
           </div>
         </div>
 
@@ -101,6 +98,7 @@ interface ToolbarProps {
 }
 
 function Toolbar({ search, onSearch, position, onPosition, count, loading }: ToolbarProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       {/* Left: search + position */}
@@ -111,7 +109,7 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
           </span>
           <input
             type="search"
-            placeholder="Search by name or Football ID…"
+            placeholder={t('players.searchPlaceholder')}
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             className="w-full rounded-xl border border-gray-200 py-2 pl-8 pr-4 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20 transition"
@@ -123,10 +121,10 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
           onChange={(e) => onPosition(e.target.value)}
           className="rounded-xl border border-gray-200 py-2 pl-3 pr-8 text-sm text-gray-700 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20 transition bg-white"
         >
-          <option value="">All positions</option>
-          {Object.entries(POSITIONS).map(([code, label]) => (
+          <option value="">{t('players.allPositions')}</option>
+          {Object.keys(POSITIONS).map((code) => (
             <option key={code} value={code}>
-              {label}
+              {t('positions.' + code)}
             </option>
           ))}
         </select>
@@ -135,12 +133,9 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
       {/* Right: count */}
       <p className="text-sm text-gray-400 sm:text-right">
         {loading ? (
-          <span className="text-gray-300">Searching…</span>
+          <span className="text-gray-300">{t('common.loading')}</span>
         ) : (
-          <>
-            <span className="font-semibold text-gray-700">{count}</span>{' '}
-            {count === 1 ? 'player' : 'players'}
-          </>
+          t('players.playerCount', { count })
         )}
       </p>
     </div>
@@ -153,6 +148,7 @@ function Toolbar({ search, onSearch, position, onPosition, count, loading }: Too
 
 export default function PlayersListPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [players, setPlayers] = useState<Player[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -189,7 +185,7 @@ export default function PlayersListPage() {
           setLoading(false)
         })
         .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : 'Failed to load players.')
+          setError(err instanceof Error ? err.message : t('players.error.loadFailed2'))
           setLoading(false)
         })
     }, delay)
@@ -197,33 +193,33 @@ export default function PlayersListPage() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [search, positionFilter, page])
+  }, [search, positionFilter, page, t])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Players" />
+      <AppNav label={t('players.navLabel')} />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Page heading */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Players</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('players.title')}</h1>
             <p className="mt-1 text-sm text-gray-400">
-              All registered players — click a card to view the full profile.
+              {t('players.subtitle')}
             </p>
           </div>
           <button
             onClick={() => navigate('/players/new')}
             className="flex-shrink-0 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
           >
-            + Add Player
+            {t('players.addButton')}
           </button>
         </div>
 
         {loading && players.length === 0 && <LoadingSpinner />}
 
         {!loading && error && (
-          <EmptyState icon="⚠️" title="Could not load players" description={error} />
+          <EmptyState icon="⚠️" title={t('players.error.loadFailed')} description={error} />
         )}
 
         {(!loading || players.length > 0) && !error && (
@@ -241,11 +237,11 @@ export default function PlayersListPage() {
               {players.length === 0 && !loading ? (
                 <EmptyState
                   icon="⚽"
-                  title={search || positionFilter ? 'No players match your search' : 'No players registered yet'}
+                  title={search || positionFilter ? t('players.empty.noMatch') : t('players.empty.noPlayers')}
                   description={
                     search || positionFilter
-                      ? 'Try adjusting your search or clearing the position filter.'
-                      : 'Use the Add Player button to register the first player.'
+                      ? t('players.empty.noMatchHint')
+                      : t('players.empty.noPlayersHint')
                   }
                 />
               ) : (
@@ -265,11 +261,11 @@ export default function PlayersListPage() {
                   disabled={!hasPrev || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ← Previous
+                  {t('pagination.previous')}
                 </button>
                 <p className="text-sm text-gray-400">
-                  Page <span className="font-semibold text-gray-700">{page}</span>
-                  {' '}of{' '}
+                  {t('pagination.page')} <span className="font-semibold text-gray-700">{page}</span>
+                  {' '}{t('pagination.of')}{' '}
                   <span className="font-semibold text-gray-700">{Math.ceil(total / 20)}</span>
                 </p>
                 <button
@@ -277,7 +273,7 @@ export default function PlayersListPage() {
                   disabled={!hasNext || loading}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Next →
+                  {t('pagination.next')}
                 </button>
               </div>
             )}

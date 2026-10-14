@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import { ApiError } from '../services/api'
 import { academyService } from '../services/academyService'
@@ -59,6 +60,7 @@ const errorCls = 'mt-1 text-xs text-red-600'
 
 export default function CreateAcademyPage() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -98,63 +100,63 @@ export default function CreateAcademyPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="New Academy" />
+      <AppNav label={t('academies.navLabel')} />
       <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Create Academy</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('academies.createTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            Add a new academy to the platform.
+            {t('academies.createSubtitle')}
           </p>
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <div>
-              <FieldLabel htmlFor="name" required>Academy name</FieldLabel>
+              <FieldLabel htmlFor="name" required>{t('academies.name')}</FieldLabel>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className={inputCls}
-                placeholder="e.g. Manchester United Academy"
+                placeholder={t('academies.namePlaceholder')}
               />
-              {fieldErrors.name && <p className={errorCls}>{fieldErrors.name}</p>}
+              {fieldErrors.name && <p className={errorCls}>{t(fieldErrors.name)}</p>}
             </div>
 
             <div>
-              <FieldLabel htmlFor="description">Description</FieldLabel>
+              <FieldLabel htmlFor="description">{t('academies.description')}</FieldLabel>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 className={inputCls}
-                placeholder="Optional description"
+                placeholder={t('academies.descriptionPlaceholder')}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <FieldLabel htmlFor="city">City</FieldLabel>
+                <FieldLabel htmlFor="city">{t('academies.city')}</FieldLabel>
                 <input
                   id="city"
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   className={inputCls}
-                  placeholder="e.g. Manchester"
+                  placeholder={t('academies.cityPlaceholder')}
                 />
               </div>
               <div>
-                <FieldLabel htmlFor="country">Country</FieldLabel>
+                <FieldLabel htmlFor="country">{t('academies.country')}</FieldLabel>
                 <input
                   id="country"
                   type="text"
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   className={inputCls}
-                  placeholder="e.g. England"
+                  placeholder={t('academies.countryPlaceholder')}
                 />
               </div>
             </div>
@@ -171,14 +173,14 @@ export default function CreateAcademyPage() {
                 onClick={() => navigate('/coach/academies')}
                 className="text-sm text-gray-400 transition hover:text-gray-600"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
               >
-                {submitting ? 'Creating…' : 'Create Academy'}
+                {submitting ? t('academies.creating') : t('academies.createButton')}
               </button>
             </div>
           </form>

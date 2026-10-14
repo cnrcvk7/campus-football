@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -42,6 +43,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 export default function CoachMatchDetailPage() {
   const { matchId } = useParams<{ matchId: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   const [match, setMatch] = useState<Match | null>(null)
   const [playerStats, setPlayerStats] = useState<MatchStats[]>([])
@@ -60,15 +62,15 @@ export default function CoachMatchDetailPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Failed to load match.')
+        setError(err instanceof Error ? err.message : t('matches.error.matchLoadFailed'))
         setLoading(false)
       })
-  }, [matchId])
+  }, [matchId, t])
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Match" />
+        <AppNav label={t('matches.matchNavLabel')} />
         <div className="flex min-h-[60vh] items-center justify-center">
           <LoadingSpinner />
         </div>
@@ -79,9 +81,9 @@ export default function CoachMatchDetailPage() {
   if (error || !match) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AppNav label="Match" />
+        <AppNav label={t('matches.matchNavLabel')} />
         <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-          <EmptyState icon="⚠️" title="Could not load match" description={error ?? 'Match not found.'} />
+          <EmptyState icon="⚠️" title={t('matches.error.matchLoadFailed')} description={error ?? t('matches.error.notFound')} />
         </main>
       </div>
     )
@@ -91,7 +93,7 @@ export default function CoachMatchDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label="Match" />
+      <AppNav label={t('matches.matchNavLabel')} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         {/* Back + actions */}
@@ -100,13 +102,13 @@ export default function CoachMatchDetailPage() {
             onClick={() => navigate('/coach/matches')}
             className="text-sm text-brand-600 hover:text-brand-700"
           >
-            ← All matches
+            {t('matches.backToMatches')}
           </button>
           <button
             onClick={() => navigate(`/coach/matches/${match.id}/edit`)}
             className="rounded-xl border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition hover:border-gray-300 hover:text-gray-900"
           >
-            Edit Match
+            {t('matches.editMatch')}
           </button>
         </div>
 
@@ -115,7 +117,7 @@ export default function CoachMatchDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                {match.home_away === 'HOME' ? 'Home' : 'Away'}
+                {match.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')}
                 {match.competition && ` · ${match.competition}`}
               </p>
               <h1 className="mt-1 text-2xl font-bold text-gray-900">
@@ -128,11 +130,11 @@ export default function CoachMatchDetailPage() {
               {match.score_display ? (
                 <p className="text-4xl font-black tracking-tight text-gray-900">{match.score_display}</p>
               ) : (
-                <p className="text-sm text-gray-300">Score not recorded</p>
+                <p className="text-sm text-gray-300">{t('matches.noScore')}</p>
               )}
               {match.result && (
                 <span className={`mt-1 inline-block rounded-full px-3 py-0.5 text-sm font-bold ${resultStyle?.badge}`}>
-                  {match.result}
+                  {match.result === 'WIN' ? t('matches.winBadge') : match.result === 'DRAW' ? t('matches.drawBadge') : t('matches.lossBadge')}
                 </span>
               )}
             </div>
@@ -140,16 +142,16 @@ export default function CoachMatchDetailPage() {
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Team</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">{t('matches.team')}</p>
               <p className="mt-0.5 text-sm font-medium text-gray-700">{match.team_name}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Academy</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">{t('matches.academy')}</p>
               <p className="mt-0.5 text-sm font-medium text-gray-700">{match.academy_name}</p>
             </div>
             {match.venue && (
               <div>
-                <p className="text-xs text-gray-400 uppercase tracking-wide">Venue</p>
+                <p className="text-xs text-gray-400 uppercase tracking-wide">{t('matches.venue')}</p>
                 <p className="mt-0.5 text-sm font-medium text-gray-700">{match.venue}</p>
               </div>
             )}
@@ -164,21 +166,21 @@ export default function CoachMatchDetailPage() {
         <section className="mt-6">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-400">
-              Player Statistics ({playerStats.length})
+              {t('matches.playerStats', { count: playerStats.length })}
             </h2>
             <button
               onClick={() => navigate(`/coach/matches/${match.id}/add-stats`)}
               className="rounded-xl bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
-              + Add Player Stats
+              {t('matches.addPlayerStats')}
             </button>
           </div>
 
           {playerStats.length === 0 ? (
             <EmptyState
               icon="📋"
-              title="No player statistics recorded"
-              description="Player stats will appear here once added for this match."
+              title={t('matches.noPlayerStats')}
+              description={t('matches.noPlayerStatsHint')}
             />
           ) : (
             <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -187,17 +189,17 @@ export default function CoachMatchDetailPage() {
                 <table className="min-w-full divide-y divide-gray-100">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="py-3 pl-4 pr-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">Player</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Start</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Min</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">G</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">A</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Shots</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Pass%</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Tkl</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">YC</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">RC</th>
-                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Rating</th>
+                      <th className="py-3 pl-4 pr-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wide whitespace-nowrap">{t('matches.tablePlayer')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableStart')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableMin')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableG')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableA')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableShots')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tablePassPct')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableTackles')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableYellow')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableRed')}</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">{t('matches.tableRating')}</th>
                       <th className="pl-3 pr-4 py-3" />
                     </tr>
                   </thead>
@@ -249,7 +251,7 @@ export default function CoachMatchDetailPage() {
                               onClick={() => navigate(`/coach/matches/${match.id}/edit-stats/${s.id}`)}
                               className="text-xs font-medium text-brand-600 hover:text-brand-700"
                             >
-                              Edit
+                              {t('playerProfile.editGoal')}
                             </button>
                           </td>
                         </tr>
@@ -263,10 +265,10 @@ export default function CoachMatchDetailPage() {
               {playerStats.length > 1 && (
                 <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
                   <div className="flex flex-wrap justify-end gap-4">
-                    <Stat label="Players" value={playerStats.length} />
-                    <Stat label="Starters" value={playerStats.filter(s => s.started).length} />
-                    <Stat label="Goals" value={playerStats.reduce((t, s) => t + s.goals, 0)} />
-                    <Stat label="Assists" value={playerStats.reduce((t, s) => t + s.assists, 0)} />
+                    <Stat label={t('matches.summaryPlayers')} value={playerStats.length} />
+                    <Stat label={t('matches.summaryStarters')} value={playerStats.filter(s => s.started).length} />
+                    <Stat label={t('matches.summaryGoals')} value={playerStats.reduce((tot, s) => tot + s.goals, 0)} />
+                    <Stat label={t('matches.summaryAssists')} value={playerStats.reduce((tot, s) => tot + s.assists, 0)} />
                   </div>
                 </div>
               )}
