@@ -125,9 +125,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
           // without clearing tokens — the session may still be valid.
           throw err
         }
-        // The server explicitly rejected the refresh token (401): force re-login.
+        // The server explicitly rejected the refresh token (401): clear local
+        // tokens and navigate to login.  Return here so execution does not
+        // fall through to the throw below while the navigation is pending.
         clearTokens()
         window.location.href = '/login'
+        return undefined as T
       }
       // A non-ApiError (e.g. TypeError from a network failure) means we could
       // not reach the server.  Do NOT clear tokens — they may still be valid

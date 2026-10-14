@@ -151,7 +151,9 @@ REST_FRAMEWORK = {
 # JWT (djangorestframework-simplejwt)
 # ---------------------------------------------------------------------------
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    # Short-lived access tokens narrow the post-logout exposure window.
+    # The frontend refreshes silently so users are not interrupted.
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     # Rotation: each successful refresh call issues a new refresh token and
     # blacklists the previous one.  An attacker who intercepts a single
@@ -159,6 +161,9 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "ALGORITHM": "HS256",
+    # JWT tokens are signed with a dedicated key separate from Django's
+    # SECRET_KEY.  In development the same value is used for simplicity;
+    # production.py overrides this with a validated JWT_SIGNING_KEY env var.
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id",

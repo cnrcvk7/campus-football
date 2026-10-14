@@ -36,11 +36,31 @@ if _SECRET_KEY in _KNOWN_PLACEHOLDERS:
     )
 SECRET_KEY = _SECRET_KEY  # noqa: F811 — intentional override of base.py value
 
+# ---------------------------------------------------------------------------
+# JWT signing key — must be distinct from SECRET_KEY
+#
+# Using the same value for both keys means a single compromise exposes all
+# Django sessions AND all JWT tokens simultaneously.  Require a separate key
+# in production.
+# ---------------------------------------------------------------------------
+_JWT_SIGNING_KEY = os.environ.get("JWT_SIGNING_KEY", "")
+if not _JWT_SIGNING_KEY or _JWT_SIGNING_KEY in _KNOWN_PLACEHOLDERS:
+    raise ImproperlyConfigured(
+        "JWT_SIGNING_KEY must be set to a strong, unique value in production "
+        "and must differ from DJANGO_SECRET_KEY. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(50))\""
+    )
+if _JWT_SIGNING_KEY == SECRET_KEY:
+    raise ImproperlyConfigured(
+        "JWT_SIGNING_KEY must not be the same value as DJANGO_SECRET_KEY. "
+        "Generate a separate key for each."
+    )
+
 # Re-declare SIMPLE_JWT as a new dict so we don't mutate the base module's
 # dict in place.  Mutating in place would affect any other settings module
 # that already imported SIMPLE_JWT from base (e.g. test.py in the same
 # process).
-SIMPLE_JWT = {**SIMPLE_JWT, "SIGNING_KEY": SECRET_KEY}  # noqa: F405
+SIMPLE_JWT = {**SIMPLE_JWT, "SIGNING_KEY": _JWT_SIGNING_KEY}  # noqa: F405
 
 # ---------------------------------------------------------------------------
 # Allowed hosts — must be set, must not be empty

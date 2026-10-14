@@ -14,8 +14,10 @@ _PRODUCTION_MODULE = "config.settings.production"
 
 # Base env that satisfies all production requirements — individual tests
 # override specific keys to exercise each validation path.
+# JWT_SIGNING_KEY must be present and must differ from DJANGO_SECRET_KEY.
 _VALID_ENV = {
     "DJANGO_SECRET_KEY": "x" * 50,
+    "JWT_SIGNING_KEY": "y" * 50,
     "DJANGO_ALLOWED_HOSTS": "example.com",
     "CORS_ALLOWED_ORIGINS": "",
 }
@@ -92,11 +94,13 @@ class ProductionSettingsValidationTests(SimpleTestCase):
         self.assertIn("example.com", mod.ALLOWED_HOSTS)
         self.assertIn("www.example.com", mod.ALLOWED_HOSTS)
 
-    def test_secret_key_applied_to_simple_jwt(self):
-        """SIMPLE_JWT signing key must match the production SECRET_KEY."""
-        strong_key = "prod-key-" + "z" * 41
-        mod = _load_production({"DJANGO_SECRET_KEY": strong_key})
-        self.assertEqual(mod.SIMPLE_JWT["SIGNING_KEY"], strong_key)
+    def test_jwt_signing_key_applied_to_simple_jwt(self):
+        """SIMPLE_JWT signing key must equal JWT_SIGNING_KEY, not DJANGO_SECRET_KEY."""
+        jwt_key = "jwt-key-" + "z" * 42
+        mod = _load_production({"JWT_SIGNING_KEY": jwt_key})
+        self.assertEqual(mod.SIMPLE_JWT["SIGNING_KEY"], jwt_key)
+        # Must NOT equal DJANGO_SECRET_KEY
+        self.assertNotEqual(mod.SIMPLE_JWT["SIGNING_KEY"], mod.SECRET_KEY)
 
     def test_simple_jwt_dict_is_new_object(self):
         """
@@ -141,3 +145,39 @@ class ProductionSettingsValidationTests(SimpleTestCase):
     def test_cors_empty_env_gives_empty_list(self):
         mod = _load_production({"CORS_ALLOWED_ORIGINS": ""})
         self.assertEqual(mod.CORS_ALLOWED_ORIGINS, [])
+
+    # ---- JWT_SIGNING_KEY ----
+
+    def test_missing_jwt_signing_key_raises(self):
+        """Empty JWT_SIGNING_KEY must be rejected."""
+        with self.assertRaises(ImproperlyConfigured):
+            _load_production({"JWT_SIGNING_KEY": ""})
+
+    def test_placeholder_jwt_signing_key_raises(self):
+        """Known placeholder values must be rejected for JWT_SIGNING_KEY."""
+        for placeholder in (
+            "unsafe-default-key-change-in-production",
+            "change-me-before-production",
+        ):
+            with self.subTest(placeholder=placeholder):
+                with self.assertRaises(ImproperlyConfigured):
+                    _load_production({"JWT_SIGNING_KEY": placeholder})
+
+    def test_jwt_signing_key_equal_to_secret_key_raises(self):
+        """JWT_SIGNING_KEY must differ from DJANGO_SECRET_KEY."""
+        shared = "a" * 50
+        with self.assertRaises(ImproperlyConfigured):
+            _load_production({"DJANGO_SECRET_KEY": shared, "JWT_SIGNING_KEY": shared})
+
+    def test_jwt_signing_key_not_in_simple_jwt_equals_secret_key(self):
+        """SIMPLE_JWT['SIGNING_KEY'] must not equal SECRET_KEY in production."""
+        mod = _load_production({})
+        self.assertNotEqual(mod.SIMPLE_JWT["SIGNING_KEY"], mod.SECRET_KEY)
+
+    # ---- access token lifetime ----
+
+    def test_access_token_lifetime_is_15_minutes(self):
+        """Access token lifetime must be 15 minutes in production."""
+        from datetime import timedelta
+        mod = _load_production({})
+        self.assertEqual(mod.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"], timedelta(minutes=15))
