@@ -31,14 +31,19 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Credentials come from .env.prod so db and backend always use the same
+    # values.  Do NOT add an environment: block here — it would be resolved
+    # via Compose interpolation from the local .env file (dev defaults) and
+    # would silently override the env_file values, causing a credential split.
+    env_file:
+      - .env.prod
     # No `ports:` — the database is not exposed to the host in production.
     # All access goes through the internal Docker network.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      # $$POSTGRES_USER expands inside the container (single $ after YAML
+      # processing), so it reads the value injected by env_file, not the
+      # Compose-interpolation value from .env.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,15 +64,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: >
-      sh -c "python manage.py migrate --no-input &&
-             python manage.py collectstatic --no-input &&
-             gunicorn config.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers 2
-               --timeout 60
-               --access-logfile -
-               --error-logfile -"
+    command:
+      - sh
+      - -c
+      - |
+        python manage.py migrate --no-input &&
+        python manage.py collectstatic --no-input &&
+        exec gunicorn config.wsgi:application \
+          --bind 0.0.0.0:8000 \
+          --workers 2 \
+          --timeout 60 \
+          --access-logfile - \
+          --error-logfile -
 
   frontend:
     build:

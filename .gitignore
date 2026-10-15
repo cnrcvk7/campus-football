@@ -48,6 +48,8 @@ frontend/.vite/
 
 # Docker
 .docker/
+docker-compose.prod.override.yml
+docker-compose.prod.local.yml
 
 # IDE
 .vscode/
