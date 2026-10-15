@@ -32,6 +32,7 @@ static/
 .env
 .env.local
 .env.*.local
+.env.prod
 
 # Node.js
 node_modules/

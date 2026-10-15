@@ -41,6 +41,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev          # uses the "dev" stage — Vite HMR, not nginx
     restart: unless-stopped
     volumes:
       - ./frontend:/app

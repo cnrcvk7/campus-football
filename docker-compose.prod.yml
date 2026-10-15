@@ -1,5 +1,23 @@
 # Production deployment — standalone Compose file (not an overlay).
 #
+# Network topology
+# ────────────────
+#   External reverse proxy / LB
+#       │  :443 (TLS terminated here — NOT inside this stack)
+#       │  :80  → redirect to :443
+#       ↓
+#   frontend  :80  (nginx — serves React SPA + proxies /api/ to backend)
+#       │  internal Docker network only
+#       ↓
+#   backend   :8000  (gunicorn — not exposed to host)
+#       │  internal Docker network only
+#       ↓
+#   db        :5432  (postgres — not exposed to host)
+#
+# The frontend container is the single external ingress.  Your reverse proxy
+# should forward ALL traffic (both static and /api/) to frontend:80.
+# backend and db have no published ports.
+#
 # Usage:
 #   cp .env.prod.example .env.prod   # fill in all required values
 #   docker compose -f docker-compose.prod.yml up -d --build
@@ -31,8 +49,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     # No source-code bind mount — the immutable image is used as-is.
-    ports:
-      - "8000:8000"
+    # No `ports:` — backend is only reachable via the frontend nginx proxy
+    # on the internal Docker network (hostname "backend", port 8000).
     env_file:
       - .env.prod
     environment:
@@ -50,6 +68,21 @@ services:
                --timeout 60
                --access-logfile -
                --error-logfile -"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # No target — uses the final "prod" stage (nginx + compiled dist).
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    # No env_file needed — the React bundle is static; all runtime config
+    # comes from the API.  VITE_* variables are baked in at build time; for
+    # the production image no such variables are required because the API
+    # client uses a relative base URL (/api) that nginx proxies internally.
 
 volumes:
   postgres_data:
