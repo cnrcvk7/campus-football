@@ -435,6 +435,148 @@ class LoginRateThrottleTests(APITestCase):
 
 
 # ---------------------------------------------------------------------------
+# LoginRateThrottle — X-Real-IP forwarding tests
+# ---------------------------------------------------------------------------
+
+_THROTTLE_CACHE_REAL_IP = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "login-throttle-realip-test",
+    }
+}
+
+
+@override_settings(CACHES=_THROTTLE_CACHE_REAL_IP)
+class LoginRateThrottleRealIPTests(APITestCase):
+    """
+    Verify the IP-source selection logic in LoginRateThrottle.get_ident().
+
+    Three scenarios:
+    1. USE_X_REAL_IP_FOR_THROTTLE=True + header present → use header value.
+    2. USE_X_REAL_IP_FOR_THROTTLE=True + header absent → fall back to REMOTE_ADDR.
+    3. USE_X_REAL_IP_FOR_THROTTLE=False (default) + header present → ignore header,
+       use REMOTE_ADDR (spoofing-safe path for direct-access environments).
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.throttle_url = reverse("token-obtain-pair")
+        # Two distinct users so we can issue valid credentials from two "clients".
+        make_user(email="realip_a@test.com")
+        make_user(email="realip_b@test.com")
+
+    # ------------------------------------------------------------------
+    # Direct unit test of get_ident() — no HTTP layer needed
+    # ------------------------------------------------------------------
+
+    @override_settings(USE_X_REAL_IP_FOR_THROTTLE=True)
+    def test_get_ident_uses_x_real_ip_when_flag_on(self):
+        """get_ident() returns HTTP_X_REAL_IP when USE_X_REAL_IP_FOR_THROTTLE=True."""
+        from apps.users.throttles import LoginRateThrottle
+
+        class FakeRequest:
+            META = {"HTTP_X_REAL_IP": "203.0.113.5", "REMOTE_ADDR": "172.21.0.1"}
+
+        throttle = LoginRateThrottle()
+        self.assertEqual(throttle.get_ident(FakeRequest()), "203.0.113.5")
+
+    @override_settings(USE_X_REAL_IP_FOR_THROTTLE=True)
+    def test_get_ident_falls_back_to_remote_addr_when_header_absent(self):
+        """get_ident() falls back to REMOTE_ADDR when HTTP_X_REAL_IP is missing."""
+        from apps.users.throttles import LoginRateThrottle
+
+        class FakeRequest:
+            META = {"REMOTE_ADDR": "172.21.0.1"}
+
+        throttle = LoginRateThrottle()
+        self.assertEqual(throttle.get_ident(FakeRequest()), "172.21.0.1")
+
+    @override_settings(USE_X_REAL_IP_FOR_THROTTLE=False)
+    def test_get_ident_ignores_x_real_ip_when_flag_off(self):
+        """get_ident() ignores HTTP_X_REAL_IP and uses REMOTE_ADDR when flag is False."""
+        from apps.users.throttles import LoginRateThrottle
+
+        class FakeRequest:
+            # Header present — should be ignored because the flag is off.
+            META = {"HTTP_X_REAL_IP": "1.2.3.4", "REMOTE_ADDR": "172.21.0.1"}
+
+        throttle = LoginRateThrottle()
+        self.assertEqual(throttle.get_ident(FakeRequest()), "172.21.0.1")
+
+    # ------------------------------------------------------------------
+    # Integration tests — two clients, one throttle, via HTTP test client
+    # ------------------------------------------------------------------
+
+    @override_settings(USE_X_REAL_IP_FOR_THROTTLE=True)
+    def test_two_clients_have_independent_buckets_via_x_real_ip(self):
+        """
+        With USE_X_REAL_IP_FOR_THROTTLE=True, requests from two different
+        X-Real-IP addresses are counted in separate throttle buckets.
+        Exhausting the quota for IP A must not affect IP B.
+        """
+        from django.core.cache import cache
+        cache.clear()
+
+        # Exhaust IP A's quota (5 bad-password attempts).
+        for _ in range(5):
+            self.client.post(
+                self.throttle_url,
+                {"email": "realip_a@test.com", "password": "wrong"},
+                format="json",
+                HTTP_X_REAL_IP="203.0.113.10",
+            )
+
+        # IP A is now blocked.
+        resp_a = self.client.post(
+            self.throttle_url,
+            {"email": "realip_a@test.com", "password": "wrong"},
+            format="json",
+            HTTP_X_REAL_IP="203.0.113.10",
+        )
+        self.assertEqual(resp_a.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # IP B is completely unaffected — its bucket is empty.
+        resp_b = self.client.post(
+            self.throttle_url,
+            {"email": "realip_b@test.com", "password": "wrong"},
+            format="json",
+            HTTP_X_REAL_IP="203.0.113.20",
+        )
+        # Still a credentials error (401), not a throttle error (429).
+        self.assertEqual(resp_b.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_settings(USE_X_REAL_IP_FOR_THROTTLE=False)
+    def test_x_real_ip_header_does_not_bypass_throttle_when_flag_off(self):
+        """
+        When USE_X_REAL_IP_FOR_THROTTLE=False (the default outside production),
+        a client cannot escape throttling by sending different X-Real-IP values.
+        All requests from the same REMOTE_ADDR share one bucket.
+        """
+        from django.core.cache import cache
+        cache.clear()
+
+        # 5 attempts from REMOTE_ADDR "127.0.0.1" (DRF test client default),
+        # each with a different spoofed X-Real-IP header.
+        for i in range(5):
+            self.client.post(
+                self.throttle_url,
+                {"email": "realip_a@test.com", "password": "wrong"},
+                format="json",
+                HTTP_X_REAL_IP=f"1.2.3.{i}",  # different value each time
+            )
+
+        # 6th attempt — must be throttled despite yet another X-Real-IP value.
+        resp = self.client.post(
+            self.throttle_url,
+            {"email": "realip_a@test.com", "password": "wrong"},
+            format="json",
+            HTTP_X_REAL_IP="9.9.9.9",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+# ---------------------------------------------------------------------------
 # Logout / blacklist tests
 # ---------------------------------------------------------------------------
 

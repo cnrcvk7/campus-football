@@ -111,6 +111,20 @@ CORS_ALLOW_ALL_ORIGINS = False
 STATIC_ROOT = BASE_DIR / "staticfiles"  # noqa: F405
 
 # ---------------------------------------------------------------------------
+# Login throttle — trust nginx-injected X-Real-IP in production
+#
+# In production the backend publishes no port and is reachable only through
+# the nginx frontend proxy.  nginx resolves the real client IP via
+# ngx_http_realip_module and forwards it as X-Real-IP.  LoginRateThrottle
+# reads HTTP_X_REAL_IP when this flag is True so each client is rate-limited
+# by its own IP instead of the shared Docker bridge gateway address.
+#
+# Never set this to True in an environment where the backend port is directly
+# accessible to untrusted clients — there, X-Real-IP would be client-supplied.
+# ---------------------------------------------------------------------------
+USE_X_REAL_IP_FOR_THROTTLE = True
+
+# ---------------------------------------------------------------------------
 # Logging — structured output to stdout/stderr; avoid DEBUG-level noise
 # ---------------------------------------------------------------------------
 LOGGING = {

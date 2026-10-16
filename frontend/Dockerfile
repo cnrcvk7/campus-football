@@ -40,6 +40,19 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Our SPA + API-proxy nginx config.
 COPY nginx.conf /etc/nginx/conf.d/app.conf
 
+# Seed a comment-only realip.conf so nginx -t passes at build and test time.
+# docker-entrypoint.sh overwrites this at container startup from
+# NGINX_TRUSTED_PROXY.  The file must exist before nginx validates the config
+# because nginx.conf includes it unconditionally.
+RUN echo '# placeholder — overwritten by docker-entrypoint.sh at container startup' \
+    > /etc/nginx/realip.conf
+
+# Custom entrypoint: generates /etc/nginx/realip.conf from NGINX_TRUSTED_PROXY,
+# then execs nginx.  Installed outside /docker-entrypoint.d/ so it does not run
+# as a hook — it replaces the default CMD instead.
+COPY docker-entrypoint.sh /docker-entrypoint-custom.sh
+RUN chmod +x /docker-entrypoint-custom.sh
+
 # Copy only the compiled assets — no source code, no node_modules.
 COPY --from=build /app/dist /usr/share/nginx/html
 
@@ -49,4 +62,4 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # non-root policy you can switch the listen port to 8080 and run as nginx.
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/docker-entrypoint-custom.sh"]

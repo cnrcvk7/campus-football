@@ -27,7 +27,13 @@ TLS termination must happen at the external reverse proxy layer.
 
 ## Required environment variables
 
-All variables below must be present in `.env.prod` (or injected by your secret manager) before starting the production stack.
+Copy `.env.prod.example` to `.env.prod` and fill in every value before deploying:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+`.env.prod` is gitignored and must never be committed.
 
 ### Django
 
@@ -37,7 +43,7 @@ All variables below must be present in `.env.prod` (or injected by your secret m
 | `JWT_SIGNING_KEY` | Dedicated JWT signing key — **must differ from `DJANGO_SECRET_KEY`** | `python -c "import secrets; print(secrets.token_hex(50))"` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames Django will serve | `app.example.com,www.example.com` |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated scheme+host CORS origins | `https://app.example.com` |
-| `DJANGO_SETTINGS_MODULE` | Must be `config.settings.production` | set in `docker-compose.prod.yml` |
+| `DJANGO_SETTINGS_MODULE` | Must be `config.settings.production` | set in `docker-compose.prod.yml` — do not override here |
 
 ### Database
 
@@ -46,8 +52,14 @@ All variables below must be present in `.env.prod` (or injected by your secret m
 | `POSTGRES_DB` | Database name |
 | `POSTGRES_USER` | Database user |
 | `POSTGRES_PASSWORD` | Database password — use a strong random value |
-| `POSTGRES_HOST` | Hostname of the database service (`db` inside Docker) |
+| `POSTGRES_HOST` | Set to `db` by `docker-compose.prod.yml` — do not override here |
 | `POSTGRES_PORT` | PostgreSQL port (default `5432`) |
+
+### Nginx
+
+| Variable | Description |
+|---|---|
+| `NGINX_TRUSTED_PROXY` | IP or CIDR of the trusted upstream proxy (see below). Empty = safe no-op (degraded throttling). |
 
 ---
 
@@ -176,27 +188,115 @@ server {
 }
 ```
 
-### Real client IP forwarding (required for rate limiting)
+### Real client IP forwarding (required for per-IP login throttling)
 
-The login-rate throttle (`POST /api/auth/token/`) identifies clients by `REMOTE_ADDR`. **If your proxy does not forward the real client IP as `REMOTE_ADDR`, all users share a single throttle bucket** — five failed login attempts anywhere would lock out the login endpoint for everyone for one minute.
+The login-rate throttle (`POST /api/auth/token/`) identifies clients by
+`REMOTE_ADDR`.  **If `REMOTE_ADDR` is the same for all users, all users share
+one throttle bucket** — five failed login attempts by anyone locks the endpoint
+for everyone for one minute.
 
-**nginx** — add to your `server` or `location` block:
+#### Why `REMOTE_ADDR` is the Docker bridge gateway by default
 
-```nginx
-# Trust only the immediate upstream (your own proxy).
-# Replace 172.18.0.0/16 with your actual Docker network CIDR.
-set_real_ip_from 172.18.0.0/16;
-real_ip_header   X-Forwarded-For;
-real_ip_recursive on;
+External connections enter the `frontend` container through Docker's published
+port (e.g. `0.0.0.0:80->80/tcp`).  Docker's iptables MASQUERADE rule rewrites
+the source address to the Docker bridge gateway before the packet reaches nginx
+(confirmed: `172.21.0.1` on this machine's `campus-football_default` network —
+your deployment will have a different gateway).  Every external request
+therefore looks identical to nginx.
+
+#### Fixing it: set `NGINX_TRUSTED_PROXY`
+
+`frontend/docker-entrypoint.sh` reads the `NGINX_TRUSTED_PROXY` environment
+variable at container startup and writes `/etc/nginx/realip.conf`.  When the
+variable is set, the file contains `set_real_ip_from <VALUE>;`, which tells
+`ngx_http_realip_module` to replace `$remote_addr` with the real client IP
+from `X-Forwarded-For`.  Django's `LoginRateThrottle` then sees per-client IP
+addresses as `REMOTE_ADDR`.
+
+**Step 1 — discover the Docker bridge gateway:**
+
+```bash
+docker network inspect <compose-project>_default \
+  --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'
 ```
 
-This replaces `REMOTE_ADDR` at the nginx level with the real client IP from the last untrusted hop in `X-Forwarded-For`, making the throttle work correctly. The `set_real_ip_from` + `real_ip_recursive` combination is what prevents IP spoofing — only hops from trusted CIDR ranges are walked. Also forward the header to upstream so Django can log it:
+The compose project name defaults to the directory name (`campus-football`):
 
-```nginx
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```bash
+docker network inspect campus-football_default \
+  --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'
+# → 172.21.0.1   (example; yours will differ)
 ```
 
-**AWS ALB / Cloudflare** — the real client IP is appended to `X-Forwarded-For` by the load balancer. Django's `LoginRateThrottle` intentionally reads only `REMOTE_ADDR` and does not trust `X-Forwarded-For` (to prevent IP spoofing). For cloud load balancers, configure the load balancer to insert the real IP into a separate trusted header (e.g. `X-Real-IP`) or use a custom `get_ident()` that reads a header set exclusively by the load balancer.
+**Step 2 — set the variable in `.env.prod`:**
+
+```dotenv
+NGINX_TRUSTED_PROXY=172.21.0.1
+```
+
+Replace `172.21.0.1` with the gateway printed by the command above.  If the
+external reverse proxy runs on a **separate host** (not the same machine as
+Docker), use that host's IP instead of the bridge gateway.
+
+**Step 3 — rebuild and restart the frontend container:**
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build --no-deps frontend
+```
+
+The startup log will confirm the value was accepted:
+
+```
+nginx-entrypoint: real-IP forwarding enabled — trusting upstream: 172.21.0.1
+```
+
+#### Safety constraints enforced by docker-entrypoint.sh
+
+| Condition | Behaviour |
+|---|---|
+| `NGINX_TRUSTED_PROXY` is set to a valid IP/CIDR | `set_real_ip_from <VALUE>;` written; real-IP module active |
+| `NGINX_TRUSTED_PROXY` is empty or unset | Comment-only file written; module inactive (safe); **WARNING** printed to stderr |
+| `NGINX_TRUSTED_PROXY=0.0.0.0/0` or `::/0` | nginx refuses to start; **ERROR** printed to stderr |
+
+Never use `0.0.0.0/0` — it would let any client set `X-Forwarded-For` to any
+IP and bypass per-IP rate limiting entirely.
+
+#### How the two halves work together
+
+```
+Real client (203.0.113.5)
+    │  X-Forwarded-For: 203.0.113.5
+    ▼
+External reverse proxy  (strips client-supplied headers, re-adds)
+    │  X-Forwarded-For: 203.0.113.5   source IP → 172.21.0.1 (gateway after Docker NAT)
+    ▼
+nginx container  (ngx_http_realip_module, NGINX_TRUSTED_PROXY=172.21.0.1)
+    │  replaces $remote_addr: 172.21.0.1 → 203.0.113.5
+    │  sets proxy header  X-Real-IP: 203.0.113.5       ← nginx.conf line 65
+    ▼
+gunicorn / Django  (USE_X_REAL_IP_FOR_THROTTLE=True in production.py)
+    │  WSGI environ HTTP_X_REAL_IP = 203.0.113.5
+    ▼
+LoginRateThrottle.get_ident()
+    reads HTTP_X_REAL_IP = 203.0.113.5  ← real per-client IP ✓
+```
+
+**Trust boundary:** the backend publishes no port and is reachable only from
+the nginx frontend container on the internal Docker network.  `HTTP_X_REAL_IP`
+therefore always originates from nginx, never from an external client.
+`USE_X_REAL_IP_FOR_THROTTLE = True` is set in `config/settings/production.py`
+and must not be enabled in environments where the backend port is directly
+accessible.
+
+#### AWS ALB / Cloudflare
+
+The real client IP is appended to `X-Forwarded-For` by the load balancer.
+Set `NGINX_TRUSTED_PROXY` to the load balancer's source IP (or CIDR), and
+confirm the LB strips any client-supplied `X-Forwarded-For` values before
+forwarding.  `LoginRateThrottle` will then receive the correct client IP
+via `HTTP_X_REAL_IP` as described above.  For cloud services that inject a
+dedicated header (e.g. `CF-Connecting-IP`), implement a custom `get_ident()`
+in `apps/users/throttles.py` that reads that header instead.
 
 ---
 
@@ -316,10 +416,11 @@ terminate HTTPS and forward to this port.  See _Reverse proxy requirement_ above
   request.  Set `CORS_ALLOWED_ORIGINS` to the public HTTPS domain of the app
   (e.g. `https://app.example.com`) to guard against requests that bypass nginx and
   reach the backend directly.
-- **nginx `real_ip` module** — the frontend nginx adds `X-Forwarded-For` when
-  proxying to the backend, but the `ngx_http_realip_module` is not configured in
-  `frontend/nginx.conf`.  The real client IP must be forwarded correctly by the
-  **external** reverse proxy; see _Real client IP forwarding_ above.
+- **nginx `real_ip` module** — `ngx_http_realip_module` is configured in
+  `frontend/nginx.conf` and activated at container startup when `NGINX_TRUSTED_PROXY`
+  is set.  The module replaces `$remote_addr` with the real client IP resolved from
+  `X-Forwarded-For`; nginx then forwards it as `X-Real-IP` to the backend.
+  See _Real client IP forwarding_ above for the full setup steps.
 - **`DJANGO_ALLOWED_HOSTS`** — must include the public hostname and, if the external
   proxy forwards the `Host` header, also the internal Docker service name
   (`backend` or `frontend` are not needed because gunicorn receives requests from

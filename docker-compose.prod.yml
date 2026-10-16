@@ -87,10 +87,13 @@ services:
       - "80:80"
     depends_on:
       - backend
-    # No env_file needed — the React bundle is static; all runtime config
-    # comes from the API.  VITE_* variables are baked in at build time; for
-    # the production image no such variables are required because the API
-    # client uses a relative base URL (/api) that nginx proxies internally.
+    # NGINX_TRUSTED_PROXY is the only runtime variable the nginx container
+    # needs.  It is read by docker-entrypoint.sh at startup to configure
+    # ngx_http_realip_module (real client IP → correct per-IP throttling).
+    # No React VITE_* variables are needed here: the API client uses a
+    # relative base URL (/api) that nginx proxies internally.
+    env_file:
+      - .env.prod
 
 volumes:
   postgres_data:
