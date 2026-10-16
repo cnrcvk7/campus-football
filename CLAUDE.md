@@ -6,6 +6,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Campus Football — a player-centered football development platform. The **Player** is the root domain entity (not the academy). Every player carries a permanent, immutable Football ID. All history (memberships, assessments, training, matches) is append-only and never deleted.
 
+## Git workflow
+
+All changes must be made on a feature branch — never commit directly to `main`.
+
+```bash
+# Start every piece of work from a fresh branch off main
+git checkout main && git pull
+git checkout -b <type>/<short-description>
+# e.g. fix/login-throttle-real-ip  feat/player-export  chore/update-deps
+
+# When the work is ready, push and open a PR targeting main
+git push -u origin <branch-name>
+# Then open a PR on GitHub — do not merge directly
+```
+
+Branch naming: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/` prefix + kebab-case description.
+
+Before opening a PR:
+- Run `python manage.py test --settings=config.settings.test` (all tests must pass)
+- Run `npm run build` in `frontend/` (TypeScript must compile)
+- Run `git diff --check` (no trailing whitespace)
+
+`main` should always be deployable. Never force-push to `main`.
+
 ## Commands
 
 ### Backend (Django)
