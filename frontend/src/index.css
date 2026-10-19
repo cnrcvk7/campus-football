@@ -2,8 +2,114 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * CSS custom property token layer
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Values are bare RGB triplets so Tailwind's <alpha-value> interpolation works:
+ *   bg-cf-background/50  →  rgba(var(--cf-background), 0.5)
+ *
+ * :root = light theme (default)
+ * .dark = dark theme (toggled by ThemeContext on <html>)
+ */
+
+:root {
+  /* Page chrome */
+  --cf-background:         248 250 252;   /* slate-50  */
+  --cf-foreground:         15  23  42;    /* slate-900 */
+
+  /* Card / panel surfaces */
+  --cf-surface:            255 255 255;   /* white     */
+  --cf-surface-foreground: 15  23  42;    /* slate-900 */
+
+  /* Muted text / placeholders */
+  --cf-muted:              248 250 252;   /* slate-50 (muted bg) */
+  --cf-muted-foreground:   100 116 139;   /* slate-500 */
+
+  /* Borders / dividers */
+  --cf-border:             226 232 240;   /* slate-200 */
+
+  /* Primary brand green (CTA, active states) */
+  --cf-brand:              16  185 129;   /* emerald-500 */
+  --cf-brand-hover:        5   150 105;   /* emerald-600 */
+  --cf-brand-foreground:   255 255 255;   /* white       */
+
+  /* Navigation bar (light: clean white) */
+  --cf-nav:                255 255 255;   /* white       */
+  --cf-nav-border:         241 245 249;   /* slate-100   */
+  --cf-nav-foreground:     15  23  42;    /* slate-900   */
+  --cf-nav-muted:          100 116 139;   /* slate-500   */
+}
+
+.dark {
+  /* Page chrome */
+  --cf-background:         15  23  42;    /* slate-900 */
+  --cf-foreground:         241 245 249;   /* slate-100 */
+
+  /* Card / panel surfaces */
+  --cf-surface:            30  41  59;    /* slate-800 */
+  --cf-surface-foreground: 241 245 249;   /* slate-100 */
+
+  /* Muted text / placeholders */
+  --cf-muted:              30  41  59;    /* slate-800 (muted bg) */
+  --cf-muted-foreground:   148 163 184;   /* slate-400 */
+
+  /* Borders / dividers */
+  --cf-border:             51  65  85;    /* slate-700 */
+
+  /* Primary brand green — same in both themes */
+  --cf-brand:              16  185 129;   /* emerald-500 */
+  --cf-brand-hover:        5   150 105;   /* emerald-600 */
+  --cf-brand-foreground:   255 255 255;   /* white       */
+
+  /* Navigation bar (dark: navy) */
+  --cf-nav:                15  23  42;    /* slate-900 */
+  --cf-nav-border:         51  65  85;    /* slate-700 */
+  --cf-nav-foreground:     241 245 249;   /* slate-100 */
+  --cf-nav-muted:          148 163 184;   /* slate-400 */
+}
+
 @layer base {
+  /* Apply background token to the document root so the whole page participates
+     in theme switching even before individual components are migrated. */
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+    background-color: rgb(var(--cf-background));
+    color: rgb(var(--cf-foreground));
+  }
+}
+
+/* Print styles for PlayerReportPage */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Override theme variables for print */
+  :root,
+  .dark {
+    --cf-background: 255 255 255;
+    --cf-surface: 255 255 255;
+    --cf-surface-foreground: 0 0 0;
+    --cf-muted: 245 245 245;
+    --cf-muted-foreground: 75 85 99;
+    --cf-border: 209 213 219;
+    --cf-brand: 16 185 129;
+  }
+
+  /* Remove shadows and rings that don't print well */
+  .ring-1,
+  .ring-cf-border {
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
   }
 }

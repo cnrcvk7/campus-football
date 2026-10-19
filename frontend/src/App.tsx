@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import AcademiesPage from './pages/AcademiesPage'
+import AcademyDetailPage from './pages/AcademyDetailPage'
+import TeamDetailPage from './pages/TeamDetailPage'
 import AddAssessmentPage from './pages/AddAssessmentPage'
 import AddGoalPage from './pages/AddGoalPage'
 import AddMeasurementPage from './pages/AddMeasurementPage'
@@ -18,6 +20,7 @@ import CreateAcademyPage from './pages/CreateAcademyPage'
 import CreateTeamPage from './pages/CreateTeamPage'
 import CoachSessionDetailPage from './pages/CoachSessionDetailPage'
 import CoachSessionsPage from './pages/CoachSessionsPage'
+import SchedulePage from './pages/SchedulePage'
 import CreateTrainingSessionPage from './pages/CreateTrainingSessionPage'
 import EditTrainingSessionPage from './pages/EditTrainingSessionPage'
 import DashboardPage from './pages/DashboardPage'
@@ -192,6 +195,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/coach/schedule"
+        element={
+          <CoachRoute>
+            <SchedulePage />
+          </CoachRoute>
+        }
+      />
+      <Route
         path="/coach/matches"
         element={
           <CoachRoute>
@@ -256,6 +267,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/coach/academies/:academyId"
+        element={
+          <CoachRoute>
+            <AcademyDetailPage />
+          </CoachRoute>
+        }
+      />
+      <Route
         path="/coach/teams"
         element={
           <CoachRoute>
@@ -268,6 +287,14 @@ function AppRoutes() {
         element={
           <CoachRoute>
             <CreateTeamPage />
+          </CoachRoute>
+        }
+      />
+      <Route
+        path="/coach/teams/:teamId"
+        element={
+          <CoachRoute>
+            <TeamDetailPage />
           </CoachRoute>
         }
       />

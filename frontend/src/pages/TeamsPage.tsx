@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { AlertTriangle, ChevronRight, Plus, Users } from 'lucide-react'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -8,31 +9,6 @@ import { useAuth } from '../context/AuthContext'
 import { academyService } from '../services/academyService'
 import { teamService } from '../services/teamService'
 import type { Academy, Team } from '../types'
-
-function TeamCard({
-  team,
-  academyName,
-}: {
-  team: Team
-  academyName: string
-}) {
-  const { t } = useTranslation()
-  const parts = [team.age_group, team.season].filter(Boolean)
-  return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-      <p className="font-semibold text-gray-900">{team.name}</p>
-      <p className="mt-0.5 text-sm text-gray-400">{academyName}</p>
-      {parts.length > 0 && (
-        <p className="mt-1 text-xs text-gray-400">{parts.join(' · ')}</p>
-      )}
-      {team.gender && team.gender !== '' && (
-        <span className="mt-2 inline-block rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-600">
-          {team.gender === 'M' ? t('genders.boysMale') : team.gender === 'F' ? t('genders.girlsFemale') : t('genders.mixed')}
-        </span>
-      )}
-    </div>
-  )
-}
 
 export default function TeamsPage() {
   const navigate = useNavigate()
@@ -60,19 +36,20 @@ export default function TeamsPage() {
   }, [t])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cf-background">
       <AppNav label={t('teams.navLabel')} />
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('teams.title')}</h1>
-            <p className="mt-1 text-sm text-gray-400">{t('teams.subtitle')}</p>
+            <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('teams.title')}</h1>
+            <p className="mt-1 text-sm text-cf-muted-foreground">{t('teams.subtitle')}</p>
           </div>
           {canCreate && (
             <button
               onClick={() => navigate('/coach/teams/new')}
-              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
             >
+              <Plus size={16} />
               {t('teams.addButton')}
             </button>
           )}
@@ -81,29 +58,68 @@ export default function TeamsPage() {
         {loading && <LoadingSpinner />}
 
         {error && (
-          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-100">
-            {error}
-          </p>
+          <EmptyState
+            icon={<AlertTriangle size={24} />}
+            title={t('teams.error.loadFailed')}
+          />
         )}
 
         {!loading && !error && teams.length === 0 && (
           <EmptyState
-            icon="🏃"
+            icon={<Users size={24} />}
             title={t('teams.empty.noTeams')}
             description={canCreate ? t('teams.empty.noTeamsHint') : undefined}
           />
         )}
 
         {!loading && !error && teams.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {teams.map((t) => (
-              <TeamCard
-                key={t.id}
-                team={t}
-                academyName={academyMap.get(t.academy) ?? ''}
-              />
-            ))}
-          </div>
+          <>
+            <p className="mb-4 text-sm text-cf-muted-foreground">
+              {t('teams.count', { count: teams.length })}
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {teams.map((team) => (
+                <div
+                  key={team.id}
+                  onClick={() => navigate('/coach/teams/' + team.id)}
+                  className="rounded-2xl ring-1 bg-cf-surface ring-cf-border p-5 hover:ring-emerald-500/50 hover:shadow-sm transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-cf-surface-foreground">{team.name}</p>
+                    <ChevronRight size={16} className="text-cf-muted-foreground flex-shrink-0" />
+                  </div>
+                  <p className="mt-0.5 text-sm text-cf-muted-foreground">
+                    {academyMap.get(team.academy) ?? ''}
+                  </p>
+                  {(team.age_group || team.season || (team.gender && team.gender !== '')) && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {team.age_group && (
+                        <span className="rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset bg-cf-muted text-cf-surface-foreground ring-cf-border">
+                          {team.age_group}
+                        </span>
+                      )}
+                      {team.season && (
+                        <span className="rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset bg-cf-muted text-cf-surface-foreground ring-cf-border">
+                          {team.season}
+                        </span>
+                      )}
+                      {team.gender && team.gender !== '' && (
+                        <span className={
+                          team.gender === 'M'
+                            ? 'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:ring-sky-900'
+                            : team.gender === 'F'
+                            ? 'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset bg-pink-50 text-pink-700 ring-pink-200 dark:bg-pink-950 dark:text-pink-400 dark:ring-pink-900'
+                            : 'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:ring-violet-900'
+                        }>
+                          {team.gender === 'M' ? t('genders.boysMale') : team.gender === 'F' ? t('genders.girlsFemale') : t('genders.mixed')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>
