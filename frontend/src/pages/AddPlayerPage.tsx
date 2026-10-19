@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import { POSITIONS } from '../constants/football'
 import { playerService } from '../services/playerService'
 import { ApiError } from '../services/api'
@@ -103,10 +103,7 @@ export default function AddPlayerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('playerForm.addTitle')} />
-
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">{t('playerForm.addTitle')}</h1>
           <p className="mt-1 text-sm text-gray-400">
@@ -258,7 +255,6 @@ export default function AddPlayerPage() {
 
           </div>
         </form>
-      </main>
     </div>
   )
 }

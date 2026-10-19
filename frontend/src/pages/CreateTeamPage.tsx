@@ -1,7 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
 import { academyService } from '../services/academyService'
@@ -117,18 +116,11 @@ export default function CreateTeamPage() {
   }
 
   if (loadingAcademies) {
-    return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('teams.navLabel')} />
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('teams.navLabel')} />
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('teams.createTitle')}</h1>
           <p className="mt-1 text-sm text-cf-muted-foreground">{t('teams.createSubtitle')}</p>
@@ -231,7 +223,6 @@ export default function CreateTeamPage() {
             </div>
           </form>
         </div>
-      </main>
     </div>
   )
 }

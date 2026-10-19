@@ -10,7 +10,6 @@ import {
   Plus,
   Search,
 } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { trainingService } from '../services/trainingService'
@@ -233,10 +232,7 @@ export default function CoachSessionsPage() {
   const totalPages = Math.max(1, Math.ceil(total / 20))
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('training.sessionsNavLabel')} />
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -384,7 +380,6 @@ export default function CoachSessionsPage() {
             )}
           </>
         )}
-      </main>
     </div>
   )
 }

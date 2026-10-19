@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ChevronRight, Plus, Users } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
@@ -36,9 +35,7 @@ export default function TeamsPage() {
   }, [t])
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('teams.navLabel')} />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('teams.title')}</h1>
@@ -121,7 +118,6 @@ export default function TeamsPage() {
             </div>
           </>
         )}
-      </main>
     </div>
   )
 }

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Eye, Plus, Trophy } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { matchService } from '../services/matchService'
@@ -214,10 +213,7 @@ export default function CoachMatchesPage() {
   const totalPages = Math.max(1, Math.ceil(total / 20))
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('matches.listNavLabel')} />
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -336,7 +332,6 @@ export default function CoachMatchesPage() {
             )}
           </>
         )}
-      </main>
     </div>
   )
 }

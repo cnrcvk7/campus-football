@@ -11,15 +11,19 @@ export default function StatCard({ label, value, description, className }: StatC
   return (
     <div
       className={cn(
-        'rounded-2xl p-6 shadow-sm ring-1',
+        'rounded-xl p-4 ring-1',
         'bg-cf-surface text-cf-surface-foreground ring-cf-border',
         className,
       )}
     >
-      <p className="text-sm font-medium text-cf-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-cf-surface-foreground">{value}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-cf-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1.5 text-2xl font-bold text-cf-surface-foreground leading-none">
+        {value}
+      </p>
       {description && (
-        <p className="mt-1 text-sm text-cf-muted-foreground">{description}</p>
+        <p className="mt-1 text-xs text-cf-muted-foreground">{description}</p>
       )}
     </div>
   )

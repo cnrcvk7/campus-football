@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
 import { matchService } from '../services/matchService'
@@ -243,24 +243,18 @@ export default function EditMatchPlayerStatsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('matchStats.editNavLabel')} />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <LoadingSpinner />
-        </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
   if (loadError || !match || !stats || !form) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('matchStats.editNavLabel')} />
-        <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {loadError ?? t('matchStats.error.statsNotFound')}
-          </div>
-        </main>
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+        <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
+          {loadError ?? t('matchStats.error.statsNotFound')}
+        </div>
       </div>
     )
   }
@@ -270,10 +264,7 @@ export default function EditMatchPlayerStatsPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('matchStats.editNavLabel')} />
-
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/coach/matches/${matchId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
@@ -450,7 +441,6 @@ export default function EditMatchPlayerStatsPage() {
 
           </div>
         </form>
-      </main>
     </div>
   )
 }

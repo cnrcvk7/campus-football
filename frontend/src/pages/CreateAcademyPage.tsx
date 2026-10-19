@@ -1,7 +1,6 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
 import { ApiError } from '../services/api'
 import { academyService } from '../services/academyService'
 import { validateAcademyForm } from '../utils/academyFormValidation'
@@ -99,9 +98,7 @@ export default function CreateAcademyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('academies.navLabel')} />
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-xl px-4 py-8 sm:px-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('academies.createTitle')}</h1>
           <p className="mt-1 text-sm text-cf-muted-foreground">
@@ -185,7 +182,6 @@ export default function CreateAcademyPage() {
             </div>
           </form>
         </div>
-      </main>
     </div>
   )
 }

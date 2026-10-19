@@ -10,7 +10,6 @@ import {
   Plus,
   Trophy,
 } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { matchService } from '../services/matchService'
@@ -80,34 +79,23 @@ export default function CoachMatchDetailPage() {
   }, [matchId, t])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('matches.matchNavLabel')} />
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   if (error || !match) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('matches.matchNavLabel')} />
-        <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-          <EmptyState
-            icon={<AlertTriangle size={24} />}
-            title={t('matches.error.matchLoadFailed')}
-            description={error ?? t('matches.error.notFound')}
-          />
-        </main>
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <EmptyState
+          icon={<AlertTriangle size={24} />}
+          title={t('matches.error.matchLoadFailed')}
+          description={error ?? t('matches.error.notFound')}
+        />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('matches.matchNavLabel')} />
-
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         {/* Back + edit */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <button
@@ -426,7 +414,6 @@ export default function CoachMatchDetailPage() {
             </div>
           )}
         </section>
-      </main>
     </div>
   )
 }

@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Trophy,
 } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { trainingService } from '../services/trainingService'
@@ -310,34 +309,23 @@ export default function SchedulePage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('schedule.title')} />
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('schedule.title')} />
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <EmptyState
-            icon={<AlertTriangle size={24} />}
-            title={t('common.error.generic')}
-            description={error}
-          />
-        </main>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <EmptyState
+          icon={<AlertTriangle size={24} />}
+          title={t('common.error.generic')}
+          description={error}
+        />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('schedule.title')} />
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Page header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('schedule.title')}</h1>
@@ -480,7 +468,6 @@ export default function SchedulePage() {
             )}
           </div>
         </div>
-      </main>
     </div>
   )
 }

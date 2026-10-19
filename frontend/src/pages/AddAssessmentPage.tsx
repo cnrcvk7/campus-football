@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
 import { developmentService } from '../services/developmentService'
@@ -223,24 +223,18 @@ export default function AddAssessmentPage() {
 
   if (refLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('assessment.navLabel')} />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <LoadingSpinner />
-        </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
   if (refError || !player) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('assessment.navLabel')} />
-        <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {refError ?? t('assessment.error.notFound')}
-          </div>
-        </main>
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+        <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
+          {refError ?? t('assessment.error.notFound')}
+        </div>
       </div>
     )
   }
@@ -254,10 +248,7 @@ export default function AddAssessmentPage() {
   })).filter((g) => g.rows.length > 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('assessment.navLabel')} />
-
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/players/${playerId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
@@ -406,7 +397,6 @@ export default function AddAssessmentPage() {
 
           </div>
         </form>
-      </main>
     </div>
   )
 }

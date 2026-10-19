@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
 import { trainingService } from '../services/trainingService'
@@ -117,24 +117,18 @@ export default function EditAttendancePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('attendance.editNavLabel')} />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <LoadingSpinner />
-        </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
   if (loadError || !session || !record) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('attendance.editNavLabel')} />
-        <main className="mx-auto max-w-xl px-4 py-10 sm:px-6">
-          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {loadError ?? t('attendance.error.notFound')}
-          </div>
-        </main>
+      <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
+        <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
+          {loadError ?? t('attendance.error.notFound')}
+        </div>
       </div>
     )
   }
@@ -144,10 +138,7 @@ export default function EditAttendancePage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('attendance.editNavLabel')} />
-
-      <main className="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(`/coach/sessions/${sessionId}`)}
           className="mb-2 text-sm text-brand-600 hover:text-brand-700"
@@ -250,7 +241,6 @@ export default function EditAttendancePage() {
 
           </div>
         </form>
-      </main>
     </div>
   )
 }

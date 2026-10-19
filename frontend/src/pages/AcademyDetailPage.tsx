@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ChevronLeft, ChevronRight, MapPin, Plus, Users } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
@@ -35,40 +34,27 @@ export default function AcademyDetailPage() {
   }, [academyId, t])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('academies.navLabel')} />
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('academies.navLabel')} />
-        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <EmptyState icon={<AlertTriangle size={24} />} title={error} />
-        </main>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        <EmptyState icon={<AlertTriangle size={24} />} title={error} />
       </div>
     )
   }
 
   if (!academy) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('academies.navLabel')} />
-        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-          <EmptyState icon={<AlertTriangle size={24} />} title={t('academies.error.notFound')} />
-        </main>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        <EmptyState icon={<AlertTriangle size={24} />} title={t('academies.error.notFound')} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('academies.navLabel')} />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Back link */}
         <button
           onClick={() => navigate('/coach/academies')}
@@ -159,7 +145,6 @@ export default function AcademyDetailPage() {
             </div>
           )}
         </div>
-      </main>
     </div>
   )
 }

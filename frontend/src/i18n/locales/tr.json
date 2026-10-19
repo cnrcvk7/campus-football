@@ -8,7 +8,14 @@
     "matches": "Maçlar",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
-    "goToDashboard": "Ana sayfaya git"
+    "goToDashboard": "Ana sayfaya git",
+    "dashboard": "Panel",
+    "sectionOverview": "Genel Bakış",
+    "sectionPlayers": "Oyuncular",
+    "sectionAcademy": "Akademi",
+    "sectionTraining": "Antrenman",
+    "openMenu": "Navigasyonu aç",
+    "closeMenu": "Navigasyonu kapat"
   },
   "language": {
     "ariaLabel": "Dil seçin"
@@ -55,6 +62,10 @@
     "recentMatches": "Son Maçlar",
     "quickAccess": "Hızlı Erişim",
     "viewAll": "Tümünü gör",
+    "actions": {
+      "newSession": "Yeni Seans",
+      "newMatch": "Yeni Maç"
+    },
     "myProfile": "Oyuncu Profilim",
     "myProfileDesc": "Gelişim geçmişi, değerlendirmeler, hedefler ve maç performansı.",
     "myReport": "Gelişim Raporu",
