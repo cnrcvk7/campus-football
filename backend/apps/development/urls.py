@@ -6,6 +6,7 @@ from .views import (
     DevelopmentTimelineView,
     GoalViewSet,
     MeasurementViewSet,
+    PlayerComparisonView,
     SkillViewSet,
 )
 
@@ -52,5 +53,11 @@ urlpatterns = router.urls + [
         "players/<uuid:player_pk>/development/timeline/",
         DevelopmentTimelineView.as_view(),
         name="player-development-timeline",
+    ),
+    # Player Team Comparison
+    path(
+        "players/<uuid:player_pk>/compare/",
+        PlayerComparisonView.as_view(),
+        name="player-compare",
     ),
 ]

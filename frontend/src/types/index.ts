@@ -422,3 +422,25 @@ export interface TrainingSessionSummary {
 export interface TrainingHistory {
   sessions: TrainingSessionSummary[]
 }
+
+// ---------------------------------------------------------------------------
+// Player Team Comparison
+// ---------------------------------------------------------------------------
+
+export interface ComparisonCategory {
+  category: SkillCategory
+  player_score: number
+  team_avg: number
+  diff: number
+  peers_with_data: number
+}
+
+export interface PlayerComparison {
+  player_id: string
+  player_name: string
+  has_team: boolean
+  team: { id: string; name: string; age_group: string | null } | null
+  player_has_assessment: boolean
+  peer_count: number
+  categories: ComparisonCategory[]
+}

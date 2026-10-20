@@ -5,6 +5,7 @@ import type {
   MatchSummary,
   PaginatedResponse,
   Player,
+  PlayerComparison,
   PlayerCreate,
   PlayerHistory,
   PlayerUpdate,
@@ -47,4 +48,7 @@ export const playerService = {
 
   getTrainingHistory: (id: string): Promise<TrainingHistory> =>
     api.get<TrainingHistory>(`/players/${id}/training/history/`),
+
+  getComparison: (id: string): Promise<PlayerComparison> =>
+    api.get<PlayerComparison>(`/players/${id}/compare/`),
 }

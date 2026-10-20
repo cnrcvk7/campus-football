@@ -28,6 +28,7 @@ import DashboardPage from './pages/DashboardPage'
 import EditPlayerPage from './pages/EditPlayerPage'
 import LoginPage from './pages/LoginPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
+import PlayerComparisonPage from './pages/PlayerComparisonPage'
 import PlayerReportPage from './pages/PlayerReportPage'
 import PlayersListPage from './pages/PlayersListPage'
 import TeamsPage from './pages/TeamsPage'
@@ -98,6 +99,10 @@ function AppRoutes() {
         <Route
           path="/players/:playerId/report"
           element={<ProtectedRoute><PlayerReportPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/compare"
+          element={<ProtectedRoute><PlayerComparisonPage /></ProtectedRoute>}
         />
         <Route
           path="/players/:playerId/assessments/new"
