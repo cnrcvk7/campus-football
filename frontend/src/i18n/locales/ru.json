@@ -8,7 +8,14 @@
     "matches": "Матчи",
     "signIn": "Войти",
     "signOut": "Выйти",
-    "goToDashboard": "На главную"
+    "goToDashboard": "На главную",
+    "dashboard": "Панель",
+    "sectionOverview": "Обзор",
+    "sectionPlayers": "Игроки",
+    "sectionAcademy": "Академия",
+    "sectionTraining": "Тренировки",
+    "openMenu": "Открыть меню",
+    "closeMenu": "Закрыть меню"
   },
   "language": {
     "ariaLabel": "Выбрать язык"
@@ -55,6 +62,10 @@
     "recentMatches": "Последние матчи",
     "quickAccess": "Быстрый доступ",
     "viewAll": "Показать все",
+    "actions": {
+      "newSession": "Новая тренировка",
+      "newMatch": "Новый матч"
+    },
     "myProfile": "Мой профиль игрока",
     "myProfileDesc": "История развития, оценки, цели и результаты матчей.",
     "myReport": "Отчёт о развитии",

@@ -16,12 +16,14 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Pencil,
 } from 'lucide-react'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
-import AppNav from '../components/ui/AppNav'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 import { cn } from '../lib/utils'
 import SkillCategoryChart from '../components/analytics/SkillCategoryChart'
 import CategoryBarChart from '../components/analytics/CategoryBarChart'
@@ -88,18 +90,6 @@ function AttendanceIcon({ status }: { status: AttendanceStatus }) {
   }
 }
 
-const RESULT_STYLE: Record<string, string> = {
-  WIN:  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900',
-  DRAW: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:ring-amber-900',
-  LOSS: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-400 dark:ring-red-900',
-}
-
-const GOAL_STATUS_BADGE: Record<DevelopmentGoal['status'], string> = {
-  ACTIVE:    'bg-sky-50 text-sky-600 ring-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:ring-sky-900',
-  COMPLETED: 'bg-emerald-50 text-emerald-600 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900',
-  CANCELLED: 'bg-cf-muted text-cf-muted-foreground ring-cf-border',
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -161,22 +151,22 @@ function goalProgress(goal: DevelopmentGoal): number | null {
 
 function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('rounded-2xl p-6 ring-1 bg-cf-surface ring-cf-border', className)}>
+    <div className={cn('rounded-xl p-5 ring-1 bg-cf-surface ring-cf-border', className)}>
       {children}
     </div>
   )
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
+function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
+    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground">
       {children}
     </h2>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Player Header
+// Player Header — compact identity banner
 // ---------------------------------------------------------------------------
 
 function PlayerHeader({
@@ -194,80 +184,73 @@ function PlayerHeader({
   const position = player.preferred_position ? t('positions.' + player.preferred_position) : null
 
   return (
-    <div className="bg-slate-900 text-white dark:bg-slate-800 dark:border-b dark:border-cf-border">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-8">
-          {/* Avatar */}
-          <div className="flex-shrink-0">
+    <div className="border-b border-cf-border bg-cf-surface">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          {/* Left: avatar + identity */}
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
             {player.profile_photo_url ? (
               <img
                 src={player.profile_photo_url}
                 alt={`${player.first_name} ${player.last_name}`}
-                className="h-24 w-24 rounded-2xl object-cover ring-4 ring-white/20 sm:h-28 sm:w-28"
+                className="h-12 w-12 flex-shrink-0 rounded-lg object-cover ring-1 ring-cf-border"
               />
             ) : (
-              <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-emerald-500 text-3xl font-bold ring-4 ring-white/20 sm:h-28 sm:w-28">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-white ring-1 ring-emerald-400/30">
                 {initials(player.first_name, player.last_name)}
               </div>
             )}
+
+            {/* Name + meta */}
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold leading-tight text-cf-surface-foreground">
+                {player.first_name} {player.last_name}
+              </h1>
+              <p className="mt-0.5 font-mono text-xs text-emerald-600 dark:text-emerald-400">
+                {player.football_id}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {position && <Badge>{position}</Badge>}
+                {player.jersey_number !== null && (
+                  <Badge variant="emerald">#{player.jersey_number}</Badge>
+                )}
+                <span className="text-xs text-cf-muted-foreground">
+                  {t('players.yearsOld', { count: age })}
+                </span>
+                {activeTeam && (
+                  <span className="text-xs text-cf-muted-foreground">
+                    · {activeTeam.team.name}
+                    {activeTeam.team.age_group ? ` (${activeTeam.team.age_group})` : ''}
+                  </span>
+                )}
+                {activeAcademy && (
+                  <span className="text-xs text-cf-muted-foreground">
+                    · {activeAcademy.academy.name}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <p className="font-mono text-xs font-medium tracking-widest text-emerald-400 uppercase">
-              {player.football_id}
-            </p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
-              {player.first_name} {player.last_name}
-            </h1>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {position && (
-                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium ring-1 ring-white/20">
-                  {position}
-                </span>
-              )}
-              {player.jersey_number !== null && (
-                <span className="inline-flex items-center rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
-                  #{player.jersey_number}
-                </span>
-              )}
-              <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium ring-1 ring-white/20">
-                {t('players.yearsOld', { count: age })}
-              </span>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-300">
-              {activeTeam && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  {activeTeam.team.name}
-                  {activeTeam.team.age_group ? ` · ${activeTeam.team.age_group}` : ''}
-                </span>
-              )}
-              {activeAcademy && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                  {activeAcademy.academy.name}
-                </span>
-              )}
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                onClick={() => navigate(`/players/${player.id}/edit`)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
-              >
-                {t('playerProfile.editProfile')}
-              </button>
-              <button
-                onClick={() => navigate(`/players/${player.id}/report`)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white ring-1 ring-emerald-400/40 transition hover:bg-emerald-700"
-              >
-                <BarChart2 size={14} aria-hidden="true" />
-                {t('playerProfile.developmentReport')}
-              </button>
-            </div>
+          {/* Right: actions */}
+          <div className="flex flex-shrink-0 flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate(`/players/${player.id}/edit`)}
+            >
+              <Pencil size={12} />
+              {t('playerProfile.editProfile')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate(`/players/${player.id}/report`)}
+            >
+              <BarChart2 size={12} />
+              {t('playerProfile.developmentReport')}
+            </Button>
           </div>
         </div>
       </div>
@@ -288,16 +271,15 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-          {t('playerProfile.sectionDevelopment')}
-        </h2>
-        <button
+      <div className="mb-2 flex items-center justify-between">
+        <SectionHeading>{t('playerProfile.sectionDevelopment')}</SectionHeading>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => navigate(`/players/${playerId}/assessments/new`)}
-          className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600"
         >
           {t('playerProfile.newAssessment')}
-        </button>
+        </Button>
       </div>
       {!hasData ? (
         <EmptyState
@@ -306,7 +288,7 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
           description={t('playerProfile.empty.noAssessmentsHint')}
         />
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {categories.map((cat) => {
             const meta = CATEGORY_META[cat]
             const data = scores[cat]
@@ -315,7 +297,7 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
               <div
                 key={cat}
                 className={cn(
-                  'rounded-2xl p-5 ring-1 bg-cf-surface ring-cf-border',
+                  'rounded-xl p-4 ring-1 bg-cf-surface ring-cf-border',
                   'border-l-4',
                   meta.border,
                 )}
@@ -323,15 +305,15 @@ function DevelopmentOverview({ assessments, playerId }: { assessments: Assessmen
                 <p className={cn('text-xs font-semibold uppercase tracking-wider', meta.color)}>
                   {t('skillCategories.' + cat)}
                 </p>
-                <p className="mt-1 text-4xl font-bold text-cf-surface-foreground">{data.score}</p>
+                <p className="mt-1 text-3xl font-bold text-cf-surface-foreground">{data.score}</p>
                 <p className="text-xs text-cf-muted-foreground">{t('playerProfile.scoreOf100')}</p>
-                <div className="mt-3 h-1.5 rounded-full bg-cf-muted">
+                <div className="mt-2 h-1.5 rounded-full bg-cf-muted">
                   <div
                     className={cn('h-1.5 rounded-full transition-all', meta.bar)}
                     style={{ width: `${data.score}%` }}
                   />
                 </div>
-                <p className="mt-2 text-xs text-cf-muted-foreground">
+                <p className="mt-1.5 text-xs text-cf-muted-foreground">
                   {t('playerProfile.basedOn', { count: data.count })}
                 </p>
               </div>
@@ -353,8 +335,8 @@ function AnalyticsSection({ assessments }: { assessments: Assessment[] }) {
 
   return (
     <section>
-      <SectionTitle>{t('analytics.title')}</SectionTitle>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <SectionHeading>{t('analytics.title')}</SectionHeading>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Category snapshot */}
         <Card>
           <h3 className="mb-4 text-sm font-semibold text-cf-surface-foreground">
@@ -399,9 +381,9 @@ function LatestAssessmentItems({ assessments }: { assessments: Assessment[] }) {
 
   return (
     <section>
-      <SectionTitle>
+      <SectionHeading>
         {t('playerProfile.latestAssessment')} {fmtDate(latest.assessment_date, displayLocale)}
-      </SectionTitle>
+      </SectionHeading>
       <Card>
         {latest.overall_comment && (
           <p className="mb-4 border-l-2 border-emerald-400 pl-3 text-sm text-cf-muted-foreground italic">
@@ -471,7 +453,7 @@ function SeasonSummary({ summary }: { summary: MatchSummary | null }) {
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.seasonSummary')}</SectionTitle>
+      <SectionHeading>{t('playerProfile.seasonSummary')}</SectionHeading>
       <Card>
         {noMatches ? (
           <EmptyState icon={<Trophy size={28} />} title={t('playerProfile.empty.noMatches')} />
@@ -518,20 +500,20 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.sectionTraining')}</SectionTitle>
+      <SectionHeading>{t('playerProfile.sectionTraining')}</SectionHeading>
       <Card>
         {sessions.length === 0 ? (
           <EmptyState icon={<Activity size={28} />} title={t('playerProfile.empty.noTraining')} />
         ) : (
           <>
-            <div className="mb-5 flex items-center gap-6">
+            <div className="mb-4 flex items-center gap-6">
               <div>
-                <p className="text-3xl font-bold text-cf-surface-foreground">{sessions.length}</p>
+                <p className="text-2xl font-bold text-cf-surface-foreground">{sessions.length}</p>
                 <p className="text-xs text-cf-muted-foreground">{t('playerProfile.sessions')}</p>
               </div>
               {attendanceRate !== null && (
                 <div>
-                  <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                     {attendanceRate}%
                   </p>
                   <p className="text-xs text-cf-muted-foreground">
@@ -541,7 +523,7 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
               )}
             </div>
 
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground">
               {t('playerProfile.recentSessions')}
             </p>
             <ul className="space-y-2">
@@ -583,6 +565,12 @@ function TrainingSummary({ sessions }: { sessions: TrainingSessionSummary[] }) {
 // Development Goals
 // ---------------------------------------------------------------------------
 
+const GOAL_STATUS_VARIANT: Record<DevelopmentGoal['status'], 'emerald' | 'amber' | 'default'> = {
+  COMPLETED: 'emerald',
+  ACTIVE:    'amber',
+  CANCELLED: 'default',
+}
+
 function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId: string }) {
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
@@ -590,16 +578,15 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-          {t('playerProfile.sectionGoals')}
-        </h2>
-        <button
+      <div className="mb-2 flex items-center justify-between">
+        <SectionHeading>{t('playerProfile.sectionGoals')}</SectionHeading>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => navigate(`/players/${playerId}/goals/new`)}
-          className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600"
         >
           {t('playerProfile.newGoal')}
-        </button>
+        </Button>
       </div>
       {goals.length === 0 ? (
         <EmptyState
@@ -608,7 +595,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
           description={t('playerProfile.empty.noGoalsHint')}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {goals.map((goal) => {
             const progress = goalProgress(goal)
             return (
@@ -617,14 +604,9 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-cf-surface-foreground">{goal.title}</p>
                   </div>
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ring-1',
-                      GOAL_STATUS_BADGE[goal.status],
-                    )}
-                  >
+                  <Badge variant={GOAL_STATUS_VARIANT[goal.status]}>
                     {goal.status.charAt(0) + goal.status.slice(1).toLowerCase()}
-                  </span>
+                  </Badge>
                 </div>
                 {goal.skill_name && (
                   <span className="mt-1.5 inline-block rounded-full bg-cf-muted px-2 py-0.5 text-xs text-cf-muted-foreground">
@@ -637,7 +619,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                   </p>
                 )}
                 {progress !== null && (
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <div className="mb-1 flex justify-between text-xs text-cf-muted-foreground">
                       <span>
                         {goal.current_value} / {goal.target_value}
@@ -646,9 +628,9 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
                         {progress}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-cf-muted">
+                    <div className="h-1.5 rounded-full bg-cf-muted">
                       <div
-                        className="h-2 rounded-full bg-emerald-500 transition-all"
+                        className="h-1.5 rounded-full bg-emerald-500 transition-all"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
@@ -682,20 +664,26 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
 // Match History
 // ---------------------------------------------------------------------------
 
+const RESULT_VARIANT: Record<string, 'emerald' | 'amber' | 'red'> = {
+  WIN:  'emerald',
+  DRAW: 'amber',
+  LOSS: 'red',
+}
+
 function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
   const { t, i18n } = useTranslation()
   const displayLocale = toDisplayLocale(i18n.language)
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.sectionMatchHistory')}</SectionTitle>
+      <SectionHeading>{t('playerProfile.sectionMatchHistory')}</SectionHeading>
       {matches.length === 0 ? (
         <EmptyState
           icon={<Shield size={28} />}
           title={t('playerProfile.empty.noMatchesRecorded')}
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl ring-1 bg-cf-surface ring-cf-border">
+        <div className="overflow-hidden rounded-xl ring-1 bg-cf-surface ring-cf-border">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
@@ -713,7 +701,7 @@ function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
                   ].map((h) => (
                     <th
                       key={h}
-                      className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground"
+                      className="whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground"
                     >
                       {h}
                     </th>
@@ -731,14 +719,9 @@ function MatchHistorySection({ matches }: { matches: PlayerMatchStats[] }) {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       {m.result ? (
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1',
-                            RESULT_STYLE[m.result],
-                          )}
-                        >
+                        <Badge variant={RESULT_VARIANT[m.result]}>
                           {m.score_display ?? m.result}
-                        </span>
+                        </Badge>
                       ) : (
                         <span className="text-xs text-cf-muted-foreground">—</span>
                       )}
@@ -796,30 +779,28 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.sectionAssessmentHistory')}</SectionTitle>
+      <SectionHeading>{t('playerProfile.sectionAssessmentHistory')}</SectionHeading>
       <Card>
-        <div className="relative">
-          <div className="absolute bottom-0 left-2 top-0 w-0.5 bg-cf-border" />
-          <ol className="space-y-6">
-            {[...assessments].reverse().map((a, idx) => {
-              const scores     = computeCategoryScores([a])
-              const categories: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
-              return (
-                <li key={a.id} className="relative pl-8">
-                  <div
-                    className={cn(
-                      'absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-cf-surface',
-                      idx === 0 ? 'bg-emerald-500' : 'bg-cf-muted',
-                    )}
-                  />
+        <ol className="space-y-4">
+          {[...assessments].reverse().map((a, idx) => {
+            const scores     = computeCategoryScores([a])
+            const categories: SkillCategory[] = ['TECHNICAL', 'TACTICAL', 'PHYSICAL', 'MENTAL']
+            return (
+              <li key={a.id} className="flex items-start gap-3">
+                {/* dot */}
+                <div
+                  className={cn(
+                    'mt-1 h-2.5 w-2.5 shrink-0 rounded-full',
+                    idx === 0 ? 'bg-emerald-500' : 'bg-cf-muted-foreground/30',
+                  )}
+                />
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-cf-surface-foreground">
                       {fmtDate(a.assessment_date, displayLocale)}
                     </p>
                     {idx === 0 && (
-                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900">
-                        {t('playerProfile.latestBadge')}
-                      </span>
+                      <Badge variant="emerald">{t('playerProfile.latestBadge')}</Badge>
                     )}
                     {a.coach_name && (
                       <span className="text-xs text-cf-muted-foreground">
@@ -827,14 +808,14 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
                     {categories.map((cat) => {
                       const data = scores[cat]
                       if (!data) return null
                       const meta = CATEGORY_META[cat]
                       return (
-                        <div key={cat} className="flex items-center gap-2">
-                          <span className={cn('w-16 shrink-0 text-xs font-medium', meta.color)}>
+                        <div key={cat} className="flex items-center gap-1.5">
+                          <span className={cn('text-xs font-medium', meta.color)}>
                             {t('skillCategories.' + cat)}
                           </span>
                           <span className="text-sm font-bold text-cf-surface-foreground">
@@ -844,11 +825,11 @@ function DevelopmentTimeline({ assessments }: { assessments: Assessment[] }) {
                       )
                     })}
                   </div>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
       </Card>
     </section>
   )
@@ -890,16 +871,15 @@ function PhysicalMeasurementsSection({
 
   return (
     <section>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-          {t('playerProfile.sectionMeasurements')}
-        </h2>
-        <button
+      <div className="mb-2 flex items-center justify-between">
+        <SectionHeading>{t('playerProfile.sectionMeasurements')}</SectionHeading>
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => navigate(`/players/${playerId}/measurements/new`)}
-          className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600"
         >
           {t('playerProfile.newMeasurement')}
-        </button>
+        </Button>
       </div>
       {!latest || visibleFields.length === 0 ? (
         <EmptyState
@@ -909,20 +889,20 @@ function PhysicalMeasurementsSection({
         />
       ) : (
         <Card>
-          <p className="mb-4 text-xs text-cf-muted-foreground">
+          <p className="mb-3 text-xs text-cf-muted-foreground">
             {t('playerProfile.latestPrefix')} {fmtDate(latest.measurement_date, displayLocale)}
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {visibleFields.map(({ key, label, unit }) => {
               const currVal = latest[key] as string | null
               const prevVal = previous ? (previous[key] as string | null) : null
               const d = delta(currVal, prevVal)
               return (
-                <div key={key} className="rounded-xl bg-cf-muted p-4 text-center">
+                <div key={key} className="rounded-xl bg-cf-muted p-3 text-center">
                   <p className="text-xs font-medium uppercase tracking-wide text-cf-muted-foreground">
                     {label}
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-cf-surface-foreground">
+                  <p className="mt-1 text-xl font-bold text-cf-surface-foreground">
                     {currVal ? parseFloat(currVal).toFixed(1) : '—'}
                   </p>
                   <p className="text-xs text-cf-muted-foreground">{unit}</p>
@@ -941,7 +921,7 @@ function PhysicalMeasurementsSection({
             })}
           </div>
           {latest.notes && (
-            <p className="mt-4 text-xs italic text-cf-muted-foreground">{latest.notes}</p>
+            <p className="mt-3 text-xs italic text-cf-muted-foreground">{latest.notes}</p>
           )}
         </Card>
       )}
@@ -965,17 +945,17 @@ function MembershipTimeline({
 
   return (
     <section>
-      <SectionTitle>{t('playerProfile.sectionHistory')}</SectionTitle>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <SectionHeading>{t('playerProfile.sectionHistory')}</SectionHeading>
+      <div className="grid gap-3 sm:grid-cols-2">
         {/* Academy history */}
         <Card>
-          <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground">
             {t('playerProfile.academyHistory')}
           </p>
           {academyHistory.length === 0 ? (
             <p className="text-sm text-cf-muted-foreground">{t('playerProfile.noAcademyHistory')}</p>
           ) : (
-            <ol className="space-y-4">
+            <ol className="space-y-3">
               {academyHistory.map((m: AcademyMembership) => (
                 <li key={m.id} className="flex items-start gap-3">
                   <div className="mt-1 flex-shrink-0">
@@ -1003,9 +983,7 @@ function MembershipTimeline({
                     )}
                   </div>
                   {m.status === 'active' && (
-                    <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900">
-                      {t('playerProfile.activeBadge')}
-                    </span>
+                    <Badge variant="emerald">{t('playerProfile.activeBadge')}</Badge>
                   )}
                 </li>
               ))}
@@ -1015,13 +993,13 @@ function MembershipTimeline({
 
         {/* Team history */}
         <Card>
-          <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cf-muted-foreground">
             {t('playerProfile.teamHistory')}
           </p>
           {teamHistory.length === 0 ? (
             <p className="text-sm text-cf-muted-foreground">{t('playerProfile.noTeamHistory')}</p>
           ) : (
-            <ol className="space-y-4">
+            <ol className="space-y-3">
               {teamHistory.map((m: TeamMembership) => (
                 <li key={m.id} className="flex items-start gap-3">
                   <div className="mt-1 flex-shrink-0">
@@ -1048,9 +1026,7 @@ function MembershipTimeline({
                     </p>
                   </div>
                   {m.status === 'active' && (
-                    <span className="ml-auto shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600 ring-1 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-900">
-                      {t('playerProfile.activeBadge')}
-                    </span>
+                    <Badge variant="emerald">{t('playerProfile.activeBadge')}</Badge>
                   )}
                 </li>
               ))}
@@ -1091,26 +1067,18 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
   } = usePlayerProfile(playerId)
 
   if (loading) {
-    return (
-      <>
-        <AppNav label={t('playerProfile.navLabel')} />
-        <LoadingSpinner />
-      </>
-    )
+    return <LoadingSpinner />
   }
 
   if (error || !player) {
     return (
-      <>
-        <AppNav label={t('playerProfile.navLabel')} />
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <EmptyState
-            icon={<AlertTriangle size={28} />}
-            title={t('players.error.loadPlayerFailed')}
-            description={error ?? t('players.error.notFound')}
-          />
-        </div>
-      </>
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <EmptyState
+          icon={<AlertTriangle size={28} />}
+          title={t('players.error.loadPlayerFailed')}
+          description={error ?? t('players.error.notFound')}
+        />
+      </div>
     )
   }
 
@@ -1121,14 +1089,13 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
   const sessions    = trainingHistory?.sessions ?? []
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('playerProfile.navLabel')} />
+    <div className="bg-cf-background">
       <PlayerHeader player={player} history={history} />
 
-      <main className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <DevelopmentOverview assessments={assessments} playerId={playerId} />
 
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           <SeasonSummary summary={matchSummary} />
           <TrainingSummary sessions={sessions} />
         </div>
@@ -1148,7 +1115,7 @@ function PlayerProfileContent({ playerId }: { playerId: string }) {
             teamHistory={history.team_history}
           />
         )}
-      </main>
+      </div>
     </div>
   )
 }

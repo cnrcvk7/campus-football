@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { POSITIONS } from '../constants/football'
 import { ApiError } from '../services/api'
@@ -134,8 +134,7 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
   // ── Loading ──
   if (!player || !form) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('playerProfile.editProfile')} />
+      <>
         {loadError ? (
           <div className="mx-auto max-w-2xl px-4 py-16 text-center">
             <p className="text-sm text-red-600">{loadError}</p>
@@ -143,15 +142,12 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
         ) : (
           <LoadingSpinner />
         )}
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('playerProfile.editProfile')} />
-
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Heading */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">
@@ -349,7 +345,6 @@ function EditPlayerContent({ playerId }: { playerId: string }) {
           )}
         </section>
 
-      </main>
     </div>
   )
 }

@@ -2,7 +2,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
@@ -814,31 +813,23 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
   } = usePlayerProfile(playerId)
 
   if (loading) {
-    return (
-      <>
-        <AppNav label={t('playerReport.navLabel')} />
-        <LoadingSpinner />
-      </>
-    )
+    return <LoadingSpinner />
   }
 
   if (error || !player) {
     const is403 = error?.includes('403') || error?.includes('Forbidden') || error?.includes('permission') || error?.includes('authorized')
     return (
-      <>
-        <AppNav label={t('playerReport.navLabel')} />
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          <EmptyState
-            icon={is403 ? '🔒' : '⚠️'}
-            title={is403 ? t('playerReport.accessDeniedTitle') : t('players.error.loadPlayerFailed')}
-            description={
-              is403
-                ? t('playerReport.accessDeniedDesc')
-                : (error ?? t('players.error.notFound'))
-            }
-          />
-        </div>
-      </>
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <EmptyState
+          icon={is403 ? '🔒' : '⚠️'}
+          title={is403 ? t('playerReport.accessDeniedTitle') : t('players.error.loadPlayerFailed')}
+          description={
+            is403
+              ? t('playerReport.accessDeniedDesc')
+              : (error ?? t('players.error.notFound'))
+          }
+        />
+      </div>
     )
   }
 
@@ -850,12 +841,9 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="no-print">
-        <AppNav label={t('playerReport.navLabel')} />
-      </div>
       <ReportHeader player={player} history={history} />
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
         <CategorySection assessments={assessments} />
         <SkillProgressionSection assessments={assessments} />
         <PhysicalSection measurements={measurements} />
@@ -863,7 +851,7 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
         <TrainingSection sessions={sessions} />
         <GoalsSection goals={goals} />
         <FeedbackSection assessments={assessments} matches={matches} />
-      </main>
+      </div>
     </div>
   )
 }

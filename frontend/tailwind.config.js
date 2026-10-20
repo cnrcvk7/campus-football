@@ -38,6 +38,8 @@ export default {
         'cf-nav-border':         'rgb(var(--cf-nav-border) / <alpha-value>)',
         'cf-nav-foreground':     'rgb(var(--cf-nav-foreground) / <alpha-value>)',
         'cf-nav-muted':          'rgb(var(--cf-nav-muted) / <alpha-value>)',
+        'cf-nav-active':         'rgb(var(--cf-nav-active) / <alpha-value>)',
+        'cf-nav-active-fg':      'rgb(var(--cf-nav-active-fg) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

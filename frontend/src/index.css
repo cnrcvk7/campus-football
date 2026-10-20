@@ -33,11 +33,15 @@
   --cf-brand-hover:        5   150 105;   /* emerald-600 */
   --cf-brand-foreground:   255 255 255;   /* white       */
 
-  /* Navigation bar (light: clean white) */
-  --cf-nav:                255 255 255;   /* white       */
-  --cf-nav-border:         241 245 249;   /* slate-100   */
-  --cf-nav-foreground:     15  23  42;    /* slate-900   */
-  --cf-nav-muted:          100 116 139;   /* slate-500   */
+  /* Navigation sidebar (always dark navy, even in light mode) */
+  --cf-nav:                17  24  39;    /* gray-900    */
+  --cf-nav-border:         31  41  55;    /* gray-800    */
+  --cf-nav-foreground:     249 250 251;   /* gray-50     */
+  --cf-nav-muted:          156 163 175;   /* gray-400    */
+
+  /* Active sidebar item */
+  --cf-nav-active:         5   150 105;   /* emerald-600  */
+  --cf-nav-active-fg:      255 255 255;   /* white        */
 }
 
 .dark {
@@ -61,11 +65,15 @@
   --cf-brand-hover:        5   150 105;   /* emerald-600 */
   --cf-brand-foreground:   255 255 255;   /* white       */
 
-  /* Navigation bar (dark: navy) */
-  --cf-nav:                15  23  42;    /* slate-900 */
-  --cf-nav-border:         51  65  85;    /* slate-700 */
-  --cf-nav-foreground:     241 245 249;   /* slate-100 */
-  --cf-nav-muted:          148 163 184;   /* slate-400 */
+  /* Navigation sidebar (dark mode) */
+  --cf-nav:                17  24  39;    /* gray-900    */
+  --cf-nav-border:         31  41  55;    /* gray-800    */
+  --cf-nav-foreground:     249 250 251;   /* gray-50     */
+  --cf-nav-muted:          156 163 175;   /* gray-400    */
+
+  /* Active sidebar item */
+  --cf-nav-active:         5   150 105;   /* emerald-600  */
+  --cf-nav-active-fg:      255 255 255;   /* white        */
 }
 
 @layer base {

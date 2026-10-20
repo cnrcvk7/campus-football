@@ -12,7 +12,6 @@ import {
   Plus,
   Users,
 } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { trainingService } from '../services/trainingService'
@@ -90,25 +89,17 @@ export default function CoachSessionDetailPage() {
   }, [sessionId, t])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('training.sessionNavLabel')} />
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   if (error || !session) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav label={t('training.sessionNavLabel')} />
-        <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-          <EmptyState
-            icon={<AlertTriangle size={24} />}
-            title={t('training.error.sessionLoadFailed')}
-            description={error ?? t('training.error.notFound')}
-          />
-        </main>
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+        <EmptyState
+          icon={<AlertTriangle size={24} />}
+          title={t('training.error.sessionLoadFailed')}
+          description={error ?? t('training.error.notFound')}
+        />
       </div>
     )
   }
@@ -123,10 +114,7 @@ export default function CoachSessionDetailPage() {
   const sortedExercises = session.session_exercises.slice().sort((a, b) => a.order - b.order)
 
   return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav label={t('training.sessionNavLabel')} />
-
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         {/* Back link + actions */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <button
@@ -460,7 +448,6 @@ export default function CoachSessionDetailPage() {
             </>
           )}
         </section>
-      </main>
     </div>
   )
 }

@@ -4,15 +4,18 @@ import { useTranslation } from 'react-i18next'
 import {
   Users,
   Trophy,
+  Activity,
+  Plus,
   ChevronRight,
   BarChart2,
-  Layers,
-  Shield,
   LogIn,
-  Activity,
-  User,
+  CalendarDays,
+  Clock,
 } from 'lucide-react'
-import AppNav from '../components/ui/AppNav'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { cn } from '../lib/utils'
 import { playerService } from '../services/playerService'
@@ -26,7 +29,6 @@ import type { Match, TrainingSession } from '../types'
 
 function formatShortDate(dateStr: string): string {
   try {
-    // Append time to avoid local-timezone shifts on pure date strings
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, {
       day: 'numeric',
       month: 'short',
@@ -37,184 +39,167 @@ function formatShortDate(dateStr: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// KPI stat card (coach/admin — shows live count from API)
+// KPI card — compact, clickable stat tile
 // ---------------------------------------------------------------------------
 
-interface KpiCardProps {
+function KpiCard({
+  icon,
+  label,
+  value,
+  onClick,
+}: {
   icon: ReactNode
   label: string
-  /** null = data not yet loaded (shows animated placeholder) */
   value: string | null
   onClick: () => void
-}
-
-function KpiCard({ icon, label, value, onClick }: KpiCardProps) {
-  const loading = value === null
+}) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        'group flex flex-col gap-4 rounded-2xl p-5 text-left ring-1 transition',
-        'bg-cf-surface ring-cf-border hover:ring-emerald-400 hover:shadow-md',
+        'group w-full rounded-xl p-4 text-left ring-1 transition-colors',
+        'bg-cf-surface ring-cf-border hover:ring-emerald-400',
       )}
     >
-      <div className="flex items-center justify-between">
-        <div
-          className={cn(
-            'flex h-10 w-10 items-center justify-center rounded-xl',
-            'bg-emerald-50 text-emerald-600',
-            'dark:bg-emerald-950 dark:text-emerald-400',
-          )}
-        >
-          {icon}
-        </div>
-        <ChevronRight
-          size={15}
-          className="text-cf-muted-foreground group-hover:text-emerald-500 transition-colors"
-        />
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-cf-muted-foreground">
           {label}
         </p>
-        <p
-          className={cn(
-            'mt-1 text-3xl font-bold',
-            loading
-              ? 'animate-pulse text-cf-muted-foreground'
-              : 'text-cf-surface-foreground',
-          )}
-        >
-          {loading ? '—' : value}
-        </p>
+        <span className="text-cf-muted-foreground group-hover:text-emerald-500 transition-colors">
+          {icon}
+        </span>
       </div>
-    </button>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Quick-access navigation card
-// ---------------------------------------------------------------------------
-
-interface QuickLinkCardProps {
-  icon: ReactNode
-  title: string
-  description: string
-  openLabel: string
-  onClick: () => void
-}
-
-function QuickLinkCard({
-  icon,
-  title,
-  description,
-  openLabel,
-  onClick,
-}: QuickLinkCardProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'group flex flex-col gap-3 rounded-2xl p-5 text-left ring-1 transition',
-        'bg-cf-surface ring-cf-border hover:ring-emerald-400 hover:shadow-md',
+      {value === null ? (
+        <div className="mt-2 h-7 w-12 animate-pulse rounded bg-cf-muted" />
+      ) : (
+        <p className="mt-2 text-2xl font-bold leading-none text-cf-surface-foreground">
+          {value}
+        </p>
       )}
-    >
-      <div
-        className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
-          'bg-emerald-50 text-emerald-600',
-          'dark:bg-emerald-950 dark:text-emerald-400',
-          'group-hover:bg-emerald-500 group-hover:text-white',
-          'dark:group-hover:bg-emerald-500 dark:group-hover:text-white',
-        )}
-      >
-        {icon}
-      </div>
-      <div className="flex-1">
-        <p className="font-semibold text-cf-surface-foreground group-hover:text-emerald-600 transition-colors">
-          {title}
-        </p>
-        <p className="mt-0.5 text-sm text-cf-muted-foreground leading-relaxed">
-          {description}
-        </p>
-      </div>
-      <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-        {openLabel}
-      </p>
     </button>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Activity list row (sessions & matches)
+// Panel — section card with header + "view all" link
 // ---------------------------------------------------------------------------
 
-interface ActivityRowProps {
-  iconBg: string
-  icon: ReactNode
-  title: string
-  subtitle: string
-  trailing?: ReactNode
-}
-
-function ActivityRow({ iconBg, icon, title, subtitle, trailing }: ActivityRowProps) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl px-4 py-3 hover:bg-cf-muted/50 transition-colors">
-      <div
-        className={cn(
-          'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-          iconBg,
-        )}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-cf-surface-foreground">{title}</p>
-        <p className="text-xs text-cf-muted-foreground">{subtitle}</p>
-      </div>
-      {trailing}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Section card (header + scrollable list)
-// ---------------------------------------------------------------------------
-
-interface SectionCardProps {
-  title: string
-  actionLabel: string
-  onAction: () => void
-  children: ReactNode
-}
-
-function SectionCard({
+function Panel({
   title,
-  actionLabel,
-  onAction,
+  onViewAll,
   children,
-}: SectionCardProps) {
+}: {
+  title: string
+  onViewAll: () => void
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
   return (
-    <div className="overflow-hidden rounded-2xl ring-1 bg-cf-surface ring-cf-border">
-      <div className="flex items-center justify-between border-b border-cf-border px-5 py-4">
+    <div className="overflow-hidden rounded-xl ring-1 bg-cf-surface ring-cf-border">
+      <div className="flex items-center justify-between border-b border-cf-border px-4 py-3">
         <h2 className="text-sm font-semibold text-cf-surface-foreground">{title}</h2>
         <button
-          onClick={onAction}
-          className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+          onClick={onViewAll}
+          className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
         >
-          {actionLabel}
+          {t('dashboard.viewAll')} →
         </button>
       </div>
-      <div className="py-2">{children}</div>
+      <div>{children}</div>
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Unauthenticated feature-preview card
+// Session row
 // ---------------------------------------------------------------------------
 
-function FeaturePreviewCard({
+function SessionRow({ session }: { session: TrainingSession }) {
+  const navigate = useNavigate()
+
+  return (
+    <button
+      onClick={() => navigate(`/coach/sessions/${session.id}`)}
+      className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-cf-muted/50"
+    >
+      <span className="w-14 shrink-0 text-xs tabular-nums text-cf-muted-foreground">
+        {formatShortDate(session.training_date)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-cf-surface-foreground">
+        {session.title}
+      </span>
+      {session.team_name && (
+        <Badge className="shrink-0 max-w-[6rem] truncate">{session.team_name}</Badge>
+      )}
+      {session.duration_minutes != null && (
+        <span className="shrink-0 flex items-center gap-1 text-xs text-cf-muted-foreground">
+          <Clock size={11} aria-hidden="true" />
+          {session.duration_minutes}m
+        </span>
+      )}
+      <ChevronRight
+        size={13}
+        className="shrink-0 text-cf-muted-foreground transition-colors group-hover:text-emerald-500"
+      />
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Match row
+// ---------------------------------------------------------------------------
+
+function MatchRow({ match }: { match: Match }) {
+  const navigate = useNavigate()
+  const { t } = useTranslation()
+
+  const resultVariant =
+    match.result === 'WIN'
+      ? 'emerald'
+      : match.result === 'DRAW'
+      ? 'amber'
+      : 'red'
+
+  return (
+    <button
+      onClick={() => navigate(`/coach/matches/${match.id}`)}
+      className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-cf-muted/50"
+    >
+      <span className="w-14 shrink-0 text-xs tabular-nums text-cf-muted-foreground">
+        {formatShortDate(match.match_date)}
+      </span>
+      <Badge
+        variant={match.home_away === 'HOME' ? 'emerald' : 'default'}
+        className="shrink-0"
+      >
+        {match.home_away === 'HOME' ? 'H' : 'A'}
+      </Badge>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium text-cf-surface-foreground">
+        {t('matches.vsOpponent', { opponent: match.opponent_name })}
+      </span>
+      {match.score_display && (
+        <span className="shrink-0 font-mono text-xs font-semibold text-cf-surface-foreground">
+          {match.score_display}
+        </span>
+      )}
+      {match.result && (
+        <Badge variant={resultVariant} className="shrink-0">
+          {t(`matches.${match.result.toLowerCase()}Badge`)}
+        </Badge>
+      )}
+      <ChevronRight
+        size={13}
+        className="shrink-0 text-cf-muted-foreground transition-colors group-hover:text-emerald-500"
+      />
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Unauthenticated feature card (landing page)
+// ---------------------------------------------------------------------------
+
+function FeatureCard({
   icon,
   title,
   description,
@@ -224,29 +209,20 @@ function FeaturePreviewCard({
   description: string
 }) {
   return (
-    <div className="rounded-2xl p-6 ring-1 bg-cf-surface ring-cf-border">
-      <div
-        className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-xl',
-          'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
-        )}
-      >
-        {icon}
+    <div className="rounded-xl p-4 ring-1 bg-cf-surface ring-cf-border">
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-cf-surface-foreground">{title}</p>
+          <p className="mt-0.5 text-xs text-cf-muted-foreground leading-relaxed">
+            {description}
+          </p>
+        </div>
       </div>
-      <h3 className="mt-4 font-semibold text-cf-surface-foreground">{title}</h3>
-      <p className="mt-1 text-sm text-cf-muted-foreground leading-relaxed">{description}</p>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// Match result badge
-// ---------------------------------------------------------------------------
-
-const RESULT_BADGE_CLASS: Record<'WIN' | 'DRAW' | 'LOSS', string> = {
-  WIN: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
-  DRAW: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
-  LOSS: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
 }
 
 // ---------------------------------------------------------------------------
@@ -262,11 +238,11 @@ export default function DashboardPage() {
   const isPlayer = user?.role === 'PLAYER'
   const isParent = user?.role === 'PARENT'
 
-  // ── Coach/admin live data ──────────────────────────────────────────
+  // ── Coach/Admin: live counts + recent activity ─────────────────────
   const [playerCount, setPlayerCount] = useState<number | null>(null)
   const [sessionCount, setSessionCount] = useState<number | null>(null)
-  const [recentSessions, setRecentSessions] = useState<TrainingSession[] | null>(null)
   const [matchCount, setMatchCount] = useState<number | null>(null)
+  const [recentSessions, setRecentSessions] = useState<TrainingSession[] | null>(null)
   const [recentMatches, setRecentMatches] = useState<Match[] | null>(null)
 
   useEffect(() => {
@@ -275,356 +251,309 @@ export default function DashboardPage() {
       playerService.list({ page: 1 }),
       trainingService.listSessions({ page: 1 }),
       matchService.listMatches({ page: 1 }),
-    ]).then(([players, sessions, matches]) => {
-      setPlayerCount(players.count)
-      setSessionCount(sessions.count)
-      setRecentSessions(sessions.results.slice(0, 5))
-      setMatchCount(matches.count)
-      setRecentMatches(matches.results.slice(0, 5))
-    }).catch(() => {
-      // Counts stay null → KPI cards show '—' (graceful degradation)
-    })
+    ])
+      .then(([players, sessions, matches]) => {
+        setPlayerCount(players.count)
+        setSessionCount(sessions.count)
+        setMatchCount(matches.count)
+        setRecentSessions(sessions.results.slice(0, 6))
+        setRecentMatches(matches.results.slice(0, 6))
+      })
+      .catch(() => {
+        // Counts stay null → KPI cards show skeleton (graceful degradation)
+      })
   }, [isAuthenticated, isCoach])
 
-  // ── Unauthenticated view ───────────────────────────────────────────
+  // ── Unauthenticated landing ────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-cf-background">
-        <AppNav />
-        <main className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
-          <div className="text-center">
-            <div
-              className={cn(
-                'mx-auto flex h-16 w-16 items-center justify-center',
-                'rounded-2xl bg-emerald-500 text-white text-lg font-bold shadow-lg',
-              )}
-            >
-              CF
-            </div>
-            <h1 className="mt-6 text-3xl font-bold text-cf-foreground sm:text-4xl">
-              {t('dashboard.hero.headline')}
-            </h1>
-            <p className="mx-auto mt-4 max-w-xl text-base text-cf-muted-foreground leading-relaxed">
-              {t('dashboard.hero.subheadline')}
-            </p>
-            <button
-              onClick={() => navigate('/login')}
-              className={cn(
-                'mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3',
-                'bg-emerald-500 text-sm font-semibold text-white shadow-sm',
-                'transition hover:bg-emerald-600',
-              )}
-            >
-              <LogIn size={16} aria-hidden="true" />
-              {t('dashboard.hero.signInCta')}
-            </button>
-          </div>
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
+        <div className="text-center">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-sm font-bold text-white">
+            CF
+          </span>
+          <h1 className="mt-5 text-2xl font-bold text-cf-foreground sm:text-3xl">
+            {t('dashboard.hero.headline')}
+          </h1>
+          <p className="mx-auto mt-3 max-w-lg text-sm text-cf-muted-foreground leading-relaxed">
+            {t('dashboard.hero.subheadline')}
+          </p>
+          <Button
+            onClick={() => navigate('/login')}
+            size="lg"
+            className="mt-6"
+          >
+            <LogIn size={14} aria-hidden="true" />
+            {t('dashboard.hero.signInCta')}
+          </Button>
+        </div>
 
-          <div className="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FeaturePreviewCard
-              icon={<Users size={20} />}
-              title={t('dashboard.features.playerProfiles.title')}
-              description={t('dashboard.features.playerProfiles.description')}
-            />
-            <FeaturePreviewCard
-              icon={<Activity size={20} />}
-              title={t('dashboard.features.trainingSessions.title')}
-              description={t('dashboard.features.trainingSessions.description')}
-            />
-            <FeaturePreviewCard
-              icon={<Trophy size={20} />}
-              title={t('dashboard.features.matches.title')}
-              description={t('dashboard.features.matches.description')}
-            />
-            <FeaturePreviewCard
-              icon={<BarChart2 size={20} />}
-              title={t('dashboard.features.assessments.title')}
-              description={t('dashboard.features.assessments.description')}
-            />
-          </div>
-        </main>
+        <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FeatureCard
+            icon={<Users size={15} />}
+            title={t('dashboard.features.playerProfiles.title')}
+            description={t('dashboard.features.playerProfiles.description')}
+          />
+          <FeatureCard
+            icon={<Activity size={15} />}
+            title={t('dashboard.features.trainingSessions.title')}
+            description={t('dashboard.features.trainingSessions.description')}
+          />
+          <FeatureCard
+            icon={<Trophy size={15} />}
+            title={t('dashboard.features.matches.title')}
+            description={t('dashboard.features.matches.description')}
+          />
+          <FeatureCard
+            icon={<BarChart2 size={15} />}
+            title={t('dashboard.features.assessments.title')}
+            description={t('dashboard.features.assessments.description')}
+          />
+        </div>
       </div>
     )
   }
 
-  // ── Authenticated view ─────────────────────────────────────────────
+  // ── Shared: header values ──────────────────────────────────────────
   const userName = user?.first_name || user?.email.split('@')[0] || ''
   const roleLabel = user?.role ? t(`dashboard.roleBadge.${user.role}`) : ''
 
-  const pageDescription = isCoach
-    ? t('dashboard.description.coach')
-    : isPlayer
-    ? t('dashboard.description.player')
-    : isParent
-    ? t('dashboard.description.parent')
-    : t('dashboard.description.default')
+  // ── Coach / Academy Admin ──────────────────────────────────────────
+  if (isCoach) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        <PageHeader
+          title={t('dashboard.title')}
+          subtitle={t('dashboard.welcome', { name: userName })}
+          action={
+            <div className="flex items-center gap-2">
+              <Badge variant="emerald">{roleLabel}</Badge>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate('/coach/sessions/new')}
+              >
+                <Plus size={12} />
+                {t('dashboard.actions.newSession')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => navigate('/coach/matches/new')}
+              >
+                <Plus size={12} />
+                {t('dashboard.actions.newMatch')}
+              </Button>
+            </div>
+          }
+        />
 
-  return (
-    <div className="min-h-screen bg-cf-background">
-      <AppNav />
+        {/* KPI row */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KpiCard
+            icon={<Users size={14} />}
+            label={t('dashboard.kpi.totalPlayers')}
+            value={playerCount !== null ? String(playerCount) : null}
+            onClick={() => navigate('/players')}
+          />
+          <KpiCard
+            icon={<CalendarDays size={14} />}
+            label={t('dashboard.kpi.trainingSessions')}
+            value={sessionCount !== null ? String(sessionCount) : null}
+            onClick={() => navigate('/coach/sessions')}
+          />
+          <KpiCard
+            icon={<Trophy size={14} />}
+            label={t('dashboard.kpi.matchesPlayed')}
+            value={matchCount !== null ? String(matchCount) : null}
+            onClick={() => navigate('/coach/matches')}
+          />
+        </div>
 
-      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+        {/* Activity panels */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* Recent Sessions */}
+          <Panel
+            title={t('dashboard.recentSessions')}
+            onViewAll={() => navigate('/coach/sessions')}
+          >
+            {recentSessions === null ? (
+              <div className="space-y-px py-1">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="h-3 w-12 animate-pulse rounded bg-cf-muted" />
+                    <div className="h-3 flex-1 animate-pulse rounded bg-cf-muted" />
+                    <div className="h-3 w-10 animate-pulse rounded bg-cf-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : recentSessions.length === 0 ? (
+              <div className="px-4 py-6">
+                <EmptyState
+                  icon={<CalendarDays size={16} />}
+                  title={t('dashboard.empty.noSessions')}
+                  className="ring-0 bg-transparent py-4"
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-cf-border">
+                {recentSessions.map((s) => (
+                  <SessionRow key={s.id} session={s} />
+                ))}
+              </div>
+            )}
+          </Panel>
 
-        {/* ── Page header ──────────────────────────────────────── */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-cf-foreground sm:text-3xl">
-                {t('dashboard.title')}
-              </h1>
+          {/* Recent Matches */}
+          <Panel
+            title={t('dashboard.recentMatches')}
+            onViewAll={() => navigate('/coach/matches')}
+          >
+            {recentMatches === null ? (
+              <div className="space-y-px py-1">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="h-3 w-12 animate-pulse rounded bg-cf-muted" />
+                    <div className="h-3 w-5 animate-pulse rounded bg-cf-muted" />
+                    <div className="h-3 flex-1 animate-pulse rounded bg-cf-muted" />
+                    <div className="h-3 w-10 animate-pulse rounded bg-cf-muted" />
+                  </div>
+                ))}
+              </div>
+            ) : recentMatches.length === 0 ? (
+              <div className="px-4 py-6">
+                <EmptyState
+                  icon={<Trophy size={16} />}
+                  title={t('dashboard.empty.noMatches')}
+                  className="ring-0 bg-transparent py-4"
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-cf-border">
+                {recentMatches.map((m) => (
+                  <MatchRow key={m.id} match={m} />
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Player ─────────────────────────────────────────────────────────
+  if (isPlayer) {
+    const profile = user?.player_profile
+    return (
+      <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
+        <PageHeader
+          title={t('dashboard.title')}
+          subtitle={t('dashboard.welcome', { name: userName })}
+          action={<Badge variant="emerald">{roleLabel}</Badge>}
+        />
+
+        {profile != null ? (
+          <div className="rounded-xl ring-1 bg-cf-surface ring-cf-border overflow-hidden">
+            {/* Profile identity row */}
+            <div className="flex items-center gap-4 border-b border-cf-border px-5 py-4">
               <span
                 className={cn(
-                  'rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
-                )}
-              >
-                {roleLabel}
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-cf-muted-foreground">{pageDescription}</p>
-          </div>
-          <p className="shrink-0 text-sm text-cf-muted-foreground">
-            {t('dashboard.welcome', { name: userName })}
-          </p>
-        </header>
-
-        {/* ── Coach/Admin: KPI summary ─────────────────────────── */}
-        {isCoach && (
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <KpiCard
-              icon={<Users size={20} />}
-              label={t('dashboard.kpi.totalPlayers')}
-              value={playerCount !== null ? String(playerCount) : null}
-              onClick={() => navigate('/players')}
-            />
-            <KpiCard
-              icon={<Activity size={20} />}
-              label={t('dashboard.kpi.trainingSessions')}
-              value={sessionCount !== null ? String(sessionCount) : null}
-              onClick={() => navigate('/coach/sessions')}
-            />
-            <KpiCard
-              icon={<Trophy size={20} />}
-              label={t('dashboard.kpi.matchesPlayed')}
-              value={matchCount !== null ? String(matchCount) : null}
-              onClick={() => navigate('/coach/matches')}
-            />
-          </section>
-        )}
-
-        {/* ── Coach/Admin: Recent activity ─────────────────────── */}
-        {isCoach && (
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {/* Recent sessions */}
-            <SectionCard
-              title={t('dashboard.recentSessions')}
-              actionLabel={t('dashboard.viewAll')}
-              onAction={() => navigate('/coach/sessions')}
-            >
-              {recentSessions === null ? (
-                <p className="px-5 py-4 text-sm text-cf-muted-foreground">
-                  {t('common.loading')}
-                </p>
-              ) : recentSessions.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-cf-muted-foreground">
-                  {t('dashboard.empty.noSessions')}
-                </p>
-              ) : (
-                recentSessions.map((s) => {
-                  const parts = [formatShortDate(s.training_date)]
-                  if (s.team_name) parts.push(s.team_name)
-                  if (s.location) parts.push(s.location)
-                  return (
-                    <ActivityRow
-                      key={s.id}
-                      iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
-                      icon={<Activity size={14} />}
-                      title={s.title}
-                      subtitle={parts.join(' · ')}
-                    />
-                  )
-                })
-              )}
-            </SectionCard>
-
-            {/* Recent matches */}
-            <SectionCard
-              title={t('dashboard.recentMatches')}
-              actionLabel={t('dashboard.viewAll')}
-              onAction={() => navigate('/coach/matches')}
-            >
-              {recentMatches === null ? (
-                <p className="px-5 py-4 text-sm text-cf-muted-foreground">
-                  {t('common.loading')}
-                </p>
-              ) : recentMatches.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-cf-muted-foreground">
-                  {t('dashboard.empty.noMatches')}
-                </p>
-              ) : (
-                recentMatches.map((m) => {
-                  const parts = [formatShortDate(m.match_date)]
-                  if (m.team_name) parts.push(m.team_name)
-                  return (
-                    <ActivityRow
-                      key={m.id}
-                      iconBg="bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400"
-                      icon={<Trophy size={14} />}
-                      title={t('matches.vsOpponent', { opponent: m.opponent_name })}
-                      subtitle={parts.join(' · ')}
-                      trailing={
-                        m.result ? (
-                          <span
-                            className={cn(
-                              'shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold',
-                              RESULT_BADGE_CLASS[m.result],
-                            )}
-                          >
-                            {m.score_display ??
-                              t(`matches.${m.result.toLowerCase()}Badge`)}
-                          </span>
-                        ) : undefined
-                      }
-                    />
-                  )
-                })
-              )}
-            </SectionCard>
-          </section>
-        )}
-
-        {/* ── Player: direct profile and report links ───────────── */}
-        {isPlayer && user?.player_profile != null && (
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <button
-              onClick={() => navigate(`/players/${user?.player_profile?.player_id}`)}
-              className={cn(
-                'group flex items-center gap-4 rounded-2xl p-5 text-left ring-1 transition',
-                'bg-cf-surface ring-cf-border hover:ring-emerald-400 hover:shadow-md',
-              )}
-            >
-              <div
-                className={cn(
-                  'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
-                  'bg-emerald-500 text-white text-sm font-bold',
+                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                  'bg-emerald-500 text-sm font-bold text-white',
                 )}
               >
                 {(user?.first_name?.[0] ?? '') + (user?.last_name?.[0] ?? '')}
-              </div>
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-cf-surface-foreground group-hover:text-emerald-600 transition-colors">
-                  {t('dashboard.myProfile')}
+                <p className="truncate text-sm font-semibold text-cf-surface-foreground">
+                  {user?.first_name
+                    ? `${user.first_name} ${user.last_name}`
+                    : user?.email}
                 </p>
-                <p className="text-xs font-mono text-cf-muted-foreground">
-                  {user?.player_profile?.football_id}
-                </p>
-                <p className="mt-0.5 text-sm text-cf-muted-foreground">
-                  {t('dashboard.myProfileDesc')}
+                <p className="font-mono text-xs text-cf-muted-foreground">
+                  {profile.football_id}
                 </p>
               </div>
-              <ChevronRight
-                size={18}
-                className="shrink-0 text-cf-muted-foreground group-hover:text-emerald-500 transition-colors"
-              />
-            </button>
+            </div>
 
-            <button
-              onClick={() =>
-                navigate(`/players/${user?.player_profile?.player_id}/report`)
-              }
-              className={cn(
-                'group flex items-center gap-4 rounded-2xl p-5 text-left ring-1 transition',
-                'bg-cf-surface ring-cf-border hover:ring-emerald-400 hover:shadow-md',
-              )}
-            >
-              <div
-                className={cn(
-                  'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
-                  'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400',
-                )}
+            {/* Actions */}
+            <div className="flex items-center gap-3 px-5 py-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(`/players/${profile.player_id}`)}
               >
-                <BarChart2 size={22} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-cf-surface-foreground group-hover:text-emerald-600 transition-colors">
-                  {t('dashboard.myReport')}
-                </p>
-                <p className="mt-0.5 text-sm text-cf-muted-foreground">
-                  {t('dashboard.myReportDesc')}
-                </p>
-              </div>
-              <ChevronRight
-                size={18}
-                className="shrink-0 text-cf-muted-foreground group-hover:text-emerald-500 transition-colors"
-              />
-            </button>
-          </section>
-        )}
-
-        {/* ── Quick access cards ────────────────────────────────── */}
-        <section>
-          <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-            {t('dashboard.quickAccess')}
-          </h2>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Players — visible to all authenticated roles */}
-            <QuickLinkCard
-              icon={<Users size={20} />}
-              title={t('dashboard.quickLinks.players.title')}
-              description={t('dashboard.quickLinks.players.description')}
-              openLabel={t('dashboard.card.open')}
-              onClick={() => navigate('/players')}
-            />
-
-            {/* Coach / Admin tools */}
-            {isCoach && (
-              <>
-                <QuickLinkCard
-                  icon={<Layers size={20} />}
-                  title={t('dashboard.quickLinks.academies.title')}
-                  description={t('dashboard.quickLinks.academies.description')}
-                  openLabel={t('dashboard.card.open')}
-                  onClick={() => navigate('/coach/academies')}
-                />
-                <QuickLinkCard
-                  icon={<Shield size={20} />}
-                  title={t('dashboard.quickLinks.teams.title')}
-                  description={t('dashboard.quickLinks.teams.description')}
-                  openLabel={t('dashboard.card.open')}
-                  onClick={() => navigate('/coach/teams')}
-                />
-                <QuickLinkCard
-                  icon={<Activity size={20} />}
-                  title={t('dashboard.quickLinks.training.title')}
-                  description={t('dashboard.quickLinks.training.description')}
-                  openLabel={t('dashboard.card.open')}
-                  onClick={() => navigate('/coach/sessions')}
-                />
-                <QuickLinkCard
-                  icon={<Trophy size={20} />}
-                  title={t('dashboard.quickLinks.matches.title')}
-                  description={t('dashboard.quickLinks.matches.description')}
-                  openLabel={t('dashboard.card.open')}
-                  onClick={() => navigate('/coach/matches')}
-                />
-              </>
-            )}
-
-            {/* Parent: my children */}
-            {isParent && (
-              <QuickLinkCard
-                icon={<User size={20} />}
-                title={t('dashboard.quickLinks.myChildren.title')}
-                description={t('dashboard.quickLinks.myChildren.description')}
-                openLabel={t('dashboard.card.open')}
-                onClick={() => navigate('/players')}
-              />
-            )}
+                <Users size={12} />
+                {t('dashboard.myProfile')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => navigate(`/players/${profile.player_id}/report`)}
+              >
+                <BarChart2 size={12} />
+                {t('dashboard.myReport')}
+              </Button>
+            </div>
           </div>
-        </section>
+        ) : (
+          <EmptyState
+            icon={<Users size={16} />}
+            title={t('dashboard.myProfile')}
+            description={t('dashboard.myProfileDesc')}
+          />
+        )}
+      </div>
+    )
+  }
 
-      </main>
+  // ── Parent ─────────────────────────────────────────────────────────
+  if (isParent) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
+        <PageHeader
+          title={t('dashboard.title')}
+          subtitle={t('dashboard.welcome', { name: userName })}
+          action={<Badge variant="default">{roleLabel}</Badge>}
+        />
+
+        <button
+          onClick={() => navigate('/players')}
+          className={cn(
+            'group flex w-full items-center justify-between rounded-xl px-5 py-4 ring-1 transition-colors',
+            'bg-cf-surface ring-cf-border hover:ring-emerald-400',
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+              <Users size={16} />
+            </span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-cf-surface-foreground">
+                {t('dashboard.quickLinks.myChildren.title')}
+              </p>
+              <p className="text-xs text-cf-muted-foreground">
+                {t('dashboard.quickLinks.myChildren.description')}
+              </p>
+            </div>
+          </div>
+          <ChevronRight
+            size={16}
+            className="shrink-0 text-cf-muted-foreground transition-colors group-hover:text-emerald-500"
+          />
+        </button>
+      </div>
+    )
+  }
+
+  // ── Fallback (unknown role) ────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
+      <PageHeader
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.welcome', { name: userName })}
+      />
+      <p className="text-sm text-cf-muted-foreground">
+        {t('dashboard.description.default')}
+      </p>
     </div>
   )
 }

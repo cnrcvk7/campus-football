@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import AppNav from '../components/ui/AppNav'
+
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { ApiError } from '../services/api'
 import { academyService } from '../services/academyService'
@@ -156,33 +156,24 @@ export default function EditMatchPage() {
 
   if (refLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('matches.editNavLabel')} />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <LoadingSpinner />
-        </div>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <LoadingSpinner />
       </div>
     )
   }
 
   if (refError || !form) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <AppNav label={t('matches.editNavLabel')} />
-        <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-          <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
-            {refError ?? t('matches.error.notFound')}
-          </div>
-        </main>
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+        <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">
+          {refError ?? t('matches.error.notFound')}
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('matches.editNavLabel')} />
-
-      <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900">{t('matches.editNavLabel')}</h1>
         </div>
@@ -405,7 +396,6 @@ export default function EditMatchPage() {
 
           </div>
         </form>
-      </main>
     </div>
   )
 }

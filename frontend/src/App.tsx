@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import AppShell from './components/layout/AppShell'
 import AcademiesPage from './pages/AcademiesPage'
 import AcademyDetailPage from './pages/AcademyDetailPage'
 import TeamDetailPage from './pages/TeamDetailPage'
@@ -72,233 +73,126 @@ function AcademyAdminRoute({ children }: { children: ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<DashboardPage />} />
+      {/* Login page: standalone, no shell */}
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/players"
-        element={
-          <ProtectedRoute>
-            <PlayersListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/new"
-        element={
-          <ProtectedRoute>
-            <AddPlayerPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId"
-        element={
-          <ProtectedRoute>
-            <PlayerProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/edit"
-        element={
-          <ProtectedRoute>
-            <EditPlayerPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/report"
-        element={
-          <ProtectedRoute>
-            <PlayerReportPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/assessments/new"
-        element={
-          <ProtectedRoute>
-            <AddAssessmentPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/goals/new"
-        element={
-          <ProtectedRoute>
-            <AddGoalPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/goals/:goalId/edit"
-        element={
-          <ProtectedRoute>
-            <EditGoalPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/players/:playerId/measurements/new"
-        element={
-          <ProtectedRoute>
-            <AddMeasurementPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions"
-        element={
-          <CoachRoute>
-            <CoachSessionsPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions/new"
-        element={
-          <CoachRoute>
-            <CreateTrainingSessionPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions/:sessionId"
-        element={
-          <CoachRoute>
-            <CoachSessionDetailPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions/:sessionId/edit"
-        element={
-          <CoachRoute>
-            <EditTrainingSessionPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions/:sessionId/add-attendance"
-        element={
-          <CoachRoute>
-            <AddAttendancePage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/sessions/:sessionId/edit-attendance/:attendanceId"
-        element={
-          <CoachRoute>
-            <EditAttendancePage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/schedule"
-        element={
-          <CoachRoute>
-            <SchedulePage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches"
-        element={
-          <CoachRoute>
-            <CoachMatchesPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches/new"
-        element={
-          <CoachRoute>
-            <CreateMatchPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches/:matchId"
-        element={
-          <CoachRoute>
-            <CoachMatchDetailPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches/:matchId/edit"
-        element={
-          <CoachRoute>
-            <EditMatchPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches/:matchId/add-stats"
-        element={
-          <CoachRoute>
-            <AddMatchPlayerStatsPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/matches/:matchId/edit-stats/:statsId"
-        element={
-          <CoachRoute>
-            <EditMatchPlayerStatsPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/academies"
-        element={
-          <CoachRoute>
-            <AcademiesPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/academies/new"
-        element={
-          <AcademyAdminRoute>
-            <CreateAcademyPage />
-          </AcademyAdminRoute>
-        }
-      />
-      <Route
-        path="/coach/academies/:academyId"
-        element={
-          <CoachRoute>
-            <AcademyDetailPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/teams"
-        element={
-          <CoachRoute>
-            <TeamsPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/teams/new"
-        element={
-          <CoachRoute>
-            <CreateTeamPage />
-          </CoachRoute>
-        }
-      />
-      <Route
-        path="/coach/teams/:teamId"
-        element={
-          <CoachRoute>
-            <TeamDetailPage />
-          </CoachRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
+
+      {/* All other pages: inside AppShell */}
+      <Route element={<AppShell />}>
+        <Route path="/" element={<DashboardPage />} />
+        <Route
+          path="/players"
+          element={<ProtectedRoute><PlayersListPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/new"
+          element={<ProtectedRoute><AddPlayerPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId"
+          element={<ProtectedRoute><PlayerProfilePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/edit"
+          element={<ProtectedRoute><EditPlayerPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/report"
+          element={<ProtectedRoute><PlayerReportPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/assessments/new"
+          element={<ProtectedRoute><AddAssessmentPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/goals/new"
+          element={<ProtectedRoute><AddGoalPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/goals/:goalId/edit"
+          element={<ProtectedRoute><EditGoalPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/players/:playerId/measurements/new"
+          element={<ProtectedRoute><AddMeasurementPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/coach/sessions"
+          element={<CoachRoute><CoachSessionsPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/sessions/new"
+          element={<CoachRoute><CreateTrainingSessionPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/sessions/:sessionId"
+          element={<CoachRoute><CoachSessionDetailPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/sessions/:sessionId/edit"
+          element={<CoachRoute><EditTrainingSessionPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/sessions/:sessionId/add-attendance"
+          element={<CoachRoute><AddAttendancePage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/sessions/:sessionId/edit-attendance/:attendanceId"
+          element={<CoachRoute><EditAttendancePage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/schedule"
+          element={<CoachRoute><SchedulePage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches"
+          element={<CoachRoute><CoachMatchesPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/new"
+          element={<CoachRoute><CreateMatchPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId"
+          element={<CoachRoute><CoachMatchDetailPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId/edit"
+          element={<CoachRoute><EditMatchPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId/add-stats"
+          element={<CoachRoute><AddMatchPlayerStatsPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId/edit-stats/:statsId"
+          element={<CoachRoute><EditMatchPlayerStatsPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/academies"
+          element={<CoachRoute><AcademiesPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/academies/new"
+          element={<AcademyAdminRoute><CreateAcademyPage /></AcademyAdminRoute>}
+        />
+        <Route
+          path="/coach/academies/:academyId"
+          element={<CoachRoute><AcademyDetailPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/teams"
+          element={<CoachRoute><TeamsPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/teams/new"
+          element={<CoachRoute><CreateTeamPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/teams/:teamId"
+          element={<CoachRoute><TeamDetailPage /></CoachRoute>}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
     </Routes>
   )
 }
