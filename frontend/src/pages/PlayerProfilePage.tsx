@@ -576,6 +576,31 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
   const { t, i18n } = useTranslation()
   const displayLocale = toDisplayLocale(i18n.language)
 
+  // Analytics summary — computed from goals array only
+  const totalGoals     = goals.length
+  const completedGoals = goals.filter((g) => g.status === 'COMPLETED').length
+  const completionRate = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : null
+
+  // Overdue: status === 'ACTIVE', has target_date, and that date (local midnight) < today's local midnight
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const overdueGoals = goals.filter((g) => {
+    if (g.status !== 'ACTIVE' || !g.target_date) return false
+    const [year, month, day] = g.target_date.split('-').map(Number)
+    const targetLocalMidnight = new Date(year, month - 1, day)
+    return targetLocalMidnight < todayStart
+  }).length
+
+  // Average progress: active goals with a measurable progress value
+  const activeMeasurableGoals = goals.filter((g) => g.status === 'ACTIVE' && goalProgress(g) !== null)
+  const avgProgress =
+    activeMeasurableGoals.length > 0
+      ? Math.round(
+          activeMeasurableGoals.reduce((sum, g) => sum + (goalProgress(g) as number), 0) /
+            activeMeasurableGoals.length,
+        )
+      : null
+
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -595,6 +620,43 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
           description={t('playerProfile.empty.noGoalsHint')}
         />
       ) : (
+        <>
+          {/* Analytics summary strip */}
+          <Card className="mb-3">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-cf-surface-foreground">{totalGoals}</p>
+                <p className="mt-0.5 text-xs text-cf-muted-foreground">{t('playerProfile.goalsTotal')}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {completedGoals}
+                  {completionRate !== null && (
+                    <span className="ml-1 text-sm font-normal text-cf-muted-foreground">
+                      ({completionRate}%)
+                    </span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-cf-muted-foreground">{t('playerProfile.goalsCompleted')}</p>
+              </div>
+              <div className="text-center">
+                <p className={cn(
+                  'text-2xl font-bold',
+                  overdueGoals > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-cf-surface-foreground',
+                )}>
+                  {overdueGoals}
+                </p>
+                <p className="mt-0.5 text-xs text-cf-muted-foreground">{t('playerProfile.goalsOverdue')}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {avgProgress !== null ? `${avgProgress}%` : '—'}
+                </p>
+                <p className="mt-0.5 text-xs text-cf-muted-foreground">{t('playerProfile.goalsAvgProgress')}</p>
+              </div>
+            </div>
+          </Card>
+
         <div className="grid gap-3 sm:grid-cols-2">
           {goals.map((goal) => {
             const progress = goalProgress(goal)
@@ -655,6 +717,7 @@ function GoalsSection({ goals, playerId }: { goals: DevelopmentGoal[]; playerId:
             )
           })}
         </div>
+        </>
       )}
     </section>
   )
