@@ -1,28 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { AlertTriangle, Building2, ChevronRight, MapPin, Plus } from 'lucide-react'
 import AppNav from '../components/ui/AppNav'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { useAuth } from '../context/AuthContext'
 import { academyService } from '../services/academyService'
 import type { Academy } from '../types'
-
-function AcademyCard({ academy }: { academy: Academy }) {
-  return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-      <p className="font-semibold text-gray-900">{academy.name}</p>
-      {(academy.city || academy.country) && (
-        <p className="mt-0.5 text-sm text-gray-400">
-          {[academy.city, academy.country].filter(Boolean).join(', ')}
-        </p>
-      )}
-      {academy.description && (
-        <p className="mt-2 text-sm text-gray-500 line-clamp-2">{academy.description}</p>
-      )}
-    </div>
-  )
-}
 
 export default function AcademiesPage() {
   const navigate = useNavigate()
@@ -43,19 +28,20 @@ export default function AcademiesPage() {
   }, [t])
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cf-background">
       <AppNav label={t('academies.navLabel')} />
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('academies.title')}</h1>
-            <p className="mt-1 text-sm text-gray-400">{t('academies.subtitle')}</p>
+            <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('academies.title')}</h1>
+            <p className="mt-1 text-sm text-cf-muted-foreground">{t('academies.subtitle')}</p>
           </div>
           {isAdmin && (
             <button
               onClick={() => navigate('/coach/academies/new')}
-              className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
             >
+              <Plus size={16} />
               {t('academies.addButton')}
             </button>
           )}
@@ -64,25 +50,51 @@ export default function AcademiesPage() {
         {loading && <LoadingSpinner />}
 
         {error && (
-          <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 ring-1 ring-red-100">
-            {error}
-          </p>
+          <EmptyState
+            icon={<AlertTriangle size={24} />}
+            title={t('academies.error.loadFailed')}
+          />
         )}
 
         {!loading && !error && academies.length === 0 && (
           <EmptyState
-            icon="🏟️"
+            icon={<Building2 size={24} />}
             title={t('academies.empty.noAcademies')}
             description={isAdmin ? t('academies.empty.noAcademiesHint') : undefined}
           />
         )}
 
         {!loading && !error && academies.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {academies.map((a) => (
-              <AcademyCard key={a.id} academy={a} />
-            ))}
-          </div>
+          <>
+            <p className="mb-4 text-sm text-cf-muted-foreground">
+              {t('academies.count', { count: academies.length })}
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {academies.map((academy) => (
+                <div
+                  key={academy.id}
+                  onClick={() => navigate('/coach/academies/' + academy.id)}
+                  className="rounded-2xl ring-1 bg-cf-surface ring-cf-border p-5 hover:ring-emerald-500/50 hover:shadow-sm transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-cf-surface-foreground">{academy.name}</p>
+                    <ChevronRight size={16} className="text-cf-muted-foreground flex-shrink-0" />
+                  </div>
+                  {(academy.city || academy.country) && (
+                    <div className="mt-1 flex items-center gap-1 text-sm text-cf-muted-foreground">
+                      <MapPin size={12} className="text-cf-muted-foreground flex-shrink-0" />
+                      <span>{[academy.city, academy.country].filter(Boolean).join(', ')}</span>
+                    </div>
+                  )}
+                  {academy.description && (
+                    <p className="mt-2 line-clamp-2 text-sm text-cf-muted-foreground">
+                      {academy.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

@@ -4,6 +4,7 @@
     "academies": "Akademiler",
     "teams": "Takımlar",
     "training": "Antrenman",
+    "schedule": "Takvim",
     "matches": "Maçlar",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
@@ -11,6 +12,10 @@
   },
   "language": {
     "ariaLabel": "Dil seçin"
+  },
+  "theme": {
+    "switchToDark": "Karanlık moda geç",
+    "switchToLight": "Aydınlık moda geç"
   },
   "login": {
     "tagline": "Hesabınıza giriş yapın",
@@ -27,6 +32,63 @@
     }
   },
   "dashboard": {
+    "title": "Gösterge Paneli",
+    "welcome": "Tekrar hoş geldiniz, {{name}}",
+    "description": {
+      "coach": "Antrenman seansları, maçlar ve oyuncu gelişimi bir bakışta.",
+      "player": "Gelişim yolculuğunuz ve performans özetiniz.",
+      "parent": "Çocuklarınızın gelişimi ve aktiviteleri.",
+      "default": "Futbol yönetim platformunuz."
+    },
+    "roleBadge": {
+      "COACH": "Antrenör",
+      "ACADEMY_ADMIN": "Akademi Yöneticisi",
+      "PLAYER": "Oyuncu",
+      "PARENT": "Veli"
+    },
+    "kpi": {
+      "totalPlayers": "Toplam Oyuncu",
+      "trainingSessions": "Antrenman Seansları",
+      "matchesPlayed": "Maçlar"
+    },
+    "recentSessions": "Son Antrenman Seansları",
+    "recentMatches": "Son Maçlar",
+    "quickAccess": "Hızlı Erişim",
+    "viewAll": "Tümünü gör",
+    "myProfile": "Oyuncu Profilim",
+    "myProfileDesc": "Gelişim geçmişi, değerlendirmeler, hedefler ve maç performansı.",
+    "myReport": "Gelişim Raporu",
+    "myReportDesc": "Tam performans ve gelişim analizi.",
+    "empty": {
+      "noSessions": "Henüz antrenman seansı yok.",
+      "noMatches": "Henüz maç yok."
+    },
+    "quickLinks": {
+      "players": {
+        "title": "Oyuncular",
+        "description": "Oyuncu profillerini ve gelişim kayıtlarını yönetin."
+      },
+      "academies": {
+        "title": "Akademiler",
+        "description": "Kayıtlı akademileri görüntüleyin ve yönetin."
+      },
+      "teams": {
+        "title": "Takımlar",
+        "description": "Takımları ve üyeliklerini yönetin."
+      },
+      "training": {
+        "title": "Antrenman Seansları",
+        "description": "Antrenman seansları oluşturun ve yönetin."
+      },
+      "matches": {
+        "title": "Maçlar",
+        "description": "Maç sonuçlarını ve oyuncu istatistiklerini kaydedin."
+      },
+      "myChildren": {
+        "title": "Çocuklarım",
+        "description": "Çocuklarınızın profillerini ve gelişimini görüntüleyin."
+      }
+    },
     "hero": {
       "platformBadge": "Campus Football",
       "headline": "Oyuncu her şeyin merkezindedir.",
@@ -126,6 +188,11 @@
     "yearsOld": "{{count}} yaşında",
     "playerCount_one": "{{count}} oyuncu",
     "playerCount_other": "{{count}} oyuncu",
+    "tablePlayer":    "Oyuncu",
+    "tableFootballId":"Futbol Kimliği",
+    "tablePosition":  "Mevki",
+    "tableAge":       "Yaş",
+    "tableJersey":    "Forma",
     "error": {
       "loadFailed": "Oyuncular yüklenemedi",
       "notFound": "Oyuncu bulunamadı.",
@@ -368,7 +435,12 @@
     "countryPlaceholder": "örn. Türkiye",
     "createButton": "Akademi Oluştur",
     "creating": "Oluşturuluyor…",
-    "error": { "loadFailed": "Akademiler yüklenemedi.", "saveFailed": "Bir şeyler ters gitti. Lütfen tekrar deneyin." },
+    "count_one": "{{count}} akademi",
+    "count_other": "{{count}} akademi",
+    "teamsSection": "Takımlar",
+    "noTeams": "Bu akademide henüz takım yok",
+    "detailTitle": "Akademi",
+    "error": { "loadFailed": "Akademiler yüklenemedi.", "saveFailed": "Bir şeyler ters gitti. Lütfen tekrar deneyin.", "notFound": "Akademi bulunamadı." },
     "empty": { "noAcademies": "Henüz akademi yok", "noAcademiesHint": "Başlamak için ilk akademiyi oluşturun." },
     "validation": { "nameRequired": "Akademi adı zorunludur.", "nameTooLong": "Akademi adı en fazla 200 karakter olabilir." }
   },
@@ -390,7 +462,14 @@
     "seasonPlaceholder": "örn. 2025/26",
     "createButton": "Takım Oluştur",
     "creating": "Oluşturuluyor…",
-    "error": { "loadFailed": "Takımlar yüklenemedi.", "saveFailed": "Bir şeyler ters gitti. Lütfen tekrar deneyin." },
+    "count_one": "{{count}} takım",
+    "count_other": "{{count}} takım",
+    "rosterSection": "Kadro",
+    "noPlayers": "Bu takımda henüz oyuncu yok",
+    "playerCount_one": "{{count}} oyuncu",
+    "playerCount_other": "{{count}} oyuncu",
+    "detailAcademy": "Akademi",
+    "error": { "loadFailed": "Takımlar yüklenemedi.", "saveFailed": "Bir şeyler ters gitti. Lütfen tekrar deneyin.", "notFound": "Takım bulunamadı." },
     "empty": { "noTeams": "Henüz takım yok", "noTeamsHint": "Başlamak için ilk takımı oluşturun." },
     "validation": { "nameRequired": "Takım adı zorunludur.", "nameTooLong": "Takım adı en fazla 200 karakter olabilir.", "academyRequired": "Lütfen bir akademi seçin." }
   },
@@ -442,6 +521,17 @@
     "detailCoach": "Antrenör",
     "detailFocusSkills": "Odak beceriler",
     "durationMin": "{{n}} dak",
+    "emptyTitle": "Henüz antrenman seansı yok",
+    "emptyDesc": "Başlamak için ilk seansınızı oluşturun.",
+    "noResultsTitle": "Seans bulunamadı",
+    "noResultsDesc": "\"Benim seanslarım\" filtresini kapatmayı deneyin.",
+    "statusCompleted": "Tamamlandı",
+    "statusUpcoming": "Yaklaşan",
+    "exerciseOrder": "#",
+    "exerciseCategory": "Kategori",
+    "exerciseDuration": "Süre",
+    "exerciseNotes": "Notlar",
+    "attendanceSummary": "Katılım özeti",
     "createButton": "Seans Oluştur",
     "creating": "Oluşturuluyor…",
     "saveButton": "Değişiklikleri Kaydet",
@@ -535,6 +625,21 @@
     "tableYellow": "SK",
     "tableRed": "KK",
     "tableRating": "Puan",
+    "emptyTitle": "Henüz maç yok",
+    "emptyDesc": "Başlamak için ilk maçınızı kaydedin.",
+    "upcomingBadge": "Yaklaşan",
+    "tableDate": "Tarih",
+    "tableOpponent": "Rakip",
+    "tableCompetition": "Turnuva",
+    "tableScore": "Skor",
+    "tableResult": "Sonuç",
+    "tableTeam": "Takım",
+    "heroScore": "Skor",
+    "playerStarted": "İlk 11",
+    "playerSubstitute": "Yedek",
+    "statsMobileGoals": "Goller",
+    "statsMobileAssists": "Asistler",
+    "statsMobileMinutes": "Dak",
     "homeBadge": "EV",
     "awayBadge": "DEP",
     "winBadge": "GALİBİYET",
@@ -602,5 +707,51 @@
     "next": "Sonraki →",
     "page": "Sayfa",
     "of": "/"
+  },
+  "schedule": {
+    "title": "Takvim",
+    "subtitle": "Antrenman seansları ve maçlarınız",
+    "noEventsThisMonth": "Bu ay etkinlik yok",
+    "noEventsDesc": "Görmek için bir antrenman seansı veya maç planlayın.",
+    "trainingLabel": "Antrenman",
+    "matchLabel": "Maç",
+    "today": "Bugün",
+    "selectDayPrompt": "Etkinlikleri görmek için bir gün seçin",
+    "eventsFor": "{{date}} tarihi için etkinlikler",
+    "allEventsThisMonth": "Bu aydaki tüm etkinlikler",
+    "moreEvents": "+{{count}} daha",
+    "navPrev": "Önceki ay",
+    "navNext": "Sonraki ay",
+    "weekdayMon": "Pzt",
+    "weekdayTue": "Sal",
+    "weekdayWed": "Çar",
+    "weekdayThu": "Per",
+    "weekdayFri": "Cum",
+    "weekdaySat": "Cmt",
+    "weekdaySun": "Paz"
+  },
+  "analytics": {
+    "title": "Gelişim Analitiği",
+    "categorySnapshot": "Mevcut beceri profili",
+    "skillProgression": "Kategori ilerlemesi",
+    "insufficientData": "Henüz yeterli veri yok",
+    "insufficientDataDesc": "İlerlemeyi göstermek için en az iki değerlendirme gereklidir.",
+    "latestAssessment": "Son değerlendirme: {{date}}",
+    "trendImproved": "Öncekine göre iyileşti",
+    "trendDeclined": "Öncekine göre geriledi",
+    "trendStable": "Öncekiyle aynı",
+    "seasonStats": "Sezon İstatistikleri",
+    "seasonStatsBasis": "{{count}} kayıtlı maça göre",
+    "statAppearances": "Maç",
+    "statStarts": "İlk 11",
+    "statMinutes": "Dakika",
+    "statGoals": "Gol",
+    "statAssists": "Asist",
+    "statRating": "Ort. Puan",
+    "statShots": "Şut",
+    "statPasses": "Pas",
+    "statTackles": "Top Kesme",
+    "statYellowCards": "Sarı Kart",
+    "statRedCards": "Kırmızı Kart"
   }
 }

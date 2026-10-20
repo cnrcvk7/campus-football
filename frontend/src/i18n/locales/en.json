@@ -4,6 +4,7 @@
     "academies": "Academies",
     "teams": "Teams",
     "training": "Training",
+    "schedule": "Schedule",
     "matches": "Matches",
     "signIn": "Sign in",
     "signOut": "Sign out",
@@ -11,6 +12,10 @@
   },
   "language": {
     "ariaLabel": "Select language"
+  },
+  "theme": {
+    "switchToDark": "Switch to dark mode",
+    "switchToLight": "Switch to light mode"
   },
   "login": {
     "tagline": "Sign in to your account",
@@ -27,6 +32,63 @@
     }
   },
   "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome back, {{name}}",
+    "description": {
+      "coach": "Training sessions, matches, and player development at a glance.",
+      "player": "Your development journey and performance overview.",
+      "parent": "Your children's development and activity.",
+      "default": "Your football management platform."
+    },
+    "roleBadge": {
+      "COACH": "Coach",
+      "ACADEMY_ADMIN": "Academy Admin",
+      "PLAYER": "Player",
+      "PARENT": "Parent"
+    },
+    "kpi": {
+      "totalPlayers": "Total Players",
+      "trainingSessions": "Training Sessions",
+      "matchesPlayed": "Matches"
+    },
+    "recentSessions": "Recent Training Sessions",
+    "recentMatches": "Recent Matches",
+    "quickAccess": "Quick Access",
+    "viewAll": "View all",
+    "myProfile": "My Player Profile",
+    "myProfileDesc": "Development history, assessments, goals, and match performance.",
+    "myReport": "Development Report",
+    "myReportDesc": "Full performance and development analysis.",
+    "empty": {
+      "noSessions": "No training sessions yet.",
+      "noMatches": "No matches yet."
+    },
+    "quickLinks": {
+      "players": {
+        "title": "Players",
+        "description": "Manage player profiles and development records."
+      },
+      "academies": {
+        "title": "Academies",
+        "description": "View and manage registered academies."
+      },
+      "teams": {
+        "title": "Teams",
+        "description": "Manage teams and their memberships."
+      },
+      "training": {
+        "title": "Training Sessions",
+        "description": "Create and manage training sessions."
+      },
+      "matches": {
+        "title": "Matches",
+        "description": "Record match results and player statistics."
+      },
+      "myChildren": {
+        "title": "My Children",
+        "description": "View your children's profiles and development."
+      }
+    },
     "hero": {
       "platformBadge": "Campus Football",
       "headline": "The player is at the centre of everything.",
@@ -126,6 +188,11 @@
     "yearsOld": "{{count}} years old",
     "playerCount_one": "{{count}} player",
     "playerCount_other": "{{count}} players",
+    "tablePlayer":    "Player",
+    "tableFootballId":"Football ID",
+    "tablePosition":  "Position",
+    "tableAge":       "Age",
+    "tableJersey":    "Jersey",
     "error": {
       "loadFailed": "Could not load players",
       "notFound": "Player not found.",
@@ -368,7 +435,12 @@
     "countryPlaceholder": "e.g. England",
     "createButton": "Create Academy",
     "creating": "Creating…",
-    "error": { "loadFailed": "Failed to load academies.", "saveFailed": "Something went wrong. Please try again." },
+    "count_one": "{{count}} academy",
+    "count_other": "{{count}} academies",
+    "teamsSection": "Teams",
+    "noTeams": "No teams in this academy yet",
+    "detailTitle": "Academy",
+    "error": { "loadFailed": "Failed to load academies.", "saveFailed": "Something went wrong. Please try again.", "notFound": "Academy not found." },
     "empty": { "noAcademies": "No academies yet", "noAcademiesHint": "Create the first academy to get started." },
     "validation": { "nameRequired": "Academy name is required.", "nameTooLong": "Academy name must be 200 characters or fewer." }
   },
@@ -390,7 +462,14 @@
     "seasonPlaceholder": "e.g. 2025/26",
     "createButton": "Create Team",
     "creating": "Creating…",
-    "error": { "loadFailed": "Failed to load teams.", "saveFailed": "Something went wrong. Please try again." },
+    "count_one": "{{count}} team",
+    "count_other": "{{count}} teams",
+    "rosterSection": "Squad",
+    "noPlayers": "No players in this team yet",
+    "playerCount_one": "{{count}} player",
+    "playerCount_other": "{{count}} players",
+    "detailAcademy": "Academy",
+    "error": { "loadFailed": "Failed to load teams.", "saveFailed": "Something went wrong. Please try again.", "notFound": "Team not found." },
     "empty": { "noTeams": "No teams yet", "noTeamsHint": "Create the first team to get started." },
     "validation": { "nameRequired": "Team name is required.", "nameTooLong": "Team name must be 200 characters or fewer.", "academyRequired": "Please select an academy." }
   },
@@ -442,6 +521,17 @@
     "detailCoach": "Coach",
     "detailFocusSkills": "Focus skills",
     "durationMin": "{{n}} min",
+    "emptyTitle": "No training sessions yet",
+    "emptyDesc": "Create your first session to get started.",
+    "noResultsTitle": "No sessions found",
+    "noResultsDesc": "Try turning off the \"my sessions\" filter.",
+    "statusCompleted": "Completed",
+    "statusUpcoming": "Upcoming",
+    "exerciseOrder": "#",
+    "exerciseCategory": "Category",
+    "exerciseDuration": "Duration",
+    "exerciseNotes": "Notes",
+    "attendanceSummary": "Attendance summary",
     "createButton": "Create Session",
     "creating": "Creating…",
     "saveButton": "Save Changes",
@@ -535,6 +625,21 @@
     "tableYellow": "YC",
     "tableRed": "RC",
     "tableRating": "Rating",
+    "emptyTitle": "No matches yet",
+    "emptyDesc": "Record your first match to get started.",
+    "upcomingBadge": "Upcoming",
+    "tableDate": "Date",
+    "tableOpponent": "Opponent",
+    "tableCompetition": "Competition",
+    "tableScore": "Score",
+    "tableResult": "Result",
+    "tableTeam": "Team",
+    "heroScore": "Score",
+    "playerStarted": "Started",
+    "playerSubstitute": "Sub",
+    "statsMobileGoals": "Goals",
+    "statsMobileAssists": "Assists",
+    "statsMobileMinutes": "Min",
     "homeBadge": "HOME",
     "awayBadge": "AWAY",
     "winBadge": "WIN",
@@ -602,5 +707,51 @@
     "next": "Next →",
     "page": "Page",
     "of": "of"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "subtitle": "Your training sessions and matches",
+    "noEventsThisMonth": "No events this month",
+    "noEventsDesc": "Schedule a training session or match to see it here.",
+    "trainingLabel": "Training",
+    "matchLabel": "Match",
+    "today": "Today",
+    "selectDayPrompt": "Select a day to see events",
+    "eventsFor": "Events for {{date}}",
+    "allEventsThisMonth": "All events this month",
+    "moreEvents": "+{{count}} more",
+    "navPrev": "Previous month",
+    "navNext": "Next month",
+    "weekdayMon": "Mon",
+    "weekdayTue": "Tue",
+    "weekdayWed": "Wed",
+    "weekdayThu": "Thu",
+    "weekdayFri": "Fri",
+    "weekdaySat": "Sat",
+    "weekdaySun": "Sun"
+  },
+  "analytics": {
+    "title": "Development Analytics",
+    "categorySnapshot": "Current skill profile",
+    "skillProgression": "Category progression",
+    "insufficientData": "Not enough data yet",
+    "insufficientDataDesc": "Two or more assessments are needed to show progression.",
+    "latestAssessment": "Latest assessment: {{date}}",
+    "trendImproved": "Improved vs previous",
+    "trendDeclined": "Declined vs previous",
+    "trendStable": "Stable vs previous",
+    "seasonStats": "Season Statistics",
+    "seasonStatsBasis": "Based on {{count}} recorded matches",
+    "statAppearances": "Appearances",
+    "statStarts": "Starts",
+    "statMinutes": "Minutes",
+    "statGoals": "Goals",
+    "statAssists": "Assists",
+    "statRating": "Avg Rating",
+    "statShots": "Shots",
+    "statPasses": "Passes",
+    "statTackles": "Tackles",
+    "statYellowCards": "Yellow Cards",
+    "statRedCards": "Red Cards"
   }
 }

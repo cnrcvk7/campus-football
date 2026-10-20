@@ -4,6 +4,7 @@
     "academies": "Академии",
     "teams": "Команды",
     "training": "Тренировки",
+    "schedule": "Расписание",
     "matches": "Матчи",
     "signIn": "Войти",
     "signOut": "Выйти",
@@ -11,6 +12,10 @@
   },
   "language": {
     "ariaLabel": "Выбрать язык"
+  },
+  "theme": {
+    "switchToDark": "Переключить на тёмный режим",
+    "switchToLight": "Переключить на светлый режим"
   },
   "login": {
     "tagline": "Войдите в свой аккаунт",
@@ -27,6 +32,63 @@
     }
   },
   "dashboard": {
+    "title": "Панель управления",
+    "welcome": "С возвращением, {{name}}",
+    "description": {
+      "coach": "Тренировки, матчи и развитие игроков — одним взглядом.",
+      "player": "Ваш путь развития и обзор результатов.",
+      "parent": "Развитие и активность ваших детей.",
+      "default": "Ваша платформа управления футболом."
+    },
+    "roleBadge": {
+      "COACH": "Тренер",
+      "ACADEMY_ADMIN": "Администратор академии",
+      "PLAYER": "Игрок",
+      "PARENT": "Родитель"
+    },
+    "kpi": {
+      "totalPlayers": "Всего игроков",
+      "trainingSessions": "Тренировки",
+      "matchesPlayed": "Матчи"
+    },
+    "recentSessions": "Последние тренировки",
+    "recentMatches": "Последние матчи",
+    "quickAccess": "Быстрый доступ",
+    "viewAll": "Показать все",
+    "myProfile": "Мой профиль игрока",
+    "myProfileDesc": "История развития, оценки, цели и результаты матчей.",
+    "myReport": "Отчёт о развитии",
+    "myReportDesc": "Полный анализ результатов и развития.",
+    "empty": {
+      "noSessions": "Тренировок пока нет.",
+      "noMatches": "Матчей пока нет."
+    },
+    "quickLinks": {
+      "players": {
+        "title": "Игроки",
+        "description": "Управление профилями игроков и записями развития."
+      },
+      "academies": {
+        "title": "Академии",
+        "description": "Просмотр и управление зарегистрированными академиями."
+      },
+      "teams": {
+        "title": "Команды",
+        "description": "Управление командами и их составами."
+      },
+      "training": {
+        "title": "Тренировки",
+        "description": "Создание и управление тренировочными сессиями."
+      },
+      "matches": {
+        "title": "Матчи",
+        "description": "Запись результатов матчей и статистики игроков."
+      },
+      "myChildren": {
+        "title": "Мои дети",
+        "description": "Просматривайте профили и развитие ваших детей."
+      }
+    },
     "hero": {
       "platformBadge": "Campus Football",
       "headline": "Игрок — в центре всего.",
@@ -126,6 +188,11 @@
     "yearsOld": "{{count}} лет",
     "playerCount_one": "{{count}} игрок",
     "playerCount_other": "{{count}} игроков",
+    "tablePlayer":    "Игрок",
+    "tableFootballId":"Футбольный ID",
+    "tablePosition":  "Позиция",
+    "tableAge":       "Возраст",
+    "tableJersey":    "Номер",
     "error": {
       "loadFailed": "Не удалось загрузить игроков",
       "notFound": "Игрок не найден.",
@@ -368,7 +435,12 @@
     "countryPlaceholder": "напр. Россия",
     "createButton": "Создать академию",
     "creating": "Создание…",
-    "error": { "loadFailed": "Не удалось загрузить академии.", "saveFailed": "Что-то пошло не так. Пожалуйста, попробуйте снова." },
+    "count_one": "{{count}} академия",
+    "count_other": "{{count}} академий",
+    "teamsSection": "Команды",
+    "noTeams": "В этой академии пока нет команд",
+    "detailTitle": "Академия",
+    "error": { "loadFailed": "Не удалось загрузить академии.", "saveFailed": "Что-то пошло не так. Пожалуйста, попробуйте снова.", "notFound": "Академия не найдена." },
     "empty": { "noAcademies": "Академий пока нет", "noAcademiesHint": "Создайте первую академию для начала работы." },
     "validation": { "nameRequired": "Название академии обязательно.", "nameTooLong": "Название академии не должно превышать 200 символов." }
   },
@@ -390,7 +462,14 @@
     "seasonPlaceholder": "напр. 2025/26",
     "createButton": "Создать команду",
     "creating": "Создание…",
-    "error": { "loadFailed": "Не удалось загрузить команды.", "saveFailed": "Что-то пошло не так. Пожалуйста, попробуйте снова." },
+    "count_one": "{{count}} команда",
+    "count_other": "{{count}} команд",
+    "rosterSection": "Состав",
+    "noPlayers": "В этой команде пока нет игроков",
+    "playerCount_one": "{{count}} игрок",
+    "playerCount_other": "{{count}} игроков",
+    "detailAcademy": "Академия",
+    "error": { "loadFailed": "Не удалось загрузить команды.", "saveFailed": "Что-то пошло не так. Пожалуйста, попробуйте снова.", "notFound": "Команда не найдена." },
     "empty": { "noTeams": "Команд пока нет", "noTeamsHint": "Создайте первую команду для начала работы." },
     "validation": { "nameRequired": "Название команды обязательно.", "nameTooLong": "Название команды не должно превышать 200 символов.", "academyRequired": "Пожалуйста, выберите академию." }
   },
@@ -442,6 +521,17 @@
     "detailCoach": "Тренер",
     "detailFocusSkills": "Фокусные навыки",
     "durationMin": "{{n}} мин",
+    "emptyTitle": "Нет тренировочных сессий",
+    "emptyDesc": "Создайте первую сессию, чтобы начать.",
+    "noResultsTitle": "Сессии не найдены",
+    "noResultsDesc": "Попробуйте отключить фильтр «мои сессии».",
+    "statusCompleted": "Завершено",
+    "statusUpcoming": "Предстоящее",
+    "exerciseOrder": "№",
+    "exerciseCategory": "Категория",
+    "exerciseDuration": "Длительность",
+    "exerciseNotes": "Заметки",
+    "attendanceSummary": "Сводка посещаемости",
     "createButton": "Создать тренировку",
     "creating": "Создание…",
     "saveButton": "Сохранить изменения",
@@ -535,6 +625,21 @@
     "tableYellow": "ЖК",
     "tableRed": "КК",
     "tableRating": "Рейтинг",
+    "emptyTitle": "Матчей пока нет",
+    "emptyDesc": "Запишите первый матч, чтобы начать.",
+    "upcomingBadge": "Предстоящий",
+    "tableDate": "Дата",
+    "tableOpponent": "Соперник",
+    "tableCompetition": "Турнир",
+    "tableScore": "Счёт",
+    "tableResult": "Результат",
+    "tableTeam": "Команда",
+    "heroScore": "Счёт",
+    "playerStarted": "В старте",
+    "playerSubstitute": "Замена",
+    "statsMobileGoals": "Голы",
+    "statsMobileAssists": "Передачи",
+    "statsMobileMinutes": "Мин",
     "homeBadge": "ДОМА",
     "awayBadge": "ГОСТИ",
     "winBadge": "ПОБЕДА",
@@ -601,5 +706,51 @@
     "next": "Следующая →",
     "page": "Страница",
     "of": "из"
+  },
+  "schedule": {
+    "title": "Расписание",
+    "subtitle": "Тренировочные сессии и матчи",
+    "noEventsThisMonth": "В этом месяце нет событий",
+    "noEventsDesc": "Запланируйте тренировочную сессию или матч, чтобы увидеть её здесь.",
+    "trainingLabel": "Тренировка",
+    "matchLabel": "Матч",
+    "today": "Сегодня",
+    "selectDayPrompt": "Выберите день, чтобы увидеть события",
+    "eventsFor": "События на {{date}}",
+    "allEventsThisMonth": "Все события этого месяца",
+    "moreEvents": "+{{count}} ещё",
+    "navPrev": "Предыдущий месяц",
+    "navNext": "Следующий месяц",
+    "weekdayMon": "Пн",
+    "weekdayTue": "Вт",
+    "weekdayWed": "Ср",
+    "weekdayThu": "Чт",
+    "weekdayFri": "Пт",
+    "weekdaySat": "Сб",
+    "weekdaySun": "Вс"
+  },
+  "analytics": {
+    "title": "Аналитика развития",
+    "categorySnapshot": "Текущий профиль навыков",
+    "skillProgression": "Прогресс по категориям",
+    "insufficientData": "Пока недостаточно данных",
+    "insufficientDataDesc": "Для отображения прогресса необходимо минимум две оценки.",
+    "latestAssessment": "Последняя оценка: {{date}}",
+    "trendImproved": "Улучшение по сравнению с предыдущей",
+    "trendDeclined": "Снижение по сравнению с предыдущей",
+    "trendStable": "Стабильно по сравнению с предыдущей",
+    "seasonStats": "Сезонная статистика",
+    "seasonStatsBasis": "На основе {{count}} записанных матчей",
+    "statAppearances": "Матчи",
+    "statStarts": "В старте",
+    "statMinutes": "Минуты",
+    "statGoals": "Голы",
+    "statAssists": "Передачи",
+    "statRating": "Ср. рейтинг",
+    "statShots": "Удары",
+    "statPasses": "Передачи",
+    "statTackles": "Отборы",
+    "statYellowCards": "Жёлтые карточки",
+    "statRedCards": "Красные карточки"
   }
 }

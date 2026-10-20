@@ -1,6 +1,7 @@
 // frontend/src/pages/PlayerReportPage.tsx
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import AppNav from '../components/ui/AppNav'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -130,11 +131,13 @@ function passAccuracy(completed: number, attempted: number): number | null {
 
 function ReportHeader({ player, history }: { player: Player; history: PlayerHistory | null }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const age = calcAge(player.date_of_birth)
   const position = player.preferred_position ? t('positions.' + player.preferred_position) : null
   const activeAcademy = history ? getActiveAcademy(history) : null
   const activeTeam = history ? getActiveTeam(history) : null
+  const today = new Date().toLocaleDateString(displayLocale, { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-brand-900 text-white">
@@ -154,13 +157,25 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
               {activeTeam && <span>· {activeTeam.team.name}</span>}
               {activeAcademy && <span>· {activeAcademy.academy.name}</span>}
             </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Report generated: {today}
+            </p>
           </div>
-          <button
-            onClick={() => navigate(`/players/${player.id}`)}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20 self-start"
-          >
-            {t('playerProfile.navLabel')} ←
-          </button>
+          <div className="no-print mt-2 flex flex-col gap-2 self-start sm:flex-row">
+            <button
+              onClick={() => navigate(`/players/${player.id}`)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-white ring-1 ring-white/20 transition hover:bg-white/20"
+            >
+              {t('playerProfile.navLabel')} ←
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="no-print inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white ring-1 ring-emerald-400/40 transition hover:bg-emerald-700"
+            >
+              <Printer size={14} aria-hidden="true" />
+              Print Report
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -289,10 +304,18 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
                     <div className={`h-2 rounded-full ${meta.bar}`} style={{ width: `${sh.latestScore}%` }} />
                   </div>
                   <span className="w-8 shrink-0 text-right text-sm font-semibold text-gray-700">{sh.latestScore}</span>
-                  {sh.delta !== null && (
-                    <span className={`w-10 shrink-0 text-right text-xs font-medium ${sh.delta > 0 ? 'text-emerald-600' : sh.delta < 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                      {sh.delta > 0 ? `+${sh.delta}` : sh.delta}
+                  {sh.delta !== null ? (
+                    <span className="flex w-5 shrink-0 items-center justify-end">
+                      {sh.delta > 0 ? (
+                        <TrendingUp size={14} className="text-emerald-500" />
+                      ) : sh.delta < 0 ? (
+                        <TrendingDown size={14} className="text-red-500" />
+                      ) : (
+                        <Minus size={14} className="text-gray-400" />
+                      )}
                     </span>
+                  ) : (
+                    <span className="w-5 shrink-0" />
                   )}
                 </div>
               )
@@ -470,23 +493,27 @@ function MatchSection({
   const accuracy = passAccuracy(totalCompleted, totalAttempted)
 
   const stats: { label: string; value: string }[] = [
-    { label: t('playerReport.matches'),    value: String(summary.matches_played) },
-    { label: t('playerReport.starts'),     value: String(summary.starts) },
-    { label: t('playerReport.minutes'),    value: String(summary.total_minutes) },
-    { label: t('playerReport.goals'),      value: String(summary.goals) },
-    { label: t('playerReport.assists'),    value: String(summary.assists) },
-    { label: t('playerReport.shots'),      value: String(summary.total_shots) },
-    { label: t('playerReport.passAcc'),    value: accuracy !== null ? `${accuracy}%` : '—' },
-    { label: t('playerReport.avgRating'),  value: summary.average_rating ? parseFloat(summary.average_rating).toFixed(1) : '—' },
-    { label: t('playerReport.yellow'),     value: String(summary.yellow_cards) },
-    { label: t('playerReport.red'),        value: String(summary.red_cards) },
+    { label: t('analytics.statAppearances'), value: String(summary.matches_played) },
+    { label: t('analytics.statStarts'),      value: String(summary.starts) },
+    { label: t('analytics.statMinutes'),     value: String(summary.total_minutes) },
+    { label: t('analytics.statGoals'),       value: String(summary.goals) },
+    { label: t('analytics.statAssists'),     value: String(summary.assists) },
+    { label: t('analytics.statShots'),       value: String(summary.total_shots) },
+    { label: t('analytics.statPasses'),      value: String(summary.total_passes_completed) },
+    { label: t('analytics.statTackles'),     value: String(summary.total_tackles) },
+    { label: t('analytics.statRating'),      value: summary.average_rating ? parseFloat(summary.average_rating).toFixed(1) : '—' },
+    { label: t('analytics.statYellowCards'), value: String(summary.yellow_cards) },
+    { label: t('analytics.statRedCards'),    value: String(summary.red_cards) },
+    { label: t('playerReport.passAcc'),      value: accuracy !== null ? `${accuracy}%` : '—' },
   ]
 
   return (
     <section>
-      <SectionTitle>{t('playerReport.sectionMatchPerformance')}</SectionTitle>
+      <SectionTitle>
+        {t('analytics.seasonStats')} — {t('playerReport.sectionMatchPerformance')}
+      </SectionTitle>
       <Card>
-        <div className="grid grid-cols-3 gap-4 sm:grid-cols-5 mb-6">
+        <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 mb-6">
           {stats.map(({ label, value }) => (
             <div key={label} className="text-center">
               <p className="text-2xl font-bold text-gray-900">{value}</p>
@@ -495,6 +522,9 @@ function MatchSection({
           ))}
         </div>
         <p className="text-xs text-gray-400">
+          {t('analytics.seasonStatsBasis', { count: matches.length })}
+        </p>
+        <p className="mt-1 text-xs text-gray-400">
           {t('playerReport.passNote')}
         </p>
       </Card>
@@ -820,7 +850,9 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppNav label={t('playerReport.navLabel')} />
+      <div className="no-print">
+        <AppNav label={t('playerReport.navLabel')} />
+      </div>
       <ReportHeader player={player} history={history} />
 
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">

@@ -42,7 +42,7 @@ function FieldLabel({
   required?: boolean
 }) {
   return (
-    <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700">
+    <label htmlFor={htmlFor} className="block text-sm font-medium text-cf-surface-foreground">
       {children}
       {required && <span className="ml-0.5 text-red-500">*</span>}
     </label>
@@ -50,7 +50,7 @@ function FieldLabel({
 }
 
 const inputCls =
-  'mt-1 block w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20'
+  'mt-1 block w-full rounded-xl border border-cf-border px-3 py-2 text-sm text-cf-surface-foreground placeholder:text-cf-muted-foreground bg-cf-surface outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20'
 
 const errorCls = 'mt-1 text-xs text-red-600'
 
@@ -99,17 +99,17 @@ export default function CreateAcademyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cf-background">
       <AppNav label={t('academies.navLabel')} />
       <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t('academies.createTitle')}</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('academies.createTitle')}</h1>
+          <p className="mt-1 text-sm text-cf-muted-foreground">
             {t('academies.createSubtitle')}
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+        <div className="rounded-2xl bg-cf-surface p-6 ring-1 ring-cf-border">
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <div>
               <FieldLabel htmlFor="name" required>{t('academies.name')}</FieldLabel>
@@ -171,14 +171,14 @@ export default function CreateAcademyPage() {
               <button
                 type="button"
                 onClick={() => navigate('/coach/academies')}
-                className="text-sm text-gray-400 transition hover:text-gray-600"
+                className="text-sm text-cf-muted-foreground transition hover:text-cf-surface-foreground"
               >
                 {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60"
+                className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60"
               >
                 {submitting ? t('academies.creating') : t('academies.createButton')}
               </button>
