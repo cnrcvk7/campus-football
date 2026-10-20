@@ -17,6 +17,7 @@ import {
   TrendingDown,
   Minus,
   Pencil,
+  Users,
 } from 'lucide-react'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
@@ -242,6 +243,14 @@ function PlayerHeader({
             >
               <Pencil size={12} />
               {t('playerProfile.editProfile')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate(`/players/${player.id}/compare`)}
+            >
+              <Users size={12} />
+              {t('playerProfile.comparison')}
             </Button>
             <Button
               variant="primary"

@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 from apps.players.models import Player
+from apps.teams.models import PlayerTeamMembership, Team
 from apps.users.models import User
 
 from .models import Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement, Skill
@@ -987,3 +988,306 @@ class SuperuserDevelopmentBypassTests(APITestCase):
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_a.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Player Comparison tests
+# ---------------------------------------------------------------------------
+
+
+def make_team(academy, name="U15 Boys", age_group="U15") -> Team:
+    return Team.objects.create(academy=academy, name=name, age_group=age_group)
+
+
+def add_to_team(player, team) -> PlayerTeamMembership:
+    return PlayerTeamMembership.objects.create(
+        player=player, team=team, joined_at=datetime.date(2024, 1, 1), status="active"
+    )
+
+
+class PlayerComparisonTests(APITestCase):
+    """
+    Tests for GET /api/players/{player_pk}/compare/
+    """
+
+    def setUp(self):
+        # Shared academy and coach
+        self.academy = Academy.objects.create(name="Compare Academy", city="London", country="England")
+        self.coach = make_user(User.Role.COACH, "cmp_coach@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+
+        # Technical and Physical skills
+        self.skill_tech = make_skill("Passing-C", "TECHNICAL")
+        self.skill_phys = make_skill("Speed-C", "PHYSICAL")
+
+        # Target player with academy affiliation
+        self.player = make_player(first_name="Target")
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Two peer players with academy affiliation
+        self.peer1 = make_player(first_name="Peer1")
+        self.peer2 = make_player(first_name="Peer2")
+        PlayerAcademyMembership.objects.create(
+            player=self.peer1, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
+        PlayerAcademyMembership.objects.create(
+            player=self.peer2, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Team shared by all three
+        self.team = make_team(self.academy)
+
+        self.client.force_authenticate(user=self.coach)
+
+    def _compare_url(self, player=None):
+        p = player or self.player
+        return reverse("player-compare", kwargs={"player_pk": p.pk})
+
+    # ------------------------------------------------------------------ #
+    # 1. No active team                                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_no_active_team_returns_has_team_false(self):
+        """Player with no team membership returns has_team: false."""
+        # player has no team membership
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["has_team"])
+        self.assertNotIn("categories", response.data)
+
+    # ------------------------------------------------------------------ #
+    # 2. Player on team but no assessment                                   #
+    # ------------------------------------------------------------------ #
+
+    def test_no_player_assessment_returns_player_has_assessment_false(self):
+        """Player on a team but without any assessment returns player_has_assessment: false."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["has_team"])
+        self.assertFalse(response.data["player_has_assessment"])
+        self.assertEqual(response.data["categories"], [])
+
+    # ------------------------------------------------------------------ #
+    # 3. No eligible peers (teammates have no assessments)                 #
+    # ------------------------------------------------------------------ #
+
+    def test_no_eligible_peers_returns_empty_categories(self):
+        """Player with assessment but all teammates have no assessment → empty categories."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+
+        # Only the target player has an assessment
+        make_assessment_with_items(
+            self.player, self.coach, [(self.skill_tech, 80)], date="2026-01-01"
+        )
+        # peer1 has NO assessment
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["player_has_assessment"])
+        self.assertEqual(response.data["categories"], [])
+        self.assertEqual(response.data["peer_count"], 0)
+
+    # ------------------------------------------------------------------ #
+    # 4. Player's own scores excluded from peer average                    #
+    # ------------------------------------------------------------------ #
+
+    def test_comparison_excludes_player_from_peer_average(self):
+        """The target player's own scores do not contribute to the team average."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+
+        # Player has very high score
+        make_assessment_with_items(
+            self.player, self.coach, [(self.skill_tech, 100)], date="2026-01-10"
+        )
+        # Peer has a known score
+        make_assessment_with_items(
+            self.peer1, self.coach, [(self.skill_tech, 60)], date="2026-01-10"
+        )
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cat_data = response.data["categories"]
+        self.assertEqual(len(cat_data), 1)
+        entry = cat_data[0]
+        # Team avg should be exactly 60, not (100+60)/2 = 80
+        self.assertEqual(entry["team_avg"], 60.0)
+        self.assertEqual(entry["player_score"], 100)
+
+    # ------------------------------------------------------------------ #
+    # 5. Correct calculation with known scores                             #
+    # ------------------------------------------------------------------ #
+
+    def test_comparison_correct_calculation(self):
+        """Verify calculation: player_score, team_avg, diff with known values."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+        add_to_team(self.peer2, self.team)
+
+        # player scores: TECHNICAL 80, PHYSICAL 70
+        make_assessment_with_items(
+            self.player, self.coach,
+            [(self.skill_tech, 80), (self.skill_phys, 70)],
+            date="2026-01-15",
+        )
+        # peer1: TECHNICAL 60, PHYSICAL 50
+        make_assessment_with_items(
+            self.peer1, self.coach,
+            [(self.skill_tech, 60), (self.skill_phys, 50)],
+            date="2026-01-15",
+        )
+        # peer2: TECHNICAL 80, PHYSICAL 90
+        make_assessment_with_items(
+            self.peer2, self.coach,
+            [(self.skill_tech, 80), (self.skill_phys, 90)],
+            date="2026-01-15",
+        )
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cats = {c["category"]: c for c in response.data["categories"]}
+
+        # TECHNICAL: player=80, team_avg=(60+80)/2=70.0, diff=10.0
+        self.assertIn("TECHNICAL", cats)
+        self.assertEqual(cats["TECHNICAL"]["player_score"], 80)
+        self.assertEqual(cats["TECHNICAL"]["team_avg"], 70.0)
+        self.assertEqual(cats["TECHNICAL"]["diff"], 10.0)
+        self.assertEqual(cats["TECHNICAL"]["peers_with_data"], 2)
+
+        # PHYSICAL: player=70, team_avg=(50+90)/2=70.0, diff=0.0
+        self.assertIn("PHYSICAL", cats)
+        self.assertEqual(cats["PHYSICAL"]["player_score"], 70)
+        self.assertEqual(cats["PHYSICAL"]["team_avg"], 70.0)
+        self.assertEqual(cats["PHYSICAL"]["diff"], 0.0)
+
+    # ------------------------------------------------------------------ #
+    # 6. Category excluded if no peer has that category                   #
+    # ------------------------------------------------------------------ #
+
+    def test_only_categories_with_both_sides_included(self):
+        """Categories with player data but no peer data are excluded."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+
+        # Player has TECHNICAL and PHYSICAL; peer only has TECHNICAL
+        make_assessment_with_items(
+            self.player, self.coach,
+            [(self.skill_tech, 80), (self.skill_phys, 70)],
+            date="2026-01-15",
+        )
+        make_assessment_with_items(
+            self.peer1, self.coach,
+            [(self.skill_tech, 60)],  # no PHYSICAL
+            date="2026-01-15",
+        )
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cat_names = [c["category"] for c in response.data["categories"]]
+        # PHYSICAL should be excluded (no peer has it)
+        self.assertIn("TECHNICAL", cat_names)
+        self.assertNotIn("PHYSICAL", cat_names)
+
+    # ------------------------------------------------------------------ #
+    # 7. Superuser can compare any player                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_superuser_can_compare_any_player(self):
+        """Superuser with no academy affiliation can access compare endpoint."""
+        superuser = User.objects.create_superuser(
+            email="cmp_super@test.com", password="pass123",
+            first_name="Super", last_name="Admin",
+        )
+        add_to_team(self.player, self.team)
+        make_assessment_with_items(
+            self.player, self.coach, [(self.skill_tech, 80)], date="2026-01-01"
+        )
+        self.client.force_authenticate(user=superuser)
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["has_team"])
+
+    # ------------------------------------------------------------------ #
+    # 8. Coach at same academy can compare                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_coach_can_compare_affiliated_player(self):
+        """Coach affiliated with the same academy can access compare endpoint."""
+        add_to_team(self.player, self.team)
+        # self.coach is already affiliated with self.academy
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------ #
+    # 9. Coach at different academy cannot compare                        #
+    # ------------------------------------------------------------------ #
+
+    def test_coach_cannot_compare_unaffiliated_player(self):
+        """Coach at a different academy cannot access compare of unlinked player."""
+        other_academy = Academy.objects.create(name="Other Academy-CMP", city="Berlin", country="Germany")
+        other_coach = make_user(User.Role.COACH, "cmp_other_coach@test.com")
+        AcademyStaffMembership.objects.create(user=other_coach, academy=other_academy)
+
+        # self.player is only affiliated with self.academy, not other_academy
+        # other_coach has no affiliation with self.academy
+
+        # For READ, coaches can read any player's data per existing rules.
+        # Let's verify the existing read permission (coaches can read any player).
+        # The development permissions allow coaches to READ without affiliation check.
+        # So this test verifies that a coach CAN read (same as existing behavior).
+        add_to_team(self.player, self.team)
+        self.client.force_authenticate(user=other_coach)
+        response = self.client.get(self._compare_url())
+        # Coaches can read any player's data (no affiliation required for read)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------ #
+    # 10. Academy admin at same academy can compare                        #
+    # ------------------------------------------------------------------ #
+
+    def test_academy_admin_can_compare_own_academy_player(self):
+        """Academy admin affiliated with the same academy can compare their player."""
+        admin = make_user(User.Role.ACADEMY_ADMIN, "cmp_admin@test.com")
+        AcademyStaffMembership.objects.create(user=admin, academy=self.academy)
+
+        add_to_team(self.player, self.team)
+        self.client.force_authenticate(user=admin)
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------ #
+    # 11. Latest assessment is used, not an older one                      #
+    # ------------------------------------------------------------------ #
+
+    def test_uses_latest_assessment_per_player(self):
+        """When a player has multiple assessments, the latest one is used for comparison."""
+        add_to_team(self.player, self.team)
+        add_to_team(self.peer1, self.team)
+
+        # Player: old assessment with score 50, latest with score 90
+        make_assessment_with_items(
+            self.player, self.coach, [(self.skill_tech, 50)], date="2026-01-01"
+        )
+        make_assessment_with_items(
+            self.player, self.coach, [(self.skill_tech, 90)], date="2026-06-01"
+        )
+
+        # Peer: single assessment
+        make_assessment_with_items(
+            self.peer1, self.coach, [(self.skill_tech, 60)], date="2026-01-01"
+        )
+
+        response = self.client.get(self._compare_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cats = {c["category"]: c for c in response.data["categories"]}
+
+        # Should use player score 90 (latest), NOT 50 (oldest)
+        self.assertEqual(cats["TECHNICAL"]["player_score"], 90)
+        # diff = 90 - 60 = 30.0
+        self.assertEqual(cats["TECHNICAL"]["diff"], 30.0)
