@@ -485,6 +485,31 @@
     "validation": { "nameRequired": "Takım adı zorunludur.", "nameTooLong": "Takım adı en fazla 200 karakter olabilir.", "academyRequired": "Lütfen bir akademi seçin." }
   },
   "training": {
+    "pageSubtitle": "Seansları planlayın, egzersizleri takip edin ve devamı kaydedin.",
+    "newSession": "Yeni seans",
+    "allSessions": "Tüm seanslar",
+    "filterMine": "Seanslarım",
+    "filterLabel": "Seansları filtrele",
+    "recordAttendance": "Devam ekle",
+    "exercisesTitle": "Egzersizler",
+    "attendanceTitle": "Devam",
+    "editAction": "Düzenle",
+    "statusToday": "Bugün",
+    "tableStatus": "Durum",
+    "attendanceStatus": {
+      "PRESENT": "Katıldı",
+      "LATE": "Geç",
+      "EXCUSED": "Mazeretli",
+      "ABSENT": "Katılmadı"
+    },
+    "exerciseCategoryLabel": {
+      "TECHNICAL": "Teknik",
+      "TACTICAL": "Taktik",
+      "PHYSICAL": "Fiziksel",
+      "MENTAL": "Mental",
+      "WARM_UP": "Isınma",
+      "COOL_DOWN": "Soğuma"
+    },
     "sessionsNavLabel": "Antrenman Seansları",
     "sessionNavLabel": "Antrenman Seansı",
     "newNavLabel": "Yeni Antrenman Seansı",
@@ -579,6 +604,15 @@
     "error": { "notFound": "Kayıt bulunamadı." }
   },
   "matches": {
+    "pageSubtitle": "Fikstür, sonuçlar ve oyuncu performansı.",
+    "newMatch": "Yeni maç",
+    "allMatches": "Tüm maçlar",
+    "addStats": "Oyuncu istatistikleri ekle",
+    "playerStatsTitle": "Oyuncu istatistikleri",
+    "recordedBy": "Kaydeden",
+    "tableKeyPasses": "KP",
+    "tableDribbles": "Çalım",
+    "tableInterceptions": "Top Ç.",
     "listNavLabel": "Maçlar",
     "matchNavLabel": "Maç",
     "newNavLabel": "Yeni Maç",
@@ -720,6 +754,12 @@
     "of": "/"
   },
   "schedule": {
+    "dayEmpty": "Bu gün etkinlik yok",
+    "showWholeMonth": "Tüm ayı göster",
+    "partialTitle": "Yalnızca son etkinlikler yüklendi",
+    "partialDesc": "{{sessionsTotal}} antrenman seansınızdan {{sessionsLoaded}} tanesi ve {{matchesTotal}} maçtan {{matchesLoaded}} tanesi gösteriliyor. {{date}} ve öncesindeki etkinlikler takvimde eksik olabilir.",
+    "dayAria_one": "{{date}}, {{count}} etkinlik",
+    "dayAria_other": "{{date}}, {{count}} etkinlik",
     "title": "Takvim",
     "subtitle": "Antrenman seansları ve maçlarınız",
     "noEventsThisMonth": "Bu ay etkinlik yok",

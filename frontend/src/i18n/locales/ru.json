@@ -485,6 +485,31 @@
     "validation": { "nameRequired": "Название команды обязательно.", "nameTooLong": "Название команды не должно превышать 200 символов.", "academyRequired": "Пожалуйста, выберите академию." }
   },
   "training": {
+    "pageSubtitle": "Планируйте тренировки, отслеживайте упражнения и отмечайте посещаемость.",
+    "newSession": "Новая тренировка",
+    "allSessions": "Все тренировки",
+    "filterMine": "Мои тренировки",
+    "filterLabel": "Фильтр тренировок",
+    "recordAttendance": "Добавить посещаемость",
+    "exercisesTitle": "Упражнения",
+    "attendanceTitle": "Посещаемость",
+    "editAction": "Изменить",
+    "statusToday": "Сегодня",
+    "tableStatus": "Статус",
+    "attendanceStatus": {
+      "PRESENT": "Присутствовал",
+      "LATE": "Опоздал",
+      "EXCUSED": "Уважительная причина",
+      "ABSENT": "Отсутствовал"
+    },
+    "exerciseCategoryLabel": {
+      "TECHNICAL": "Техника",
+      "TACTICAL": "Тактика",
+      "PHYSICAL": "Физика",
+      "MENTAL": "Психология",
+      "WARM_UP": "Разминка",
+      "COOL_DOWN": "Заминка"
+    },
     "sessionsNavLabel": "Тренировки",
     "sessionNavLabel": "Тренировка",
     "newNavLabel": "Новая тренировка",
@@ -579,6 +604,15 @@
     "error": { "notFound": "Запись не найдена." }
   },
   "matches": {
+    "pageSubtitle": "Расписание, результаты и выступления игроков.",
+    "newMatch": "Новый матч",
+    "allMatches": "Все матчи",
+    "addStats": "Добавить статистику игроков",
+    "playerStatsTitle": "Статистика игроков",
+    "recordedBy": "Записал",
+    "tableKeyPasses": "КП",
+    "tableDribbles": "Дрб",
+    "tableInterceptions": "Перх",
     "listNavLabel": "Матчи",
     "matchNavLabel": "Матч",
     "newNavLabel": "Новый матч",
@@ -719,6 +753,14 @@
     "of": "из"
   },
   "schedule": {
+    "dayEmpty": "В этот день нет событий",
+    "showWholeMonth": "Показать весь месяц",
+    "partialTitle": "Загружены только последние события",
+    "partialDesc": "Показано {{sessionsLoaded}} из {{sessionsTotal}} ваших тренировок и {{matchesLoaded}} из {{matchesTotal}} матчей. События до {{date}} включительно могут отсутствовать в календаре.",
+    "dayAria_one": "{{date}}, {{count}} событие",
+    "dayAria_few": "{{date}}, {{count}} события",
+    "dayAria_many": "{{date}}, {{count}} событий",
+    "dayAria_other": "{{date}}, {{count}} события",
     "title": "Расписание",
     "subtitle": "Тренировочные сессии и матчи",
     "noEventsThisMonth": "В этом месяце нет событий",
