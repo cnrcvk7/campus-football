@@ -842,3 +842,148 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Superuser bypass tests
+# ---------------------------------------------------------------------------
+
+
+class SuperuserDevelopmentBypassTests(APITestCase):
+    """
+    Django superusers must bypass all academy-affiliation and role-based
+    restrictions on development endpoints.  Non-superuser restrictions must
+    remain intact.
+    """
+
+    def setUp(self):
+        self.skill = make_skill("First Touch", "TECHNICAL")
+
+        # Two separate academies — the superuser has no membership in either.
+        self.academy_a = Academy.objects.create(name="Super Academy A", city="London", country="England")
+        self.academy_b = Academy.objects.create(name="Super Academy B", city="Bristol", country="England")
+
+        # Superuser with the default ACADEMY_ADMIN role and no AcademyStaffMembership rows.
+        self.superuser = User.objects.create_superuser(
+            email="superadmin@test.com",
+            password="superpass123",
+            first_name="Super",
+            last_name="Admin",
+        )
+
+        # Regular ACADEMY_ADMIN affiliated with academy A only.
+        self.admin_a = make_user(User.Role.ACADEMY_ADMIN, "sa_admin_a@test.com")
+        AcademyStaffMembership.objects.create(user=self.admin_a, academy=self.academy_a)
+
+        # Player in academy A only.
+        self.player_in_a = make_player(first_name="Eve")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_a, academy=self.academy_a, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Player in academy B only (no affiliation with admin_a's academy).
+        self.player_in_b = make_player(first_name="Frank")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_in_b, academy=self.academy_b, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        # Player with no academy affiliations at all.
+        self.unaffiliated_player = make_player(first_name="Grace")
+
+    def _assessment_payload(self):
+        return {
+            "assessment_date": "2026-10-15",
+            "items": [{"skill": str(self.skill.pk), "score": 80}],
+        }
+
+    # ---- Superuser can create a DevelopmentGoal for a player in any academy ----
+
+    def test_superuser_can_create_goal_for_player_in_any_academy(self):
+        """Superuser can POST a goal for a player with no affiliation to any academy."""
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.unaffiliated_player.pk})
+        response = self.client.post(
+            url, {"title": "Super goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_superuser_can_create_assessment_for_unaffiliated_player(self):
+        """Superuser can POST an assessment for a player with no academy membership."""
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.unaffiliated_player.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_superuser_can_create_assessment_for_player_in_different_academy(self):
+        """Superuser can POST an assessment for a player in an academy they have no membership in."""
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_superuser_can_create_measurement_for_unaffiliated_player(self):
+        """Superuser can POST a measurement for a player with no academy membership."""
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.unaffiliated_player.pk})
+        response = self.client.post(
+            url, {"measurement_date": "2026-10-15", "height_cm": "178.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # ---- Regular ACADEMY_ADMIN can create for player in their own academy ----
+
+    def test_regular_admin_can_create_goal_for_affiliated_player(self):
+        """Regular ACADEMY_ADMIN can create a goal for a player in their own academy."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(
+            url, {"title": "Affiliated goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    # ---- Regular ACADEMY_ADMIN cannot create for player in another academy ----
+
+    def test_regular_admin_cannot_create_goal_for_player_in_other_academy(self):
+        """Regular ACADEMY_ADMIN is denied when creating a goal for a player in a different academy."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_b.pk})
+        response = self.client.post(
+            url, {"title": "Cross-academy goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_regular_admin_cannot_create_assessment_for_unaffiliated_player(self):
+        """Regular ACADEMY_ADMIN is denied when creating an assessment for a player with no affiliation."""
+        self.client.force_authenticate(user=self.admin_a)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.unaffiliated_player.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- Existing role restrictions remain intact for non-superusers ----
+
+    def test_player_role_cannot_create_assessment(self):
+        """PLAYER role cannot create assessments even for their own player (403)."""
+        player_user = make_user(User.Role.PLAYER, "sa_player@test.com")
+        player = make_player(user=player_user)
+        self.client.force_authenticate(user=player_user)
+        url = reverse("player-assessment-list", kwargs={"player_pk": player.pk})
+        response = self.client.post(url, self._assessment_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_parent_role_cannot_create_goal(self):
+        """PARENT role cannot create goals (403)."""
+        parent_user = make_user(User.Role.PARENT, "sa_parent@test.com")
+        self.client.force_authenticate(user=parent_user)
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.post(
+            url, {"title": "Parent goal", "start_date": "2026-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_superuser_can_read_development_data_for_any_player(self):
+        """Superuser can GET assessments for any player."""
+        make_assessment_with_items(self.player_in_a, self.superuser, [(self.skill, 88)])
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_a.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

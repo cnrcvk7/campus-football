@@ -16,6 +16,8 @@ def require_coach_or_admin(request) -> None:
     (sessions, exercises, attendance).
     """
     user = request.user
+    if user.is_superuser:
+        return
     if user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         raise PermissionDenied(
             "Only coaches and academy admins can manage training data."
@@ -41,6 +43,10 @@ def get_player_and_check_training_access(request, player_pk, require_write: bool
 
     player = get_object_or_404(Player, pk=player_pk)
     user = request.user
+
+    # Django superusers bypass all role and affiliation restrictions.
+    if user.is_superuser:
+        return player
 
     if user.role == User.Role.PLAYER:
         if player.user_id != user.pk:

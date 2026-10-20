@@ -66,3 +66,14 @@ class IsAcademyAdmin(BasePermission):
             and request.user.is_authenticated
             and request.user.role == User.Role.ACADEMY_ADMIN
         )
+
+
+class IsSuperUser(BasePermission):
+    """Grants access to Django superusers regardless of role."""
+
+    def has_permission(self, request, view) -> bool:
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_superuser
+        )

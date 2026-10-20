@@ -23,6 +23,8 @@ def require_coach_or_admin(request) -> None:
     Role-only check — use this to gate read endpoints that should be invisible
     to PLAYER and PARENT roles.
     """
+    if request.user.is_superuser:
+        return
     if request.user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         raise PermissionDenied(
             "Only coaches and academy admins can access this resource."
@@ -39,6 +41,8 @@ def require_academy_admin(request) -> None:
     NOTE: This is a role-only check.  Use require_academy_admin_of_academy()
     when the target academy is known to also enforce membership.
     """
+    if request.user.is_superuser:
+        return
     if request.user.role != User.Role.ACADEMY_ADMIN:
         raise PermissionDenied(
             "Only academy admins can create or modify academies."
@@ -77,7 +81,11 @@ def require_staff_of_academy(user, academy_id) -> None:
     (no membership row can exist for a non-existent academy), so the caller
     receives 403, not 404 — this avoids leaking information about which
     academy IDs exist to unauthorised users.
+
+    Django superusers bypass both checks.
     """
+    if user.is_superuser:
+        return
     if user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         raise PermissionDenied(
             "Only coaches and academy admins can manage resources in this academy."
@@ -100,7 +108,11 @@ def require_academy_admin_of_academy(user, academy_id) -> None:
     COACH users are intentionally denied even when they hold a membership —
     academy-level administration (creating academies, managing staff) is
     restricted to ACADEMY_ADMIN only.
+
+    Django superusers bypass both checks.
     """
+    if user.is_superuser:
+        return
     if user.role != User.Role.ACADEMY_ADMIN:
         raise PermissionDenied(
             "Only academy admins can perform this action."
