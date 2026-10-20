@@ -18,6 +18,7 @@ def get_player_and_check_access(request, player_pk, require_write: bool = False)
 
     Access rules
     ────────────
+    SUPERUSER    — full read and write access to any player's data (no affiliation required).
     PLAYER       — can read their own player's data only.
                    Writing (create/update) is never permitted for this role.
     COACH        — can read and write any player's data.
@@ -32,6 +33,10 @@ def get_player_and_check_access(request, player_pk, require_write: bool = False)
 
     player = get_object_or_404(Player, pk=player_pk)
     user = request.user
+
+    # Django superusers bypass all academy-affiliation and role restrictions.
+    if user.is_superuser:
+        return player
 
     if user.role == User.Role.PLAYER:
         # Players may only see their own development data.
