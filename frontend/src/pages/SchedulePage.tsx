@@ -348,7 +348,7 @@ export default function SchedulePage() {
       {coverage && truncatedAt && monthMayBeIncomplete && (
         <div
           role="note"
-          className="mb-4 flex items-start gap-2.5 rounded-lg bg-amber-50 px-3 py-2.5 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800"
+          className="mb-4 flex items-start gap-2.5 rounded-lg bg-cf-muted px-3 py-2.5 text-cf-muted-foreground ring-1 ring-inset ring-cf-border"
         >
           <Info size={15} className="mt-0.5 shrink-0" />
           <div className="text-xs">
@@ -433,28 +433,31 @@ export default function SchedulePage() {
               return (
                 <div
                   key={dateStr}
+                  role="gridcell"
+                  tabIndex={0}
                   onClick={select}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      select()
+                    }
+                  }}
+                  aria-pressed={isSelected}
+                  aria-current={isToday ? 'date' : undefined}
+                  aria-label={t('schedule.dayAria', {
+                    count: dayEvents.length,
+                    date: formatDay(dateStr, { weekday: 'long', day: 'numeric', month: 'long' }),
+                  })}
                   className={cn(
                     'min-h-[3.25rem] cursor-pointer p-1 transition-colors sm:min-h-[6rem] sm:p-1.5',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/60',
                     borders,
                     isSelected ? 'bg-emerald-50/70 dark:bg-emerald-950/60' : 'hover:bg-cf-muted/50',
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      select()
-                    }}
-                    aria-pressed={isSelected}
-                    aria-current={isToday ? 'date' : undefined}
-                    aria-label={t('schedule.dayAria', {
-                      count: dayEvents.length,
-                      date: formatDay(dateStr, { weekday: 'long', day: 'numeric', month: 'long' }),
-                    })}
+                  <span
                     className={cn(
-                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
+                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums',
                       isToday
                         ? 'bg-cf-brand text-cf-brand-foreground'
                         : isSelected
@@ -463,7 +466,7 @@ export default function SchedulePage() {
                     )}
                   >
                     {Number(dateStr.substring(8, 10))}
-                  </button>
+                  </span>
 
                   {/* Chips (sm+) */}
                   <div className="mt-1 hidden space-y-0.5 sm:block">

@@ -196,9 +196,7 @@ export default function CoachSessionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setPage(1)
-  }, [myOnly])
+  const loadFailedMsg = t('training.error.loadFailed')
 
   useEffect(() => {
     setLoading(true)
@@ -213,10 +211,11 @@ export default function CoachSessionsPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('training.error.loadFailed'))
+        setError(err instanceof Error ? err.message : loadFailedMsg)
         setLoading(false)
       })
-  }, [myOnly, page, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myOnly, page])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const openSession = (s: TrainingSession) => navigate(`/coach/sessions/${s.id}`)
@@ -318,7 +317,7 @@ export default function CoachSessionsPage() {
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <OwnershipFilter myOnly={myOnly} onChange={setMyOnly} />
+        <OwnershipFilter myOnly={myOnly} onChange={(v) => { setMyOnly(v); setPage(1) }} />
         {!loading && !error && (
           <p className="text-xs text-cf-muted-foreground">
             {t('training.sessionCount', { count: total })}

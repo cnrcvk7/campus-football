@@ -524,9 +524,7 @@
       "TECHNICAL": "Technical",
       "TACTICAL": "Tactical",
       "PHYSICAL": "Physical",
-      "MENTAL": "Mental",
-      "WARM_UP": "Warm-up",
-      "COOL_DOWN": "Cool-down"
+      "MENTAL": "Mental"
     },
     "sessionsNavLabel": "Training Sessions",
     "sessionNavLabel": "Training Session",
@@ -534,7 +532,6 @@
     "editNavLabel": "Edit Training Session",
     "listTitle": "Training Sessions",
     "listSubtitle": "All training sessions — click a card to view exercises and attendance.",
-    "mySessionsOnly": "My sessions only",
     "addButton": "+ New Session",
     "backToSessions": "← All sessions",
     "editSession": "Edit Session",
@@ -766,6 +763,7 @@
     }
   },
   "pagination": {
+    "navLabel": "Pagination",
     "previous": "← Previous",
     "next": "Next →",
     "page": "Page",

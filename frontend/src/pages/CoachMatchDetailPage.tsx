@@ -43,7 +43,7 @@ function CardIndicator({ count, color, title }: { count: number; color: string; 
   return (
     <span className="inline-flex items-center gap-1" title={title}>
       <span className={`inline-block h-3.5 w-2.5 rounded-sm ${color}`} aria-hidden="true" />
-      {count > 1 && <span className="text-xs tabular-nums">{count}</span>}
+      <span className="text-xs tabular-nums">{count}</span>
       <span className="sr-only">{title}</span>
     </span>
   )
