@@ -1,49 +1,57 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  CalendarDays,
   Edit2,
   MapPin,
   Plus,
   Trophy,
+  UserPen,
 } from 'lucide-react'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
+import DataTable, { type Column } from '../components/ui/DataTable'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import Panel from '../components/ui/Panel'
+import StatCard from '../components/ui/StatCard'
+import { RESULT_VARIANT, resultLabelKey } from '../constants/badgeVariants'
 import { matchService } from '../services/matchService'
 import type { Match, MatchStats } from '../types'
+import { parseDateOnly, relativeToToday } from '../utils/dateOnly'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
-import { cn } from '../lib/utils'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatLongDate(d: string, locale: string): string {
-  return new Date(d).toLocaleDateString(locale, {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
+function passAccuracy(s: MatchStats): number | null {
+  return s.passes_attempted > 0 ? Math.round((s.passes_completed / s.passes_attempted) * 100) : null
 }
 
-const RESULT_BADGE: Record<string, string> = {
-  WIN:  'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-900 dark:text-emerald-300 dark:ring-emerald-700',
-  DRAW: 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:ring-amber-700',
-  LOSS: 'bg-red-100 text-red-700 ring-red-200 dark:bg-red-900 dark:text-red-300 dark:ring-red-700',
+/** Shows a count, or an em dash for zero. */
+function countOrDash(n: number): string | number {
+  return n || '—'
 }
 
-// ---------------------------------------------------------------------------
-// Summary stat cell
-// ---------------------------------------------------------------------------
-
-function Stat({ label, value }: { label: string; value: string | number }) {
+function CardIndicator({ count, color, title }: { count: number; color: string; title: string }) {
+  if (count <= 0) return <span className="text-cf-muted-foreground">—</span>
   return (
-    <div className="text-center">
-      <p className="text-lg font-bold text-cf-surface-foreground">{value}</p>
-      <p className="text-xs text-cf-muted-foreground">{label}</p>
-    </div>
+    <span className="inline-flex items-center gap-1" title={title}>
+      <span className={`inline-block h-3.5 w-2.5 rounded-sm ${color}`} aria-hidden="true" />
+      {count > 1 && <span className="text-xs tabular-nums">{count}</span>}
+      <span className="sr-only">{title}</span>
+    </span>
   )
+}
+
+function RatingBadge({ rating }: { rating: string | null }) {
+  if (!rating) return <span className="text-cf-muted-foreground">—</span>
+  return <Badge variant="emerald" className="tabular-nums">{parseFloat(rating).toFixed(1)}</Badge>
 }
 
 // ---------------------------------------------------------------------------
@@ -84,9 +92,9 @@ export default function CoachMatchDetailPage() {
 
   if (error || !match) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <EmptyState
-          icon={<AlertTriangle size={24} />}
+          icon={<AlertTriangle size={20} />}
           title={t('matches.error.matchLoadFailed')}
           description={error ?? t('matches.error.notFound')}
         />
@@ -94,326 +102,307 @@ export default function CoachMatchDetailPage() {
     )
   }
 
+  const longDate = parseDateOnly(match.match_date).toLocaleDateString(displayLocale, {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  const hasScore = match.team_score !== null && match.opponent_score !== null
+  const isUpcoming = relativeToToday(match.match_date) !== 'past'
+  const editStatsPath = (s: MatchStats) => `/coach/matches/${match.id}/edit-stats/${s.id}`
+
+  const totals = {
+    players: playerStats.length,
+    starters: playerStats.filter((s) => s.started).length,
+    goals: playerStats.reduce((tot, s) => tot + s.goals, 0),
+    assists: playerStats.reduce((tot, s) => tot + s.assists, 0),
+  }
+
+  const num = 'text-center tabular-nums text-cf-muted-foreground'
+  const numHead = 'text-center'
+
+  const statsColumns: Column<MatchStats>[] = [
+    {
+      key: 'player',
+      header: t('matches.tablePlayer'),
+      cellClassName: 'whitespace-nowrap',
+      render: (s) => (
+        <div>
+          <p className="font-medium text-cf-surface-foreground">{s.player_name}</p>
+          <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{s.football_id}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'start',
+      header: t('matches.tableStart'),
+      headerClassName: numHead,
+      cellClassName: 'text-center',
+      render: (s) =>
+        s.started
+          ? <Badge variant="emerald">{t('matches.playerStarted')}</Badge>
+          : <Badge>{t('matches.playerSubstitute')}</Badge>,
+    },
+    { key: 'min', header: t('matches.tableMin'), headerClassName: numHead, cellClassName: num, render: (s) => s.minutes_played },
+    {
+      key: 'goals',
+      header: t('matches.tableG'),
+      headerClassName: numHead,
+      cellClassName: 'text-center tabular-nums font-semibold text-cf-surface-foreground',
+      render: (s) => countOrDash(s.goals),
+    },
+    { key: 'assists', header: t('matches.tableA'), headerClassName: numHead, cellClassName: num, render: (s) => countOrDash(s.assists) },
+    {
+      key: 'shots',
+      header: t('matches.tableShots'),
+      headerClassName: numHead,
+      cellClassName: num,
+      render: (s) => (s.shots > 0 ? `${s.shots_on_target}/${s.shots}` : '—'),
+    },
+    {
+      key: 'pass',
+      header: t('matches.tablePassPct'),
+      headerClassName: numHead,
+      cellClassName: num,
+      render: (s) => {
+        const pct = passAccuracy(s)
+        return pct !== null ? `${pct}%` : '—'
+      },
+    },
+    { key: 'kp', header: t('matches.tableKeyPasses'), headerClassName: numHead, cellClassName: num, render: (s) => countOrDash(s.key_passes) },
+    { key: 'drb', header: t('matches.tableDribbles'), headerClassName: numHead, cellClassName: num, render: (s) => countOrDash(s.dribbles) },
+    { key: 'tkl', header: t('matches.tableTackles'), headerClassName: numHead, cellClassName: num, render: (s) => countOrDash(s.tackles) },
+    { key: 'int', header: t('matches.tableInterceptions'), headerClassName: numHead, cellClassName: num, render: (s) => countOrDash(s.interceptions) },
+    {
+      key: 'yc',
+      header: t('matches.tableYellow'),
+      headerClassName: numHead,
+      cellClassName: 'text-center',
+      render: (s) => (
+        <CardIndicator
+          count={s.yellow_cards}
+          color="bg-amber-400"
+          title={t('matchStats.yellowCardTitle', { count: s.yellow_cards })}
+        />
+      ),
+    },
+    {
+      key: 'rc',
+      header: t('matches.tableRed'),
+      headerClassName: numHead,
+      cellClassName: 'text-center',
+      render: (s) => (
+        <CardIndicator
+          count={s.red_cards}
+          color="bg-red-500"
+          title={t('matchStats.redCardTitle', { count: s.red_cards })}
+        />
+      ),
+    },
+    {
+      key: 'rating',
+      header: t('matches.tableRating'),
+      headerClassName: numHead,
+      cellClassName: 'text-center',
+      render: (s) => <RatingBadge rating={s.rating} />,
+    },
+    {
+      key: 'actions',
+      header: '',
+      cellClassName: 'text-right whitespace-nowrap',
+      render: (s) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(editStatsPath(s))}
+          aria-label={`${t('matchStats.editStats')} — ${s.player_name}`}
+        >
+          <Edit2 size={12} />
+          {t('matchStats.editStats')}
+        </Button>
+      ),
+    },
+  ]
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        {/* Back + edit */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <button
-            onClick={() => navigate('/coach/matches')}
-            className="inline-flex items-center gap-1.5 text-sm text-cf-muted-foreground hover:text-cf-surface-foreground transition-colors"
-          >
-            <ArrowLeft size={15} />
-            {t('matches.backToMatches')}
-          </button>
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Back link + edit */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Link
+          to="/coach/matches"
+          className="inline-flex items-center gap-1.5 text-sm text-cf-muted-foreground transition-colors hover:text-cf-surface-foreground"
+        >
+          <ArrowLeft size={14} />
+          {t('matches.allMatches')}
+        </Link>
+        <Button variant="secondary" onClick={() => navigate(`/coach/matches/${match.id}/edit`)}>
+          <Edit2 size={14} />
+          {t('matches.editMatch')}
+        </Button>
+      </div>
 
-          <button
-            onClick={() => navigate(`/coach/matches/${match.id}/edit`)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-cf-surface ring-1 ring-cf-border text-cf-surface-foreground hover:bg-cf-muted transition-colors"
-          >
-            <Edit2 size={15} />
-            {t('matches.editMatch')}
-          </button>
+      {/* Scoreboard */}
+      <section className="mb-5 overflow-hidden rounded-xl bg-cf-surface ring-1 ring-cf-border">
+        <div className="flex flex-wrap items-center justify-center gap-2 border-b border-cf-border px-4 py-2 text-xs text-cf-muted-foreground">
+          {match.home_away === 'HOME'
+            ? <Badge variant="emerald">{t('matches.homeBadge')}</Badge>
+            : <Badge>{t('matches.awayBadge')}</Badge>}
+          {match.competition && <span className="font-medium">{match.competition}</span>}
         </div>
 
-        {/* Match hero */}
-        <div className="mb-6 overflow-hidden rounded-2xl bg-slate-900 dark:bg-slate-800 p-6 text-white">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            {/* Left: team info */}
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <span
-                  className={cn(
-                    'rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-                    match.home_away === 'HOME'
-                      ? 'bg-emerald-900 text-emerald-300 ring-emerald-700'
-                      : 'bg-slate-700 text-slate-300 ring-slate-600',
-                  )}
-                >
-                  {match.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')}
-                </span>
-                {match.competition && (
-                  <span className="text-xs text-slate-400">{match.competition}</span>
-                )}
-              </div>
-              <h1 className="text-xl font-bold text-white">
-                {match.team_name}
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-400">
-                vs {match.opponent_name}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-6 sm:gap-6">
+          <h1 className="text-right text-base font-semibold leading-tight text-cf-surface-foreground sm:text-lg">
+            {match.team_name}
+          </h1>
+
+          <div className="flex min-w-[6rem] flex-col items-center gap-1.5">
+            {hasScore ? (
+              <p className="font-mono text-3xl font-bold tabular-nums text-cf-surface-foreground sm:text-4xl">
+                {match.team_score}
+                <span className="mx-1.5 text-cf-muted-foreground">–</span>
+                {match.opponent_score}
               </p>
-            </div>
-
-            {/* Right: score */}
-            <div className="text-right">
-              {match.score_display ? (
-                <p className="text-5xl font-black tracking-tight text-white">
-                  {match.score_display}
-                </p>
-              ) : (
-                <p className="text-sm text-slate-400">{t('matches.noScore')}</p>
-              )}
-              {match.result && (
-                <span
-                  className={cn(
-                    'mt-2 inline-block rounded-full px-3 py-0.5 text-sm font-bold ring-1 ring-inset',
-                    RESULT_BADGE[match.result],
-                  )}
-                >
-                  {match.result === 'WIN'
-                    ? t('matches.winBadge')
-                    : match.result === 'DRAW'
-                    ? t('matches.drawBadge')
-                    : t('matches.lossBadge')}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Info row */}
-          <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-700 pt-4 text-sm text-slate-300">
-            <span>{formatLongDate(match.match_date, displayLocale)}</span>
-            {match.academy_name && (
-              <span className="flex items-center gap-1.5">
-                <Building2 size={13} />
-                {match.academy_name}
-              </span>
+            ) : isUpcoming ? (
+              <Badge variant="sky">{t('matches.upcomingBadge')}</Badge>
+            ) : (
+              <p className="text-center text-xs text-cf-muted-foreground">{t('matches.noScore')}</p>
             )}
-            {match.venue && (
-              <span className="flex items-center gap-1.5">
-                <MapPin size={13} />
-                {match.venue}
-              </span>
+            {match.result && (
+              <Badge variant={RESULT_VARIANT[match.result]}>{t(resultLabelKey(match.result))}</Badge>
             )}
           </div>
+
+          <p className="text-base font-semibold leading-tight text-cf-surface-foreground sm:text-lg">
+            {match.opponent_name}
+          </p>
         </div>
 
-        {/* Notes */}
-        {match.notes && (
-          <div className="mb-6 rounded-2xl p-4 ring-1 bg-cf-surface ring-cf-border">
-            <p className="text-sm text-cf-muted-foreground">{match.notes}</p>
-          </div>
-        )}
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 border-t border-cf-border bg-cf-muted/40 px-4 py-2.5 text-xs text-cf-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <CalendarDays size={13} />
+            <span className="first-letter:uppercase">{longDate}</span>
+          </span>
+          {match.venue && (
+            <span className="flex items-center gap-1.5">
+              <MapPin size={13} />
+              {match.venue}
+            </span>
+          )}
+          {match.academy_name && (
+            <span className="flex items-center gap-1.5">
+              <Building2 size={13} />
+              {match.academy_name}
+            </span>
+          )}
+          {match.created_by_name && (
+            <span className="flex items-center gap-1.5">
+              <UserPen size={13} />
+              {t('matches.recordedBy')}: {match.created_by_name}
+            </span>
+          )}
+        </div>
+      </section>
 
-        {/* Player stats */}
-        <section>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-              {t('matches.playerStats', { count: playerStats.length })}
-            </h2>
-            <button
-              onClick={() => navigate(`/coach/matches/${match.id}/add-stats`)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-            >
-              <Plus size={15} />
-              {t('matches.addPlayerStats')}
-            </button>
-          </div>
+      {/* Notes */}
+      {match.notes && (
+        <Panel title={t('matches.sectionNotes')} className="mb-5">
+          <p className="whitespace-pre-line text-sm text-cf-muted-foreground">{match.notes}</p>
+        </Panel>
+      )}
 
-          {playerStats.length === 0 ? (
-            <EmptyState
-              icon={<Trophy size={24} />}
-              title={t('matches.noPlayerStats')}
-              description={t('matches.noPlayerStatsHint')}
-            />
-          ) : (
-            <div className="overflow-hidden rounded-2xl ring-1 ring-cf-border">
-              {/* Desktop table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-cf-border">
-                  <thead>
-                    <tr className="bg-cf-muted">
-                      <th className="py-3 pl-4 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground whitespace-nowrap">
-                        {t('matches.tablePlayer')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableStart')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableMin')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableG')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableA')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableShots')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tablePassPct')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableTackles')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableYellow')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableRed')}
-                      </th>
-                      <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                        {t('matches.tableRating')}
-                      </th>
-                      <th className="pl-3 pr-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cf-border bg-cf-surface">
-                    {playerStats.map((s) => {
-                      const passAccuracy =
-                        s.passes_attempted > 0
-                          ? Math.round((s.passes_completed / s.passes_attempted) * 100)
-                          : null
-                      return (
-                        <tr key={s.id} className="hover:bg-cf-muted/50">
-                          <td className="py-3 pl-4 pr-3 whitespace-nowrap">
-                            <p className="text-sm font-medium text-cf-surface-foreground">
-                              {s.player_name}
-                            </p>
-                            <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400">
-                              {s.football_id}
-                            </p>
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {s.started ? (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                {t('matches.playerStarted')}
-                              </span>
-                            ) : (
-                              <span className="text-cf-muted-foreground">
-                                {t('matches.playerSubstitute')}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {s.minutes_played}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm font-semibold text-cf-surface-foreground">
-                            {s.goals || '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {s.assists || '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {s.shots > 0 ? `${s.shots_on_target}/${s.shots}` : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {passAccuracy !== null ? `${passAccuracy}%` : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm text-cf-muted-foreground">
-                            {s.tackles || '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm">
-                            {s.yellow_cards > 0 ? (
-                              <span
-                                className="inline-block h-4 w-3 rounded-sm bg-amber-400"
-                                title={t('matchStats.yellowCardTitle', { count: s.yellow_cards })}
-                              />
-                            ) : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center text-sm">
-                            {s.red_cards > 0 ? (
-                              <span
-                                className="inline-block h-4 w-3 rounded-sm bg-red-500"
-                                title={t('matchStats.redCardTitle', { count: s.red_cards })}
-                              />
-                            ) : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            {s.rating ? (
-                              <span className="inline-flex items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                                {parseFloat(s.rating).toFixed(1)}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-cf-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="pl-3 pr-4 py-3 text-right whitespace-nowrap">
-                            <button
-                              onClick={() =>
-                                navigate(`/coach/matches/${match.id}/edit-stats/${s.id}`)
-                              }
-                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
-                            >
-                              <Edit2 size={12} />
-                              {t('matchStats.editStats')}
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+      {/* Summary */}
+      {playerStats.length > 0 && (
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label={t('matches.summaryPlayers')} value={String(totals.players)} />
+          <StatCard label={t('matches.summaryStarters')} value={String(totals.starters)} />
+          <StatCard label={t('matches.summaryGoals')} value={String(totals.goals)} />
+          <StatCard label={t('matches.summaryAssists')} value={String(totals.assists)} />
+        </div>
+      )}
 
-              {/* Mobile cards */}
-              <div className="md:hidden divide-y divide-cf-border bg-cf-surface">
-                {playerStats.map((s) => (
-                  <div key={s.id} className="p-4">
+      {/* Player stats */}
+      <Panel
+        title={t('matches.playerStatsTitle')}
+        count={playerStats.length}
+        bodyClassName="p-0"
+        action={
+          <Button size="sm" onClick={() => navigate(`/coach/matches/${match.id}/add-stats`)}>
+            <Plus size={13} />
+            {t('matches.addStats')}
+          </Button>
+        }
+      >
+        {playerStats.length === 0 ? (
+          <EmptyState
+            icon={<Trophy size={20} />}
+            title={t('matches.noPlayerStats')}
+            description={t('matches.noPlayerStatsHint')}
+            className="rounded-none ring-0"
+          />
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <DataTable
+                columns={statsColumns}
+                rows={playerStats}
+                rowKey={(s) => s.id}
+                className="rounded-none ring-0"
+              />
+            </div>
+
+            {/* Mobile list */}
+            <ul className="divide-y divide-cf-border md:hidden">
+              {playerStats.map((s) => {
+                const pct = passAccuracy(s)
+                return (
+                  <li key={s.id} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-medium text-cf-surface-foreground">{s.player_name}</p>
-                        <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          {s.football_id}
-                        </p>
+                        <p className="truncate text-sm font-medium text-cf-surface-foreground">{s.player_name}</p>
+                        <p className="font-mono text-xs text-emerald-600 dark:text-emerald-400">{s.football_id}</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {s.rating && (
-                          <span className="inline-flex items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 text-sm font-bold text-emerald-700 dark:text-emerald-400">
-                            {parseFloat(s.rating).toFixed(1)}
-                          </span>
-                        )}
-                        <button
-                          onClick={() =>
-                            navigate(`/coach/matches/${match.id}/edit-stats/${s.id}`)
-                          }
-                          className="text-cf-muted-foreground hover:text-cf-surface-foreground transition-colors"
+                      <div className="flex flex-shrink-0 items-center gap-1">
+                        <RatingBadge rating={s.rating} />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(editStatsPath(s))}
+                          aria-label={`${t('matchStats.editStats')} — ${s.player_name}`}
                         >
-                          <Edit2 size={14} />
-                        </button>
+                          <Edit2 size={13} />
+                        </Button>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-cf-muted-foreground">
                       <span>
-                        {s.started
-                          ? t('matches.playerStarted')
-                          : t('matches.playerSubstitute')}
+                        {s.started ? t('matches.playerStarted') : t('matches.playerSubstitute')}
                         {' '}&middot; {s.minutes_played}{t('matches.statsMobileMinutes')}
                       </span>
-                      {s.goals > 0 && (
-                        <span>{s.goals} {t('matches.statsMobileGoals')}</span>
+                      {s.goals > 0 && <span>{s.goals} {t('matches.statsMobileGoals')}</span>}
+                      {s.assists > 0 && <span>{s.assists} {t('matches.statsMobileAssists')}</span>}
+                      {s.shots > 0 && <span>{t('matches.tableShots')} {s.shots_on_target}/{s.shots}</span>}
+                      {pct !== null && <span>{t('matches.tablePassPct')} {pct}%</span>}
+                      {s.yellow_cards > 0 && (
+                        <CardIndicator
+                          count={s.yellow_cards}
+                          color="bg-amber-400"
+                          title={t('matchStats.yellowCardTitle', { count: s.yellow_cards })}
+                        />
                       )}
-                      {s.assists > 0 && (
-                        <span>{s.assists} {t('matches.statsMobileAssists')}</span>
+                      {s.red_cards > 0 && (
+                        <CardIndicator
+                          count={s.red_cards}
+                          color="bg-red-500"
+                          title={t('matchStats.redCardTitle', { count: s.red_cards })}
+                        />
                       )}
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Summary row */}
-              {playerStats.length > 1 && (
-                <div className="border-t border-cf-border bg-cf-muted px-4 py-3">
-                  <div className="flex flex-wrap justify-end gap-6">
-                    <Stat label={t('matches.summaryPlayers')} value={playerStats.length} />
-                    <Stat
-                      label={t('matches.summaryStarters')}
-                      value={playerStats.filter((s) => s.started).length}
-                    />
-                    <Stat
-                      label={t('matches.summaryGoals')}
-                      value={playerStats.reduce((tot, s) => tot + s.goals, 0)}
-                    />
-                    <Stat
-                      label={t('matches.summaryAssists')}
-                      value={playerStats.reduce((tot, s) => tot + s.assists, 0)}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
+      </Panel>
     </div>
   )
 }
