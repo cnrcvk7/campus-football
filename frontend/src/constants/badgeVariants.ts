@@ -1,14 +1,14 @@
 import type { BadgeVariant } from '../components/ui/Badge'
 import type { AttendanceStatus, MatchResult } from '../types'
 
-/** Badge colour per skill / exercise category (training and development). */
+/** Badge colour per skill / exercise category (training and development).
+ *  Covers the four values that Exercise.Category exposes: TECHNICAL, TACTICAL, PHYSICAL, MENTAL.
+ */
 export const CATEGORY_VARIANT: Record<string, BadgeVariant> = {
   TECHNICAL: 'sky',
   TACTICAL: 'violet',
   PHYSICAL: 'emerald',
   MENTAL: 'amber',
-  WARM_UP: 'amber',
-  COOL_DOWN: 'default',
 }
 
 export const ATTENDANCE_VARIANT: Record<AttendanceStatus, BadgeVariant> = {

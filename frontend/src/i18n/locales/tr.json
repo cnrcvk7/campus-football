@@ -524,9 +524,7 @@
       "TECHNICAL": "Teknik",
       "TACTICAL": "Taktik",
       "PHYSICAL": "Fiziksel",
-      "MENTAL": "Mental",
-      "WARM_UP": "Isınma",
-      "COOL_DOWN": "Soğuma"
+      "MENTAL": "Mental"
     },
     "sessionsNavLabel": "Antrenman Seansları",
     "sessionNavLabel": "Antrenman Seansı",
@@ -534,7 +532,6 @@
     "editNavLabel": "Antrenman Seansını Düzenle",
     "listTitle": "Antrenman Seansları",
     "listSubtitle": "Tüm antrenman seansları — egzersizler ve devam için bir karta tıklayın.",
-    "mySessionsOnly": "Yalnızca benim seanslarım",
     "addButton": "+ Yeni Seans",
     "backToSessions": "← Tüm seanslar",
     "editSession": "Seansı Düzenle",
@@ -766,6 +763,7 @@
     }
   },
   "pagination": {
+    "navLabel": "Sayfalama",
     "previous": "← Önceki",
     "next": "Sonraki →",
     "page": "Sayfa",

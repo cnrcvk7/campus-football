@@ -28,7 +28,7 @@ export default function Pagination({
 
   return (
     <nav
-      aria-label={t('pagination.page')}
+      aria-label={t('pagination.navLabel')}
       className={cn('flex items-center justify-between gap-3', className)}
     >
       <Button variant="secondary" onClick={onPrev} disabled={!hasPrev || disabled}>

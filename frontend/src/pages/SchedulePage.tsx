@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Info,
   MapPin,
   Plus,
 } from 'lucide-react'
@@ -102,7 +101,7 @@ function EventChip({ event }: { event: ScheduleEvent }) {
       onClick={(e) => e.stopPropagation()}
       title={`${kindLabel}: ${label}`}
       className={cn(
-        'block truncate rounded-sm border-l-2 px-1 py-0.5 text-[11px] font-medium leading-tight transition-colors',
+        'block truncate rounded-sm border-l-2 px-1 py-0.5 text-[11px] font-medium leading-tight transition-colors pointer-events-auto',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50',
         KIND_STYLES[event.kind].bar,
         KIND_STYLES[event.kind].chip,
@@ -348,9 +347,9 @@ export default function SchedulePage() {
       {coverage && truncatedAt && monthMayBeIncomplete && (
         <div
           role="note"
-          className="mb-4 flex items-start gap-2.5 rounded-lg bg-amber-50 px-3 py-2.5 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800"
+          className="mb-4 flex items-start gap-2.5 rounded-lg bg-cf-warning px-3 py-2.5 text-cf-warning-foreground ring-1 ring-inset ring-cf-warning-border"
         >
-          <Info size={15} className="mt-0.5 shrink-0" />
+          <AlertTriangle size={15} aria-hidden="true" className="mt-0.5 shrink-0" />
           <div className="text-xs">
             <p className="font-semibold">{t('schedule.partialTitle')}</p>
             <p className="mt-0.5">
@@ -433,19 +432,16 @@ export default function SchedulePage() {
               return (
                 <div
                   key={dateStr}
-                  onClick={select}
                   className={cn(
-                    'min-h-[3.25rem] cursor-pointer p-1 transition-colors sm:min-h-[6rem] sm:p-1.5',
+                    'relative min-h-[3.25rem] p-1 transition-colors sm:min-h-[6rem] sm:p-1.5',
                     borders,
-                    isSelected ? 'bg-emerald-50/70 dark:bg-emerald-950/60' : 'hover:bg-cf-muted/50',
+                    isSelected ? 'bg-emerald-50/70 dark:bg-emerald-950/60' : '',
                   )}
                 >
+                  {/* Full-cell toggle button (behind chips so Links stay reachable) */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      select()
-                    }}
+                    onClick={select}
                     aria-pressed={isSelected}
                     aria-current={isToday ? 'date' : undefined}
                     aria-label={t('schedule.dayAria', {
@@ -453,8 +449,16 @@ export default function SchedulePage() {
                       date: formatDay(dateStr, { weekday: 'long', day: 'numeric', month: 'long' }),
                     })}
                     className={cn(
-                      'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60',
+                      'absolute inset-0 cursor-pointer transition-colors',
+                      !isSelected && 'hover:bg-cf-muted/50',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/60',
+                    )}
+                  />
+
+                  {/* Date number — above the button overlay */}
+                  <span
+                    className={cn(
+                      'relative z-10 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums pointer-events-none',
                       isToday
                         ? 'bg-cf-brand text-cf-brand-foreground'
                         : isSelected
@@ -463,10 +467,10 @@ export default function SchedulePage() {
                     )}
                   >
                     {Number(dateStr.substring(8, 10))}
-                  </button>
+                  </span>
 
-                  {/* Chips (sm+) */}
-                  <div className="mt-1 hidden space-y-0.5 sm:block">
+                  {/* Chips (sm+) — above the button overlay so Links stay clickable */}
+                  <div className="relative z-10 mt-1 hidden space-y-0.5 sm:block pointer-events-none">
                     {visibleEvents.map((ev) => (
                       <EventChip key={`${ev.kind}-${ev.id}`} event={ev} />
                     ))}
@@ -479,7 +483,7 @@ export default function SchedulePage() {
 
                   {/* Dots (mobile) */}
                   {dayEvents.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-0.5 px-0.5 sm:hidden" aria-hidden="true">
+                    <div className="relative z-10 mt-1 flex flex-wrap gap-0.5 px-0.5 sm:hidden pointer-events-none" aria-hidden="true">
                       {dayEvents.slice(0, 4).map((ev) => (
                         <span key={`${ev.kind}-${ev.id}`} className={cn('h-1.5 w-1.5 rounded-full', KIND_STYLES[ev.kind].dot)} />
                       ))}
