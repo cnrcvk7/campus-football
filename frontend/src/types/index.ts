@@ -424,6 +424,32 @@ export interface TrainingHistory {
 }
 
 // ---------------------------------------------------------------------------
+// Monthly Report
+// ---------------------------------------------------------------------------
+
+export interface MonthlyPeriodStats {
+  assessment_count: number
+  match_count: number
+  matches_won: number
+  goals: number
+  assists: number
+  avg_rating: string | null
+  training_count: number
+  training_attended: number
+  attendance_rate: number | null
+  measurement_count: number
+  goals_completed: number
+  goals_active: number
+}
+
+export interface MonthlyReportSummary {
+  period: { year: number; month: number }
+  current: MonthlyPeriodStats
+  previous: MonthlyPeriodStats | null
+  has_previous_data: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Player Team Comparison
 // ---------------------------------------------------------------------------
 

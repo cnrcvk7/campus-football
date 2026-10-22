@@ -1291,3 +1291,326 @@ class PlayerComparisonTests(APITestCase):
         self.assertEqual(cats["TECHNICAL"]["player_score"], 90)
         # diff = 90 - 60 = 30.0
         self.assertEqual(cats["TECHNICAL"]["diff"], 30.0)
+
+
+# ---------------------------------------------------------------------------
+# Monthly Date Filtering Tests
+# ---------------------------------------------------------------------------
+
+
+class MonthlyDateFilteringTests(APITestCase):
+    """Tests for ?year=YYYY&month=MM filtering on timeline, matches, and training."""
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "filter_coach@test.com")
+        self.player = make_player()
+        self.skill1 = make_skill("FilterSkill", "TECHNICAL")
+        self.client.force_authenticate(user=self.coach)
+
+        # Academy affiliation for writes
+        self.academy = Academy.objects.create(name="Filter Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        self.timeline_url = reverse("player-development-timeline", kwargs={"player_pk": self.player.pk})
+
+    def test_timeline_no_filter_returns_all(self):
+        """No year/month params → all assessments are returned."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 70)], date="2026-01-15")
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-03-10")
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 85)], date="2026-05-20")
+        response = self.client.get(self.timeline_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["assessments"]), 3)
+
+    def test_timeline_filter_by_month_returns_only_that_month(self):
+        """3 assessments — 1 in target month, 2 outside → only 1 returned."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 70)], date="2026-01-15")  # target month
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-02-10")  # different month
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 85)], date="2025-01-20")  # different year
+        response = self.client.get(self.timeline_url, {"year": "2026", "month": "1"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["assessments"]), 1)
+        self.assertEqual(response.data["assessments"][0]["assessment_date"], "2026-01-15")
+
+    def test_timeline_filter_boundary_first_day(self):
+        """Assessment on month's first day is included."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 75)], date="2026-03-01")
+        response = self.client.get(self.timeline_url, {"year": "2026", "month": "3"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["assessments"]), 1)
+
+    def test_timeline_filter_boundary_last_day(self):
+        """Assessment on month's last day is included (March 31)."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 75)], date="2026-03-31")
+        response = self.client.get(self.timeline_url, {"year": "2026", "month": "3"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["assessments"]), 1)
+
+    def test_timeline_filter_excludes_adjacent_months(self):
+        """Day before start and day after end excluded."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 70)], date="2026-02-28")  # day before March
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-03-15")  # in March
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 90)], date="2026-04-01")  # day after March
+        response = self.client.get(self.timeline_url, {"year": "2026", "month": "3"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["assessments"]), 1)
+        self.assertEqual(response.data["assessments"][0]["assessment_date"], "2026-03-15")
+
+    def test_measurement_filter_by_month(self):
+        """Measurements filtered by month correctly."""
+        PhysicalMeasurement.objects.create(
+            player=self.player, measurement_date="2026-04-10", height_cm="175.00"
+        )
+        PhysicalMeasurement.objects.create(
+            player=self.player, measurement_date="2026-05-05", height_cm="176.00"
+        )
+        response = self.client.get(self.timeline_url, {"year": "2026", "month": "4"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["measurements"]), 1)
+        self.assertEqual(response.data["measurements"][0]["measurement_date"], "2026-04-10")
+
+    def test_match_history_filter_by_month(self):
+        """Match history filtered by month via ?year=YYYY&month=MM."""
+        from apps.matches.models import Match, MatchPlayerStats
+        from apps.teams.models import Team
+
+        team = Team.objects.create(
+            academy=self.academy, name="Filter Team", age_group="U15"
+        )
+        match_in = Match.objects.create(
+            academy=self.academy, team=team, opponent_name="Opp A",
+            match_date="2026-06-15", home_away="HOME", created_by=self.coach
+        )
+        match_out = Match.objects.create(
+            academy=self.academy, team=team, opponent_name="Opp B",
+            match_date="2026-07-10", home_away="AWAY", created_by=self.coach
+        )
+        MatchPlayerStats.objects.create(match=match_in, player=self.player)
+        MatchPlayerStats.objects.create(match=match_out, player=self.player)
+
+        url = reverse("player-match-history", kwargs={"player_pk": self.player.pk})
+        response = self.client.get(url, {"year": "2026", "month": "6"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["matches"]), 1)
+
+    def test_training_history_filter_by_month(self):
+        """Training history filtered by month via ?year=YYYY&month=MM."""
+        from apps.training.models import TrainingAttendance, TrainingSession
+        from apps.teams.models import Team
+
+        team = Team.objects.create(
+            academy=self.academy, name="Filter Training Team", age_group="U15"
+        )
+        session_in = TrainingSession.objects.create(
+            academy=self.academy, team=team, title="Session In",
+            training_date="2026-08-12", coach=self.coach
+        )
+        session_out = TrainingSession.objects.create(
+            academy=self.academy, team=team, title="Session Out",
+            training_date="2026-09-05", coach=self.coach
+        )
+        TrainingAttendance.objects.create(session=session_in, player=self.player, status="PRESENT")
+        TrainingAttendance.objects.create(session=session_out, player=self.player, status="PRESENT")
+
+        url = reverse("player-training-history", kwargs={"player_pk": self.player.pk})
+        response = self.client.get(url, {"year": "2026", "month": "8"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["sessions"]), 1)
+        self.assertEqual(response.data["sessions"][0]["training_date"], "2026-08-12")
+
+
+# ---------------------------------------------------------------------------
+# Monthly Report Summary Tests
+# ---------------------------------------------------------------------------
+
+
+class MonthlyReportTests(APITestCase):
+    """Tests for GET /api/players/{player_pk}/report/monthly/?year=YYYY&month=MM"""
+
+    def setUp(self):
+        self.coach = make_user(User.Role.COACH, "monthly_coach@test.com")
+        self.player = make_player()
+        self.skill1 = make_skill("MonthlySkill", "TECHNICAL")
+        self.client.force_authenticate(user=self.coach)
+
+        self.academy = Academy.objects.create(name="Monthly Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
+
+        from apps.teams.models import Team
+        self.team = Team.objects.create(
+            academy=self.academy, name="Monthly Team", age_group="U15"
+        )
+
+        self.url = reverse("player-monthly-report", kwargs={"player_pk": self.player.pk})
+
+    def _get(self, year, month):
+        return self.client.get(self.url, {"year": str(year), "month": str(month)})
+
+    def _make_match_with_stats(self, match_date, goals=1, assists=0, team_score=2, opponent_score=1):
+        from apps.matches.models import Match, MatchPlayerStats
+        match = Match.objects.create(
+            academy=self.academy, team=self.team, opponent_name="Opp",
+            match_date=match_date, home_away="HOME",
+            team_score=team_score, opponent_score=opponent_score,
+            created_by=self.coach
+        )
+        MatchPlayerStats.objects.create(
+            match=match, player=self.player,
+            goals=goals, assists=assists
+        )
+        return match
+
+    def _make_training_with_attendance(self, training_date, attendance_status="PRESENT"):
+        from apps.training.models import TrainingAttendance, TrainingSession
+        session = TrainingSession.objects.create(
+            academy=self.academy, team=self.team,
+            title="Monthly Session", training_date=training_date, coach=self.coach
+        )
+        TrainingAttendance.objects.create(session=session, player=self.player, status=attendance_status)
+        return session
+
+    def test_monthly_summary_current_and_previous(self):
+        """Response includes current and previous month stats."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-10-10")
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 75)], date="2026-09-15")
+        self._make_match_with_stats("2026-10-05")
+        self._make_training_with_attendance("2026-10-12")
+
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("current", response.data)
+        self.assertIn("previous", response.data)
+        self.assertIn("has_previous_data", response.data)
+        self.assertEqual(response.data["period"]["year"], 2026)
+        self.assertEqual(response.data["period"]["month"], 10)
+        self.assertEqual(response.data["current"]["assessment_count"], 1)
+        self.assertEqual(response.data["current"]["match_count"], 1)
+        self.assertEqual(response.data["current"]["training_count"], 1)
+        self.assertTrue(response.data["has_previous_data"])
+        self.assertIsNotNone(response.data["previous"])
+        self.assertEqual(response.data["previous"]["assessment_count"], 1)
+
+    def test_monthly_summary_no_previous_data(self):
+        """First month of activity → has_previous_data: false, previous: null."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-10-10")
+        # No data in September
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["has_previous_data"])
+        self.assertIsNone(response.data["previous"])
+
+    def test_monthly_summary_invalid_month_param(self):
+        """?year=2026&month=13 → 400."""
+        response = self._get(2026, 13)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_monthly_summary_missing_month_only_param(self):
+        """Only year provided → 400."""
+        response = self.client.get(self.url, {"year": "2026"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_monthly_summary_permission_denied(self):
+        """User at different academy → 403 when player is linked to a different user."""
+        other_player_user = make_user(User.Role.PLAYER, "monthly_other@test.com")
+        other_player = make_player(user=other_player_user)
+        self.client.force_authenticate(user=other_player_user)
+        # Try to access self.player's report (not linked to other_player_user)
+        url = reverse("player-monthly-report", kwargs={"player_pk": self.player.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_monthly_summary_superuser_access(self):
+        """Superuser can access any player's monthly report."""
+        superuser = User.objects.create_superuser(
+            email="monthly_super@test.com",
+            password="superpass123",
+            first_name="Super",
+            last_name="Admin",
+        )
+        self.client.force_authenticate(user=superuser)
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_monthly_summary_empty_month(self):
+        """No records for the month → all counts are 0."""
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data["current"]
+        self.assertEqual(current["assessment_count"], 0)
+        self.assertEqual(current["match_count"], 0)
+        self.assertEqual(current["training_count"], 0)
+        self.assertEqual(current["measurement_count"], 0)
+        self.assertEqual(current["goals_completed"], 0)
+        self.assertEqual(current["goals_active"], 0)
+        self.assertFalse(response.data["has_previous_data"])
+
+    def test_monthly_summary_wins_counted_correctly(self):
+        """matches_won counts only WIN results."""
+        self._make_match_with_stats("2026-10-01", team_score=3, opponent_score=0)  # win
+        self._make_match_with_stats("2026-10-05", team_score=1, opponent_score=1)  # draw
+        self._make_match_with_stats("2026-10-10", team_score=0, opponent_score=2)  # loss
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current"]["match_count"], 3)
+        self.assertEqual(response.data["current"]["matches_won"], 1)
+
+    def test_monthly_summary_goals_and_assists_summed(self):
+        """goals and assists are summed across all matches in the month."""
+        self._make_match_with_stats("2026-10-01", goals=2, assists=1)
+        self._make_match_with_stats("2026-10-15", goals=1, assists=2)
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current"]["goals"], 3)
+        self.assertEqual(response.data["current"]["assists"], 3)
+
+    def test_monthly_summary_attendance_rate(self):
+        """attendance_rate = present+late / total recorded."""
+        self._make_training_with_attendance("2026-10-01", attendance_status="PRESENT")
+        self._make_training_with_attendance("2026-10-08", attendance_status="LATE")
+        self._make_training_with_attendance("2026-10-15", attendance_status="ABSENT")
+        self._make_training_with_attendance("2026-10-22", attendance_status="PRESENT")
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # 3 attended (present+late) out of 4 → 75%
+        self.assertEqual(response.data["current"]["attendance_rate"], 75)
+
+    def test_monthly_summary_year_boundary_wraps_correctly(self):
+        """Previous month for January should be December of previous year."""
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 70)], date="2025-12-20")
+        make_assessment_with_items(self.player, self.coach, [(self.skill1, 80)], date="2026-01-10")
+        response = self._get(2026, 1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current"]["assessment_count"], 1)
+        self.assertTrue(response.data["has_previous_data"])
+        self.assertEqual(response.data["previous"]["assessment_count"], 1)
+
+    def test_monthly_summary_missing_year_param(self):
+        """Only month provided → 400."""
+        response = self.client.get(self.url, {"month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_monthly_summary_non_integer_params(self):
+        """Non-integer year/month → 400."""
+        response = self.client.get(self.url, {"year": "abc", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_monthly_summary_measurement_count(self):
+        """measurement_count is correctly counted for the month."""
+        PhysicalMeasurement.objects.create(
+            player=self.player, measurement_date="2026-10-05", height_cm="175.00"
+        )
+        PhysicalMeasurement.objects.create(
+            player=self.player, measurement_date="2026-10-20", height_cm="175.50"
+        )
+        PhysicalMeasurement.objects.create(
+            player=self.player, measurement_date="2026-11-01", height_cm="176.00"
+        )
+        response = self._get(2026, 10)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current"]["measurement_count"], 2)

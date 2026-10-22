@@ -1,15 +1,19 @@
 // frontend/src/pages/PlayerReportPage.tsx
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Printer, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
+import MonthSelector from '../components/ui/MonthSelector'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
+import { useMonthlyReport } from '../hooks/useMonthlyReport'
 import type {
   Assessment,
   DevelopmentGoal,
   MatchSummary,
+  MonthlyReportSummary,
   PhysicalMeasurement,
   Player,
   PlayerHistory,
@@ -122,6 +126,137 @@ function buildSkillHistory(assessments: Assessment[]): SkillHistory[] {
 function passAccuracy(completed: number, attempted: number): number | null {
   if (attempted <= 0) return null
   return Math.round((completed / attempted) * 100)
+}
+
+// ---------------------------------------------------------------------------
+// Monthly Summary Card
+// ---------------------------------------------------------------------------
+
+function DeltaBadge({ current, previous }: { current: number; previous: number | null | undefined }) {
+  if (previous === null || previous === undefined) return <span className="text-gray-400">—</span>
+  const delta = current - previous
+  if (delta > 0) return <span className="text-xs font-semibold text-emerald-600">▲ +{delta}</span>
+  if (delta < 0) return <span className="text-xs font-semibold text-red-500">▼ {delta}</span>
+  return <span className="text-xs text-gray-400">—</span>
+}
+
+function MonthlySummaryCard({
+  summary,
+  periodLabel,
+}: {
+  summary: MonthlyReportSummary
+  periodLabel: string
+}) {
+  const { t } = useTranslation()
+  const { current, previous, has_previous_data } = summary
+
+  const allZero =
+    current.assessment_count === 0 &&
+    current.match_count === 0 &&
+    current.training_count === 0 &&
+    current.measurement_count === 0 &&
+    current.goals_completed === 0 &&
+    current.goals_active === 0
+
+  if (allZero) {
+    return (
+      <section>
+        <SectionTitle>{t('playerReport.monthlySummary')}</SectionTitle>
+        <EmptyState
+          icon="📅"
+          title={t('playerReport.noActivityMonth')}
+          description={t('playerReport.noActivityMonthHint')}
+        />
+      </section>
+    )
+  }
+
+  const stats: {
+    labelKey: string
+    value: number | string
+    prevValue?: number | null
+    isNumber?: boolean
+  }[] = [
+    {
+      labelKey: 'playerReport.assessmentCount',
+      value: current.assessment_count,
+      prevValue: previous?.assessment_count,
+      isNumber: true,
+    },
+    {
+      labelKey: 'playerReport.matchCount',
+      value: current.match_count,
+      prevValue: previous?.match_count,
+      isNumber: true,
+    },
+    {
+      labelKey: 'playerReport.trainingCount',
+      value: current.training_count,
+      prevValue: previous?.training_count,
+      isNumber: true,
+    },
+    {
+      labelKey: 'playerReport.attendanceRate',
+      value: current.attendance_rate !== null ? `${current.attendance_rate}%` : '—',
+      prevValue: null, // percentage — skip delta
+      isNumber: false,
+    },
+    {
+      labelKey: 'playerReport.measurementCount',
+      value: current.measurement_count,
+      prevValue: previous?.measurement_count,
+      isNumber: true,
+    },
+    {
+      labelKey: 'playerReport.goalsCompleted',
+      value: current.goals_completed,
+      prevValue: previous?.goals_completed,
+      isNumber: true,
+    },
+    {
+      labelKey: 'playerReport.goalsActive',
+      value: current.goals_active,
+      prevValue: previous?.goals_active,
+      isNumber: true,
+    },
+  ]
+
+  return (
+    <section>
+      <SectionTitle>{t('playerReport.monthlySummary')}</SectionTitle>
+      <Card>
+        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+          {t('playerReport.periodFilterActive', { period: periodLabel })}
+        </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {stats.map(({ labelKey, value, prevValue, isNumber }) => (
+            <div key={labelKey} className="rounded-xl bg-gray-50 p-4 text-center">
+              <p className="text-2xl font-bold text-gray-900">{String(value)}</p>
+              <p className="mt-0.5 text-xs text-gray-400">{t(labelKey)}</p>
+              {has_previous_data && isNumber && (
+                <div className="mt-1">
+                  <DeltaBadge
+                    current={value as number}
+                    previous={prevValue ?? null}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {has_previous_data && (
+          <p className="mt-4 text-xs text-gray-400">
+            {t('playerReport.vsLastMonth')}
+          </p>
+        )}
+        {!has_previous_data && (
+          <p className="mt-4 text-xs text-gray-400">
+            {t('playerReport.insufficientDataComparison')}
+          </p>
+        )}
+      </Card>
+    </section>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -800,17 +935,31 @@ export default function PlayerReportPage() {
 }
 
 function PlayerReportContent({ playerId }: { playerId: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
+
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+
   const {
     loading,
     error,
     player,
     history,
-    timeline,
-    matchHistory,
     matchSummary,
-    trainingHistory,
   } = usePlayerProfile(playerId)
+
+  const {
+    loading: monthlyLoading,
+    monthlyTimeline,
+    monthlyMatches,
+    monthlyTraining,
+    monthlySummary,
+  } = useMonthlyReport(playerId, selectedYear, selectedMonth)
 
   if (loading) {
     return <LoadingSpinner />
@@ -833,21 +982,54 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
     )
   }
 
-  const assessments = timeline?.assessments ?? []
-  const goals       = timeline?.goals ?? []
-  const measurements = timeline?.measurements ?? []
-  const matches     = matchHistory?.matches ?? []
-  const sessions    = trainingHistory?.sessions ?? []
+  const periodLabel = new Date(selectedYear, selectedMonth - 1).toLocaleString(displayLocale, {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  const assessments = monthlyTimeline?.assessments ?? []
+  const goals       = monthlyTimeline?.goals ?? []
+  const measurements = monthlyTimeline?.measurements ?? []
+  const matches     = monthlyMatches?.matches ?? []
+  const sessions    = monthlyTraining?.sessions ?? []
+
+  // Match summary is still all-time from usePlayerProfile (period summary is in MonthlySummaryCard)
+  const displayMatchSummary = matchSummary
 
   return (
     <div className="min-h-screen bg-gray-50">
       <ReportHeader player={player} history={history} />
 
+      {/* Month selector bar */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8 flex flex-wrap items-center gap-4">
+          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            {t('playerReport.monthlyTitle')}
+          </span>
+          <MonthSelector
+            year={selectedYear}
+            month={selectedMonth}
+            onChange={(y, m) => {
+              setSelectedYear(y)
+              setSelectedMonth(m)
+            }}
+            maxYear={currentYear}
+            maxMonth={currentMonth}
+          />
+          {monthlyLoading && (
+            <span className="text-xs text-gray-400">{t('common.loading')}</span>
+          )}
+        </div>
+      </div>
+
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
+        {monthlySummary && (
+          <MonthlySummaryCard summary={monthlySummary} periodLabel={periodLabel} />
+        )}
         <CategorySection assessments={assessments} />
         <SkillProgressionSection assessments={assessments} />
         <PhysicalSection measurements={measurements} />
-        <MatchSection summary={matchSummary} matches={matches} />
+        <MatchSection summary={displayMatchSummary} matches={matches} />
         <TrainingSection sessions={sessions} />
         <GoalsSection goals={goals} />
         <FeedbackSection assessments={assessments} matches={matches} />
