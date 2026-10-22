@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1 — development  (Vite HMR dev server, used by docker-compose.yml)
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS dev
+FROM node:22-alpine AS dev
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ CMD ["npm", "run", "dev"]
 # ---------------------------------------------------------------------------
 # Stage 2 — build  (produces /app/dist with hashed filenames)
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
