@@ -32,13 +32,16 @@ def require_staff_affiliated_with_player(user, player) -> None:
     Raise PermissionDenied unless the user is staff of at least one academy
     the player has ever held a membership in (any status).
 
-    Pass-through: if the player has no academy memberships at all, any
-    COACH/ACADEMY_ADMIN may act.  This allows managing newly created players
-    before they are enrolled in an academy.
+    Players with no academy memberships are editable only by superusers.
+    Player creation now always enrolls the player in an academy, so this
+    case should only occur for legacy data.
 
     Assumes a role check (require_coach_or_admin or equivalent) has already
     passed — this helper only enforces the object-level academy scope.
     """
+    if user.is_superuser:
+        return
+
     from apps.academies.models import PlayerAcademyMembership
     from apps.academies.permissions import get_user_academy_ids
 
@@ -47,7 +50,10 @@ def require_staff_affiliated_with_player(user, player) -> None:
         .values_list("academy_id", flat=True)
     )
     if not player_academy_ids:
-        return  # No academy memberships — any coach/admin may manage
+        raise PermissionDenied(
+            "This player has no academy memberships and can only be managed "
+            "by a superuser."
+        )
     user_academy_ids = get_user_academy_ids(user)
     if not (user_academy_ids & player_academy_ids):
         raise PermissionDenied(

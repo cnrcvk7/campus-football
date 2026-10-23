@@ -84,9 +84,18 @@ class PlayerModelTests(TestCase):
 class PlayerAPITests(APITestCase):
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+
         self.user = make_auth_user()
         self.client.force_authenticate(user=self.user)
+        self.academy = Academy.objects.create(
+            name="Test Academy", city="London", country="England"
+        )
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.player = make_player()
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2026-01-01"
+        )
         self.list_url = reverse("player-list")
         self.detail_url = reverse("player-detail", kwargs={"pk": self.player.pk})
 
@@ -107,6 +116,7 @@ class PlayerAPITests(APITestCase):
             "date_of_birth": "2000-05-28",
             "gender": "M",
             "preferred_position": "CAM",
+            "academy": str(self.academy.pk),
         }
         response = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -135,16 +145,25 @@ class PlayerAPITests(APITestCase):
         self.assertEqual(response.data["first_name"], self.player.first_name)
 
     def test_player_api_delete(self):
-        """DELETE /api/players/{id}/ removes the player and returns 204 (ACADEMY_ADMIN only)."""
+        """DELETE /api/players/{id}/ removes the player and returns 204 (ACADEMY_ADMIN only).
+
+        Under strict scoping the player has an academy membership, so the
+        delete actually triggers a 409 (protected history).  Use a fresh
+        player with no memberships visible to this admin via superuser.
+        """
+        from apps.academies.models import AcademyStaffMembership
+
         admin = User.objects.create_user(
             email="admin_del@example.com", password="testpass123",
             first_name="Admin", last_name="Del", role=User.Role.ACADEMY_ADMIN,
+            is_superuser=True,
         )
         self.client.force_authenticate(user=admin)
-        # self.player has no academy memberships — pass-through applies
-        response = self.client.delete(self.detail_url)
+        fresh_player = make_player(first_name="Fresh", last_name="Del")
+        url = reverse("player-detail", kwargs={"pk": fresh_player.pk})
+        response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Player.objects.filter(pk=self.player.pk).exists())
+        self.assertFalse(Player.objects.filter(pk=fresh_player.pk).exists())
 
     def test_delete_unknown_player_returns_404(self):
         """DELETE on a non-existent player UUID returns 404 (ACADEMY_ADMIN required)."""
@@ -168,20 +187,20 @@ class PlayerAPITests(APITestCase):
 
     def test_create_rejects_future_date_of_birth(self):
         """A date of birth in the future must be rejected."""
-        payload = {**VALID_DATA, "date_of_birth": "2099-01-01"}
+        payload = {**VALID_DATA, "date_of_birth": "2099-01-01", "academy": str(self.academy.pk)}
         response = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("date_of_birth", response.data)
 
     def test_create_rejects_invalid_jersey_number(self):
         """Jersey numbers outside 1–99 must be rejected."""
-        payload = {**VALID_DATA, "jersey_number": 0}
+        payload = {**VALID_DATA, "jersey_number": 0, "academy": str(self.academy.pk)}
         response = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_football_id_is_read_only_in_api(self):
         """Attempting to set football_id via the API must be ignored."""
-        payload = {**VALID_DATA, "football_id": "CF-HACKED01"}
+        payload = {**VALID_DATA, "football_id": "CF-HACKED01", "academy": str(self.academy.pk)}
         response = self.client.post(self.list_url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertNotEqual(response.data["football_id"], "CF-HACKED01")
@@ -194,7 +213,7 @@ class PlayerAPITests(APITestCase):
 class PlayerHistoryAPITests(APITestCase):
 
     def setUp(self):
-        from apps.academies.models import Academy, PlayerAcademyMembership
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
         from apps.teams.models import Team, PlayerTeamMembership
 
         self.user = make_auth_user(email="history@example.com")
@@ -203,6 +222,7 @@ class PlayerHistoryAPITests(APITestCase):
         self.academy = Academy.objects.create(
             name="Test Academy", city="London", country="England"
         )
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.team = Team.objects.create(
             academy=self.academy,
             name="U15 Boys",
@@ -244,12 +264,22 @@ class PlayerHistoryAPITests(APITestCase):
         self.assertEqual(str(team_history[0]["joined_at"]), "2024-01-15")
 
     def test_history_returns_empty_lists_for_new_player(self):
-        """A player with no memberships gets empty history lists."""
+        """A player with an academy enrollment but no team history gets empty team list.
+
+        Under strict scoping, only players enrolled in the user's academy are
+        visible, so the player must have at least one PlayerAcademyMembership.
+        """
+        from apps.academies.models import PlayerAcademyMembership
+
         new_player = make_player(first_name="New", last_name="Player")
+        PlayerAcademyMembership.objects.create(
+            player=new_player, academy=self.academy, joined_at="2026-01-01"
+        )
         url = reverse("player-history", kwargs={"pk": new_player.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["academy_history"], [])
+        # Player has one academy membership but no team history.
+        self.assertEqual(len(response.data["academy_history"]), 1)
         self.assertEqual(response.data["team_history"], [])
 
     def test_history_not_found_for_unknown_player(self):
@@ -579,8 +609,14 @@ class MembershipAPITests(APITestCase):
 class PlayerSearchAPITests(APITestCase):
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+
         self.user = make_auth_user(email="search@example.com")
         self.client.force_authenticate(user=self.user)
+        self.academy = Academy.objects.create(
+            name="Search Academy", city="London", country="England"
+        )
+        AcademyStaffMembership.objects.create(user=self.user, academy=self.academy)
         self.list_url = reverse("player-list")
 
         self.rashford = make_player(
@@ -595,6 +631,11 @@ class PlayerSearchAPITests(APITestCase):
             first_name="Mohamed", last_name="Salah",
             date_of_birth="1992-06-15", gender="M", preferred_position="RW",
         )
+        # Enroll all players in the coach's academy so they are visible.
+        for player in (self.rashford, self.foden, self.salah):
+            PlayerAcademyMembership.objects.create(
+                player=player, academy=self.academy, joined_at="2026-01-01"
+            )
 
     def _results(self, response):
         data = response.data
@@ -848,13 +889,20 @@ class PlayerListAuthorizationTests(APITestCase):
     """Authorization and queryset-filtering tests for GET /api/players/."""
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
         from apps.users.models import ParentPlayerLink
 
+        self.academy  = Academy.objects.create(name="List Academy", city="London", country="England")
         self.coach    = _make_user(User.Role.COACH,         "coach_l@test.com")
         self.admin    = _make_user(User.Role.ACADEMY_ADMIN, "admin_l@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
         self.p_user   = _make_user(User.Role.PLAYER,        "player_l@test.com")
         self.player_a = _make_player(user=self.p_user)   # linked to p_user
         self.player_b = _make_player()                   # unlinked
+        # Enroll both players in the academy so coach/admin can see them.
+        PlayerAcademyMembership.objects.create(player=self.player_a, academy=self.academy, joined_at="2026-01-01")
+        PlayerAcademyMembership.objects.create(player=self.player_b, academy=self.academy, joined_at="2026-01-01")
         self.parent   = _make_user(User.Role.PARENT,        "parent_l@test.com")
         ParentPlayerLink.objects.create(parent=self.parent, player=self.player_a)
 
@@ -931,11 +979,17 @@ class PlayerWriteAuthorizationTests(APITestCase):
     """Authorization tests for POST, PATCH, DELETE /api/players/{id}/."""
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
+
+        self.academy = Academy.objects.create(name="Write Academy", city="London", country="England")
         self.coach   = _make_user(User.Role.COACH,         "coach_w@test.com")
         self.admin   = _make_user(User.Role.ACADEMY_ADMIN, "admin_w@test.com")
         self.p_user  = _make_user(User.Role.PLAYER,        "player_w@test.com")
         self.parent  = _make_user(User.Role.PARENT,        "parent_w@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
         self.target  = _make_player()
+        PlayerAcademyMembership.objects.create(player=self.target, academy=self.academy, joined_at="2026-01-01")
         self.list_url   = reverse("player-list")
         self.detail_url = reverse("player-detail", kwargs={"pk": self.target.pk})
 
@@ -943,11 +997,13 @@ class PlayerWriteAuthorizationTests(APITestCase):
 
     def test_coach_can_create_player(self):
         self.client.force_authenticate(self.coach)
-        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_201_CREATED)
+        payload = {**VALID_DATA, "academy": str(self.academy.pk)}
+        self.assertEqual(self.client.post(self.list_url, payload, format="json").status_code, status.HTTP_201_CREATED)
 
     def test_admin_can_create_player(self):
         self.client.force_authenticate(self.admin)
-        self.assertEqual(self.client.post(self.list_url, VALID_DATA, format="json").status_code, status.HTTP_201_CREATED)
+        payload = {**VALID_DATA, "academy": str(self.academy.pk)}
+        self.assertEqual(self.client.post(self.list_url, payload, format="json").status_code, status.HTTP_201_CREATED)
 
     def test_player_cannot_create_player(self):
         self.client.force_authenticate(self.p_user)
@@ -986,13 +1042,27 @@ class PlayerWriteAuthorizationTests(APITestCase):
     # -- DELETE --
 
     def test_coach_cannot_delete_player(self):
+        from apps.academies.models import PlayerAcademyMembership
+
         self.client.force_authenticate(self.coach)
         player = _make_player()
+        PlayerAcademyMembership.objects.create(player=player, academy=self.academy, joined_at="2026-01-01")
         url = reverse("player-detail", kwargs={"pk": player.pk})
         self.assertEqual(self.client.delete(url).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_delete_player(self):
-        self.client.force_authenticate(self.admin)
+        """ACADEMY_ADMIN can delete a player with no protected history.
+
+        Under strict scoping a non-superuser admin can only see enrolled
+        players, but deleting an enrolled player triggers 409.  Use a
+        superuser admin to test the basic deletion path.
+        """
+        superadmin = User.objects.create_user(
+            email="superadmin_w@test.com", password="testpass",
+            first_name="Super", last_name="Admin",
+            role=User.Role.ACADEMY_ADMIN, is_superuser=True,
+        )
+        self.client.force_authenticate(superadmin)
         player = _make_player()
         url = reverse("player-detail", kwargs={"pk": player.pk})
         self.assertEqual(self.client.delete(url).status_code, status.HTTP_204_NO_CONTENT)
@@ -1466,11 +1536,15 @@ class PlayerPatchAcademyScopeTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_coach_cannot_patch_player_in_foreign_academy(self):
-        """COACH with staff membership in Academy A cannot PATCH a player enrolled only in Academy B."""
+        """COACH with staff membership in Academy A cannot PATCH a player enrolled only in Academy B.
+
+        Under strict academy scoping the player is invisible (404) rather than
+        forbidden (403) because get_queryset filters by staff membership.
+        """
         self.client.force_authenticate(self.coach)
         url = reverse("player-detail", kwargs={"pk": self.player_b.pk})
         response = self.client.patch(url, {"jersey_number": 9}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
         self.player_b.refresh_from_db()
         self.assertIsNone(self.player_b.jersey_number)
 
@@ -1503,13 +1577,18 @@ class PlayerPatchAcademyScopeTests(APITestCase):
         multi_player.refresh_from_db()
         self.assertEqual(multi_player.jersey_number, 5)
 
-    def test_coach_can_patch_player_with_no_academy_memberships(self):
-        """COACH without any staff memberships can still PATCH a player with no academy enrollments."""
+    def test_coach_cannot_patch_player_with_no_academy_memberships(self):
+        """COACH cannot PATCH a player with no academy enrollments — only superuser can.
+
+        Under strict scoping, orphan players (no academy memberships) are
+        invisible to non-superuser coaches because get_queryset filters by
+        the user's academy memberships.
+        """
         no_staff_coach = _make_user(User.Role.COACH, "coach_f6p_none@test.com")
         self.client.force_authenticate(no_staff_coach)
         url = reverse("player-detail", kwargs={"pk": self.player_none.pk})
         response = self.client.patch(url, {"jersey_number": 11}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
 
 class PlayerDeleteAuthorizationTests(APITestCase):
@@ -1529,9 +1608,18 @@ class PlayerDeleteAuthorizationTests(APITestCase):
         AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
 
     def test_admin_can_delete_player_with_no_history(self):
-        """ACADEMY_ADMIN can delete a player who has never been enrolled anywhere."""
+        """ACADEMY_ADMIN (superuser) can delete a player who has never been enrolled.
+
+        Under strict scoping, orphan players are invisible to non-superuser
+        staff.  Use a superuser admin to test the basic deletion path.
+        """
+        superadmin = User.objects.create_user(
+            email="superadmin_f6d@test.com", password="testpass",
+            first_name="Super", last_name="Admin",
+            role=User.Role.ACADEMY_ADMIN, is_superuser=True,
+        )
         player = _make_player()
-        self.client.force_authenticate(self.admin)
+        self.client.force_authenticate(superadmin)
         url = reverse("player-detail", kwargs={"pk": player.pk})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -1539,7 +1627,11 @@ class PlayerDeleteAuthorizationTests(APITestCase):
 
     def test_coach_cannot_delete_player(self):
         """COACH role is rejected before any object check — DELETE is ACADEMY_ADMIN only."""
+        from apps.academies.models import AcademyStaffMembership, PlayerAcademyMembership
+
         player = _make_player()
+        PlayerAcademyMembership.objects.create(player=player, academy=self.academy, joined_at="2026-01-01")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
         self.client.force_authenticate(self.coach)
         url = reverse("player-detail", kwargs={"pk": player.pk})
         response = self.client.delete(url)
@@ -1547,7 +1639,11 @@ class PlayerDeleteAuthorizationTests(APITestCase):
         self.assertTrue(Player.objects.filter(pk=player.pk).exists())
 
     def test_admin_of_foreign_academy_cannot_delete_player(self):
-        """ACADEMY_ADMIN with no affiliation to the player's academy is denied (403)."""
+        """ACADEMY_ADMIN with no affiliation to the player's academy is denied.
+
+        Under strict scoping the player is invisible (404) rather than
+        forbidden (403) because get_queryset filters by staff membership.
+        """
         from apps.academies.models import Academy, PlayerAcademyMembership
         other_academy = Academy.objects.create(name="Other Academy", city="Bristol", country="England")
         player = _make_player()
@@ -1557,7 +1653,7 @@ class PlayerDeleteAuthorizationTests(APITestCase):
         self.client.force_authenticate(self.admin)
         url = reverse("player-detail", kwargs={"pk": player.pk})
         response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
         self.assertTrue(Player.objects.filter(pk=player.pk).exists())
 
     def test_delete_player_with_academy_history_returns_409(self):

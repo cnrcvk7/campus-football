@@ -244,7 +244,12 @@
     "deleteConfirm": "Are you sure you want to delete {{name}}? This action is permanent.",
     "deleteConfirmYes": "Yes, delete permanently",
     "addButton": "Add Player",
-    "saveButton": "Save Changes"
+    "saveButton": "Save Changes",
+    "sectionAcademy": "Academy",
+    "academy": "Academy",
+    "academyPlaceholder": "Select academy\u2026",
+    "errorNoAcademy": "You are not a staff member of any academy.",
+    "errorAcademyRequired": "Please select an academy."
   },
   "playerProfile": {
     "navLabel": "Player Profile",

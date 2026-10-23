@@ -46,13 +46,16 @@ class MatchViewSet(
 
     def get_queryset(self):
         require_coach_or_admin(self.request)
-        from apps.academies.permissions import get_user_academy_ids
-        academy_ids = get_user_academy_ids(self.request.user)
-        return (
-            Match.objects.filter(academy_id__in=academy_ids)
+        qs = (
+            Match.objects
             .select_related("academy", "team", "created_by")
             .order_by("-match_date", "-created_at")
         )
+        if not self.request.user.is_superuser:
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(self.request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        return qs
 
     def create(self, request, *args, **kwargs):
         """POST /api/matches/ — COACH or ACADEMY_ADMIN with staff membership."""
@@ -162,7 +165,10 @@ class PlayerMatchHistoryView(APIView):
         # Coaches and academy admins see only matches from academies they are
         # explicitly staff of.  Players and parents have access already scoped
         # at the player level above; they receive the full unfiltered history.
-        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        if (
+            request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN)
+            and not request.user.is_superuser
+        ):
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(request.user)
             stats_qs = stats_qs.filter(match__academy_id__in=academy_ids)
@@ -193,7 +199,10 @@ class PlayerMatchSummaryView(APIView):
         qs = MatchPlayerStats.objects.filter(player=player)
 
         # Coaches and academy admins see only stats from their own academies.
-        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        if (
+            request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN)
+            and not request.user.is_superuser
+        ):
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(request.user)
             qs = qs.filter(match__academy_id__in=academy_ids)
