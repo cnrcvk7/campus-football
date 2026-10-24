@@ -26,21 +26,23 @@ class TeamViewSet(
     PUT is intentionally not exposed.
     """
 
-    queryset = Team.objects.select_related("academy").all()
     serializer_class = TeamSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
-    def list(self, request, *args, **kwargs):
-        """GET /api/teams/ — COACH or ACADEMY_ADMIN only."""
-        from apps.academies.permissions import require_coach_or_admin
-        require_coach_or_admin(request)
-        return super().list(request, *args, **kwargs)
+    def get_queryset(self):
+        """
+        Scope team visibility to the user's academy memberships.
 
-    def retrieve(self, request, *args, **kwargs):
-        """GET /api/teams/{id}/ — COACH or ACADEMY_ADMIN only."""
-        from apps.academies.permissions import require_coach_or_admin
-        require_coach_or_admin(request)
-        return super().retrieve(request, *args, **kwargs)
+        COACH / ACADEMY_ADMIN see only teams belonging to their academies.
+        Superusers see all teams (PR #7 behaviour).
+        """
+        from apps.academies.permissions import require_coach_or_admin, get_user_academy_ids
+        require_coach_or_admin(self.request)
+        qs = Team.objects.select_related("academy").all()
+        if self.request.user.is_superuser:
+            return qs
+        academy_ids = get_user_academy_ids(self.request.user)
+        return qs.filter(academy_id__in=academy_ids)
 
     def create(self, request, *args, **kwargs):
         """POST /api/teams/ — COACH or ACADEMY_ADMIN with staff membership for the target academy."""

@@ -88,14 +88,16 @@ class TrainingSessionViewSet(
 
     def get_queryset(self):
         require_coach_or_admin(self.request)
-        from apps.academies.permissions import get_user_academy_ids
-        academy_ids = get_user_academy_ids(self.request.user)
         qs = (
-            TrainingSession.objects.filter(academy_id__in=academy_ids)
+            TrainingSession.objects
             .select_related("academy", "team", "coach")
             .prefetch_related("focus_skills", "session_exercises__exercise")
             .order_by("-training_date", "-created_at")
         )
+        if not self.request.user.is_superuser:
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(self.request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
         if self.request.query_params.get("coach") == "me":
             qs = qs.filter(coach=self.request.user)
         return qs
@@ -110,6 +112,8 @@ class TrainingSessionViewSet(
         serializer.save(coach=self.request.user)
 
     def perform_update(self, serializer):
+        from apps.academies.permissions import require_staff_of_academy
+        require_staff_of_academy(self.request.user, serializer.instance.academy_id)
         serializer.save()
 
 
@@ -241,7 +245,10 @@ class PlayerTrainingHistoryView(APIView):
         # academies they are explicitly staff of.  Players and parents already
         # have their access scoped at the player level above; they receive the
         # full unfiltered history.
-        if request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        if (
+            request.user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN)
+            and not request.user.is_superuser
+        ):
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(request.user)
             sessions = sessions.filter(academy_id__in=academy_ids)

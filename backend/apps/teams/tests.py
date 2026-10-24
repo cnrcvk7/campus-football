@@ -343,18 +343,26 @@ class TeamWriteAuthorizationTests(APITestCase):
         self.assertEqual(response.data["age_group"], "U16")
 
     def test_coach_without_membership_cannot_patch_team(self):
-        """COACH role alone is not enough — membership for the team's academy is required."""
+        """COACH role alone is not enough — membership for the team's academy is required.
+
+        Under strict academy scoping the team is invisible (404) rather than
+        forbidden (403) because get_queryset filters by staff membership.
+        """
         self._auth(User.Role.COACH)
         response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_coach_of_other_academy_cannot_patch_team_here(self):
-        """COACH with membership in a different academy cannot patch a team in this one."""
+        """COACH with membership in a different academy cannot patch a team in this one.
+
+        Under strict academy scoping the team is invisible (404) rather than
+        forbidden (403) because get_queryset filters by staff membership.
+        """
         other_academy = make_academy(name="Other Academy 2", city="Leeds")
         user = self._auth(User.Role.COACH)
         AcademyStaffMembership.objects.create(user=user, academy=other_academy)
         response = self.client.patch(self.detail_url, {"season": "2026/27"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +466,8 @@ class TeamListRetrieveAuthorizationTests(APITestCase):
         self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_coach_can_retrieve_team(self):
-        self._auth(User.Role.COACH, "coach_f7tr@test.com")
+        user = self._auth(User.Role.COACH, "coach_f7tr@test.com")
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_200_OK)
 
     def test_player_cannot_retrieve_team(self):

@@ -244,7 +244,12 @@
     "deleteConfirm": "{{name}} adlı oyuncuyu silmek istediğinizden emin misiniz? Bu işlem kalıcıdır.",
     "deleteConfirmYes": "Evet, kalıcı olarak sil",
     "addButton": "Oyuncu Ekle",
-    "saveButton": "Değişiklikleri Kaydet"
+    "saveButton": "Değişiklikleri Kaydet",
+    "sectionAcademy": "Akademi",
+    "academy": "Akademi",
+    "academyPlaceholder": "Akademi se\u00e7in\u2026",
+    "errorNoAcademy": "Herhangi bir akademinin personeli de\u011filsiniz.",
+    "errorAcademyRequired": "L\u00fctfen bir akademi se\u00e7in."
   },
   "playerProfile": {
     "navLabel": "Oyuncu Profili",

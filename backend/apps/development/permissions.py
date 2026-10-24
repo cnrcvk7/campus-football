@@ -48,17 +48,19 @@ def get_player_and_check_access(request, player_pk, require_write: bool = False)
     elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
         if require_write:
             # Coaches and academy admins may only write development records for
-            # players who are (or were) affiliated with one of their academies.
-            # This prevents cross-academy data writes while still allowing access
-            # to players with multiple historic academy memberships.
+            # players with an ACTIVE membership at one of their academies.
+            # Players who have left remain readable but are no longer writable.
             from apps.academies.models import PlayerAcademyMembership
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(user)
             if not PlayerAcademyMembership.objects.filter(
-                player=player, academy_id__in=academy_ids
+                player=player,
+                academy_id__in=academy_ids,
+                status=PlayerAcademyMembership.Status.ACTIVE,
             ).exists():
                 raise PermissionDenied(
-                    "You can only write development data for players affiliated with your academy."
+                    "You can only write development data for players with an "
+                    "active membership at your academy."
                 )
 
     elif user.role == User.Role.PARENT:
