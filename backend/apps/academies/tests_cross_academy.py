@@ -633,13 +633,16 @@ class PlayerListDeduplicationTests(APITestCase):
 
 class PlayerLeftAcademyVisibilityTests(TwoAcademyMixin, APITestCase):
     """
-    Existing design: all memberships (active and left) count for access.
-    A player who left academy A is still visible to coach A.
+    Players who left an academy remain VISIBLE to that academy's staff but
+    are no longer WRITABLE.  Only staff of an academy where the player has
+    an ACTIVE PlayerAcademyMembership may perform writes.
     """
 
     def setUp(self):
         self.set_up_two_academies()
         self.list_url = reverse("player-list")
+        # Enroll player_a in Academy B as well (ACTIVE) so coach B can write.
+        enroll_player(self.player_a, self.academy_b)
 
     def _leave_academy(self, player, academy):
         """Mark the player's membership in this academy as left."""
@@ -647,6 +650,8 @@ class PlayerLeftAcademyVisibilityTests(TwoAcademyMixin, APITestCase):
         m.status = PlayerAcademyMembership.Status.LEFT
         m.left_at = "2026-09-01"
         m.save()
+
+    # -- READ: coach of LEFT academy can still see the player ---------------
 
     def test_coach_still_sees_player_after_they_left(self):
         """Player A leaves Academy A; coach A still sees them in the list."""
@@ -656,18 +661,45 @@ class PlayerLeftAcademyVisibilityTests(TwoAcademyMixin, APITestCase):
         ids = [r["id"] for r in response.data["results"]]
         self.assertIn(str(self.player_a.pk), ids)
 
-    def test_coach_can_still_patch_player_after_they_left(self):
-        """Player A leaves Academy A; coach A can still PATCH them."""
+    def test_coach_b_still_cannot_see_player_a_after_leaving(self):
+        """Player A leaves both academies; coach B still can't see them
+        (player_a left B too, so no membership at all with B… but we only
+        leave A in this test; B is still active)."""
+        self._leave_academy(self.player_a, self.academy_a)
+        # coach_b CAN see player_a because player_a is now ACTIVE in B.
+        self.client.force_authenticate(user=self.coach_b)
+        response = self.client.get(self.list_url)
+        ids = [r["id"] for r in response.data["results"]]
+        self.assertIn(str(self.player_a.pk), ids)
+
+    # -- WRITE: coach of LEFT academy gets 403 on PATCH ---------------------
+
+    def test_coach_cannot_patch_player_after_they_left(self):
+        """Player A leaves Academy A; coach A gets 403 on PATCH."""
         self._leave_academy(self.player_a, self.academy_a)
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("player-detail", kwargs={"pk": self.player_a.pk})
         response = self.client.patch(url, {"last_name": "Updated"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_coach_b_still_cannot_see_player_a_after_leaving(self):
-        """Player A leaves Academy A; coach B still can't see them."""
+    def test_coach_of_active_academy_can_patch(self):
+        """Player A left A but is ACTIVE in B; coach B can PATCH."""
         self._leave_academy(self.player_a, self.academy_a)
         self.client.force_authenticate(user=self.coach_b)
-        response = self.client.get(self.list_url)
-        ids = [r["id"] for r in response.data["results"]]
-        self.assertNotIn(str(self.player_a.pk), ids)
+        url = reverse("player-detail", kwargs={"pk": self.player_a.pk})
+        response = self.client.patch(url, {"last_name": "Updated"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # -- WRITE: nested development endpoint (measurement create) -------------
+
+    def test_coach_cannot_create_measurement_after_player_left(self):
+        """Coach A cannot POST a measurement for player A after they left A."""
+        self._leave_academy(self.player_a, self.academy_a)
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse(
+            "player-measurement-list",
+            kwargs={"player_pk": self.player_a.pk},
+        )
+        payload = {"measurement_date": "2026-10-01", "height_cm": "175.00"}
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

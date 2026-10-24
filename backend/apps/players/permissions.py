@@ -30,11 +30,14 @@ def require_coach_or_admin(request) -> None:
 def require_staff_affiliated_with_player(user, player) -> None:
     """
     Raise PermissionDenied unless the user is staff of at least one academy
-    the player has ever held a membership in (any status).
+    where the player holds an **active** membership.
 
-    Players with no academy memberships are editable only by superusers.
-    Player creation now always enrolls the player in an academy, so this
-    case should only occur for legacy data.
+    This is used for write operations (PATCH, PUT, DELETE on players).
+    Players who have left an academy remain *visible* to that academy's staff
+    (via get_queryset filtering) but are no longer *writable* — only staff of
+    an academy with an ACTIVE PlayerAcademyMembership may modify the player.
+
+    Players with no active academy memberships are editable only by superusers.
 
     Assumes a role check (require_coach_or_admin or equivalent) has already
     passed — this helper only enforces the object-level academy scope.
@@ -45,19 +48,23 @@ def require_staff_affiliated_with_player(user, player) -> None:
     from apps.academies.models import PlayerAcademyMembership
     from apps.academies.permissions import get_user_academy_ids
 
-    player_academy_ids = frozenset(
-        PlayerAcademyMembership.objects.filter(player=player)
+    active_academy_ids = frozenset(
+        PlayerAcademyMembership.objects.filter(
+            player=player,
+            status=PlayerAcademyMembership.Status.ACTIVE,
+        )
         .values_list("academy_id", flat=True)
     )
-    if not player_academy_ids:
+    if not active_academy_ids:
         raise PermissionDenied(
-            "This player has no academy memberships and can only be managed "
-            "by a superuser."
+            "This player has no active academy memberships and can only be "
+            "managed by a superuser."
         )
     user_academy_ids = get_user_academy_ids(user)
-    if not (user_academy_ids & player_academy_ids):
+    if not (user_academy_ids & active_academy_ids):
         raise PermissionDenied(
-            "You are not a staff member of any academy this player belongs to."
+            "You are not a staff member of any academy where this player is "
+            "currently active."
         )
 
 
