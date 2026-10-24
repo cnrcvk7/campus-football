@@ -45,6 +45,7 @@ LOCAL_APPS = [
     "apps.development",
     "apps.training",
     "apps.matches",
+    "apps.announcements",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -144,6 +145,7 @@ REST_FRAMEWORK = {
     # LoginRateThrottle uses the "login" scope on POST /api/auth/token/ only.
     "DEFAULT_THROTTLE_RATES": {
         "login": "5/min",
+        "announcement_create": "30/hour",
     },
 }
 
