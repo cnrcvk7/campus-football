@@ -6,6 +6,7 @@
     "training": "Training",
     "schedule": "Schedule",
     "matches": "Matches",
+    "announcements": "Announcements",
     "signIn": "Sign in",
     "signOut": "Sign out",
     "goToDashboard": "Go to dashboard",
@@ -825,5 +826,60 @@
     "statTackles": "Tackles",
     "statYellowCards": "Yellow Cards",
     "statRedCards": "Red Cards"
+  },
+  "announcements": {
+    "title": "Announcements",
+    "subtitle": "News and updates from your academy.",
+    "newButton": "+ New Announcement",
+    "filterTeam": "Filter by team",
+    "allTeams": "All teams",
+    "pinned": "Pinned",
+    "teamLabel": "Team",
+    "academyWide": "Academy",
+    "unread": "Unread",
+    "unknownAuthor": "Unknown",
+    "edited": "edited",
+    "seen": "Seen",
+    "markSeen": "Mark as seen",
+    "viewReceipts": "Receipts",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this announcement?",
+    "saving": "Saving…",
+    "creating": "Creating…",
+    "createButton": "Post Announcement",
+    "composerTitle": "New Announcement",
+    "academy": "Academy",
+    "selectAcademy": "Select academy…",
+    "audience": "Audience",
+    "wholeAcademy": "Whole academy",
+    "noTeams": "No teams available",
+    "titleField": "Title",
+    "titlePlaceholder": "e.g. Practice time changed",
+    "bodyField": "Message",
+    "bodyPlaceholder": "Write your announcement…",
+    "pinOnCreate": "Pin to top",
+    "empty": {
+      "title": "No announcements",
+      "description": "There are no announcements to show right now."
+    },
+    "error": {
+      "loadFailed": "Could not load announcements.",
+      "throttled": "Too many announcements. Please wait before posting again.",
+      "team_not_in_academy": "This team does not belong to the selected academy.",
+      "academy_wide_requires_admin": "Only academy admins can post academy-wide announcements.",
+      "related_event_mismatch": "The related event does not match the selected team or academy.",
+      "body_too_long": "Message must be at most 2000 characters.",
+      "acknowledge_not_allowed": "Only players and parents can acknowledge announcements."
+    },
+    "receipts": {
+      "players": "Players",
+      "parents": "Parents",
+      "seen": "Seen",
+      "notSeen": "Not seen",
+      "noAudience": "No audience members."
+    }
   }
 }

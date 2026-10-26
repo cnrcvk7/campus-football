@@ -32,6 +32,8 @@ import PlayerComparisonPage from './pages/PlayerComparisonPage'
 import PlayerReportPage from './pages/PlayerReportPage'
 import PlayersListPage from './pages/PlayersListPage'
 import TeamsPage from './pages/TeamsPage'
+import AnnouncementsPage from './pages/AnnouncementsPage'
+import { UnreadAnnouncementsProvider } from './context/UnreadAnnouncementsContext'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import type { ReactNode } from 'react'
 
@@ -80,6 +82,10 @@ function AppRoutes() {
       {/* All other pages: inside AppShell */}
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route
+          path="/announcements"
+          element={<ProtectedRoute><AnnouncementsPage /></ProtectedRoute>}
+        />
         <Route
           path="/players"
           element={<ProtectedRoute><PlayersListPage /></ProtectedRoute>}
@@ -206,7 +212,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <UnreadAnnouncementsProvider>
+          <AppRoutes />
+        </UnreadAnnouncementsProvider>
       </AuthProvider>
     </BrowserRouter>
   )
