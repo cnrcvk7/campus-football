@@ -6,6 +6,7 @@
     "training": "Antrenman",
     "schedule": "Takvim",
     "matches": "Maçlar",
+    "announcements": "Duyurular",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
     "goToDashboard": "Ana sayfaya git",
@@ -825,5 +826,60 @@
     "statTackles": "Top Kesme",
     "statYellowCards": "Sarı Kart",
     "statRedCards": "Kırmızı Kart"
+  },
+  "announcements": {
+    "title": "Duyurular",
+    "subtitle": "Akademinizden haberler ve güncellemeler.",
+    "newButton": "+ Yeni Duyuru",
+    "filterTeam": "Takıma göre filtrele",
+    "allTeams": "Tüm takımlar",
+    "pinned": "Sabitlenmiş",
+    "teamLabel": "Takım",
+    "academyWide": "Akademi",
+    "unread": "Okunmamış",
+    "unknownAuthor": "Bilinmiyor",
+    "edited": "düzenlendi",
+    "seen": "Görüldü",
+    "markSeen": "Görüldü olarak işaretle",
+    "viewReceipts": "Alındılar",
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "deleteConfirm": "Bu duyuruyu silmek istediğinizden emin misiniz?",
+    "saving": "Kaydediliyor…",
+    "creating": "Oluşturuluyor…",
+    "createButton": "Duyuru Yayınla",
+    "composerTitle": "Yeni Duyuru",
+    "academy": "Akademi",
+    "selectAcademy": "Akademi seçin…",
+    "audience": "Hedef Kitle",
+    "wholeAcademy": "Tüm akademi",
+    "noTeams": "Kullanılabilir takım yok",
+    "titleField": "Başlık",
+    "titlePlaceholder": "ör. Antrenman saati değişti",
+    "bodyField": "Mesaj",
+    "bodyPlaceholder": "Duyurunuzu yazın…",
+    "pinOnCreate": "En üste sabitle",
+    "empty": {
+      "title": "Duyuru yok",
+      "description": "Şu anda gösterilecek duyuru bulunmuyor."
+    },
+    "error": {
+      "loadFailed": "Duyurular yüklenemedi.",
+      "throttled": "Çok fazla duyuru. Lütfen tekrar göndermeden önce bekleyin.",
+      "team_not_in_academy": "Bu takım seçilen akademiye ait değil.",
+      "academy_wide_requires_admin": "Yalnızca akademi yöneticileri akademi genelinde duyuru yapabilir.",
+      "related_event_mismatch": "İlgili etkinlik seçilen takım veya akademi ile eşleşmiyor.",
+      "body_too_long": "Mesaj en fazla 2000 karakter olmalıdır.",
+      "acknowledge_not_allowed": "Yalnızca oyuncular ve veliler duyuruları onaylayabilir."
+    },
+    "receipts": {
+      "players": "Oyuncular",
+      "parents": "Veliler",
+      "seen": "Görüldü",
+      "notSeen": "Görülmedi",
+      "noAudience": "Hedef kitle üyesi yok."
+    }
   }
 }

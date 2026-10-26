@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Trophy,
   GraduationCap,
+  Megaphone,
   X,
   LogOut,
   Globe,
@@ -15,6 +16,7 @@ import {
   Sun,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useUnreadAnnouncements } from '../../context/UnreadAnnouncementsContext'
 import { useTheme } from '../../context/ThemeContext'
 import { cn } from '../../lib/utils'
 import { LANGUAGE_STORAGE_KEY, SUPPORTED_LANGUAGES } from '../../i18n/storage'
@@ -29,6 +31,8 @@ interface NavItem {
   icon: React.ReactNode
   /** Match any path that starts with this prefix (for detail routes) */
   matchPrefix?: string
+  /** Optional numeric badge (e.g. unread count) shown after the label */
+  badge?: number
 }
 
 interface NavGroup {
@@ -71,6 +75,11 @@ function SidebarLink({ item }: { item: NavItem }) {
     >
       <span className="flex-shrink-0">{item.icon}</span>
       <span className="truncate">{t(item.labelKey)}</span>
+      {!!item.badge && item.badge > 0 && (
+        <span className="ml-auto flex h-4.5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white">
+          {item.badge > 99 ? '99+' : item.badge}
+        </span>
+      )}
     </button>
   )
 }
@@ -92,6 +101,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
 
+  const { unreadCount } = useUnreadAnnouncements()
   const isCoach = user?.role === 'COACH' || user?.role === 'ACADEMY_ADMIN'
 
   function handleLogout() {
@@ -115,6 +125,13 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           labelKey: 'nav.dashboard',
           path: '/',
           icon: <LayoutDashboard size={16} aria-hidden="true" />,
+        },
+        {
+          labelKey: 'nav.announcements',
+          path: '/announcements',
+          icon: <Megaphone size={16} aria-hidden="true" />,
+          matchPrefix: '/announcements',
+          badge: unreadCount,
         },
       ],
     },
