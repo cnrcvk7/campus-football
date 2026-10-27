@@ -35,7 +35,10 @@ import TeamsPage from './pages/TeamsPage'
 import AnnouncementsPage from './pages/AnnouncementsPage'
 import { UnreadAnnouncementsProvider } from './context/UnreadAnnouncementsContext'
 import LoadingSpinner from './components/ui/LoadingSpinner'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
+
+const LineupEditorPage = lazy(() => import('./pages/LineupEditorPage'))
+const TacticsPage = lazy(() => import('./pages/TacticsPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -165,6 +168,14 @@ function AppRoutes() {
         <Route
           path="/coach/matches/:matchId"
           element={<CoachRoute><CoachMatchDetailPage /></CoachRoute>}
+        />
+        <Route
+          path="/coach/tactics"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><TacticsPage /></Suspense></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId/lineup"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><LineupEditorPage /></Suspense></CoachRoute>}
         />
         <Route
           path="/coach/matches/:matchId/edit"

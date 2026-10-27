@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   Edit2,
+  LayoutGrid,
   MapPin,
   Plus,
   Trophy,
@@ -233,10 +234,16 @@ export default function CoachMatchDetailPage() {
           <ArrowLeft size={14} />
           {t('matches.allMatches')}
         </Link>
-        <Button variant="secondary" onClick={() => navigate(`/coach/matches/${match.id}/edit`)}>
-          <Edit2 size={14} />
-          {t('matches.editMatch')}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => navigate(`/coach/matches/${match.id}/lineup`)}>
+            <LayoutGrid size={14} />
+            {t('tactics.lineup')}
+          </Button>
+          <Button variant="secondary" onClick={() => navigate(`/coach/matches/${match.id}/edit`)}>
+            <Edit2 size={14} />
+            {t('matches.editMatch')}
+          </Button>
+        </div>
       </div>
 
       {/* Scoreboard */}
