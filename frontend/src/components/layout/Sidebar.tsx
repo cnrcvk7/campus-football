@@ -44,6 +44,7 @@ const LANGUAGE_LABELS: Record<(typeof SUPPORTED_LANGUAGES)[number], string> = {
   en: 'EN',
   tr: 'TR',
   ru: 'RU',
+  ko: 'KO',
 }
 
 // ---------------------------------------------------------------------------

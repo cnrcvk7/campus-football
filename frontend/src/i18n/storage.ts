@@ -4,7 +4,7 @@
  * i18next or React initialisation.
  */
 
-export const SUPPORTED_LANGUAGES = ['en', 'tr', 'ru'] as const
+export const SUPPORTED_LANGUAGES = ['en', 'tr', 'ru', 'ko'] as const
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 
 export const LANGUAGE_STORAGE_KEY = 'cf_language'

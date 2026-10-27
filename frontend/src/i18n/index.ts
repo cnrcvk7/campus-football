@@ -17,6 +17,7 @@ import { initReactI18next } from 'react-i18next'
 import en from './locales/en.json'
 import tr from './locales/tr.json'
 import ru from './locales/ru.json'
+import ko from './locales/ko.json'
 import { getStoredLanguage } from './storage'
 
 i18n.use(initReactI18next).init({
@@ -24,6 +25,7 @@ i18n.use(initReactI18next).init({
     en: { translation: en },
     tr: { translation: tr },
     ru: { translation: ru },
+    ko: { translation: ko },
   },
   lng: getStoredLanguage(),
   fallbackLng: 'en',
@@ -32,5 +34,15 @@ i18n.use(initReactI18next).init({
     escapeValue: false,
   },
 })
+
+// Keep <html lang> in sync so the browser picks matching fonts (e.g. Hangul)
+// and line-breaking rules, and screen readers use the right voice.
+function syncDocumentLanguage(lng: string) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = lng
+  }
+}
+syncDocumentLanguage(i18n.language)
+i18n.on('languageChanged', syncDocumentLanguage)
 
 export default i18n
