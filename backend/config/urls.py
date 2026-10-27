@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/", include("apps.training.urls")),
     path("api/", include("apps.matches.urls")),
     path("api/", include("apps.announcements.urls")),
+    path("api/", include("apps.tactics.urls")),
 ]

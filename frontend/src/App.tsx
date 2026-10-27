@@ -32,8 +32,14 @@ import PlayerComparisonPage from './pages/PlayerComparisonPage'
 import PlayerReportPage from './pages/PlayerReportPage'
 import PlayersListPage from './pages/PlayersListPage'
 import TeamsPage from './pages/TeamsPage'
+import AnnouncementsPage from './pages/AnnouncementsPage'
+import { UnreadAnnouncementsProvider } from './context/UnreadAnnouncementsContext'
 import LoadingSpinner from './components/ui/LoadingSpinner'
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
+
+const LineupEditorPage = lazy(() => import('./pages/LineupEditorPage'))
+const TacticsPage = lazy(() => import('./pages/TacticsPage'))
+const TacticsBoardPage = lazy(() => import('./pages/TacticsBoardPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -80,6 +86,10 @@ function AppRoutes() {
       {/* All other pages: inside AppShell */}
       <Route element={<AppShell />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route
+          path="/announcements"
+          element={<ProtectedRoute><AnnouncementsPage /></ProtectedRoute>}
+        />
         <Route
           path="/players"
           element={<ProtectedRoute><PlayersListPage /></ProtectedRoute>}
@@ -161,6 +171,18 @@ function AppRoutes() {
           element={<CoachRoute><CoachMatchDetailPage /></CoachRoute>}
         />
         <Route
+          path="/coach/tactics"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><TacticsPage /></Suspense></CoachRoute>}
+        />
+        <Route
+          path="/coach/tactics/:boardId"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><TacticsBoardPage /></Suspense></CoachRoute>}
+        />
+        <Route
+          path="/coach/matches/:matchId/lineup"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><LineupEditorPage /></Suspense></CoachRoute>}
+        />
+        <Route
           path="/coach/matches/:matchId/edit"
           element={<CoachRoute><EditMatchPage /></CoachRoute>}
         />
@@ -206,7 +228,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <UnreadAnnouncementsProvider>
+          <AppRoutes />
+        </UnreadAnnouncementsProvider>
       </AuthProvider>
     </BrowserRouter>
   )
