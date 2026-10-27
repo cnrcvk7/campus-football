@@ -129,3 +129,58 @@ class LineupSlot(models.Model):
 
     def __str__(self) -> str:
         return f"{self.player_id} ({self.role}) in lineup {self.lineup_id}"
+
+
+class TacticBoard(models.Model):
+    """
+    A free-form tactics board (not tied to a match).
+    Tokens and drawing stored as validated JSON.
+    """
+
+    GAME_FORMAT_CHOICES = [(f, str(f)) for f in GAME_FORMATS]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    academy = models.ForeignKey(
+        "academies.Academy",
+        on_delete=models.CASCADE,
+        related_name="tactic_boards",
+    )
+    team = models.ForeignKey(
+        "teams.Team",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tactic_boards",
+    )
+    title = models.CharField(max_length=120)
+    game_format = models.PositiveSmallIntegerField(choices=GAME_FORMAT_CHOICES)
+    tokens = models.JSONField(default=list, blank=True)
+    drawing = models.JSONField(default=list, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tactic_boards_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tactic_boards_updated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tactic_boards"
+        indexes = [
+            models.Index(fields=["academy", "-updated_at"], name="board_academy_updated"),
+        ]
+        ordering = ["-updated_at"]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.academy})"

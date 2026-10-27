@@ -106,3 +106,80 @@ export interface LineupSummary {
   version: number
   updated_at: string
 }
+
+// ---------------------------------------------------------------------------
+// TacticBoard (free-form boards, not tied to a match)
+// ---------------------------------------------------------------------------
+
+export type TokenKind = 'home' | 'away' | 'ball'
+
+export interface BoardToken {
+  id: string
+  kind: TokenKind
+  /** Canonical x: across the pitch 0..1 */
+  x: number
+  /** Canonical y: along the pitch 0..1 (0 = own goal) */
+  y: number
+  label?: string
+  player_id?: string
+}
+
+export interface TacticBoardRead {
+  id: string
+  academy: string
+  academy_name: string
+  team: string | null
+  team_name: string | null
+  title: string
+  game_format: GameFormat
+  tokens: BoardToken[]
+  drawing: DrawingElement[]
+  version: number
+  created_by: string | null
+  created_by_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TacticBoardWrite {
+  academy?: string
+  team?: string | null
+  title: string
+  game_format: GameFormat
+  tokens: BoardToken[]
+  drawing: DrawingElement[]
+  version: number
+}
+
+export interface PaginatedBoardResponse {
+  count: number
+  next: string | null
+  previous: string | null
+  results: TacticBoardRead[]
+}
+
+// ---------------------------------------------------------------------------
+// Drawing element types (typed for frontend rendering)
+// ---------------------------------------------------------------------------
+
+export type DrawingColor = 'white' | 'yellow' | 'red' | 'blue' | 'black'
+export type StrokeWidth = 'sm' | 'md' | 'lg'
+
+export interface FreehandElement {
+  id: string
+  type: 'freehand'
+  points: [number, number][]
+  color: DrawingColor
+  width: StrokeWidth
+  dashed: boolean
+}
+
+export interface TextElement {
+  id: string
+  type: 'text'
+  at: [number, number]
+  text: string
+  color: DrawingColor
+}
+
+export type TypedDrawingElement = FreehandElement | TextElement | DrawingElement
