@@ -1,14 +1,72 @@
 """
-Core infrastructure tests — currently covers production settings validation.
+Core infrastructure tests — production settings validation and shared helpers.
 """
 
 import importlib
 import os
 import sys
+from datetime import date
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase
+from rest_framework.exceptions import ValidationError
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
+
+from apps.core.dates import get_date_range, month_bounds
+
+
+def _request(params):
+    return Request(APIRequestFactory().get("/", params))
+
+
+class GetDateRangeTests(SimpleTestCase):
+    """Behaviour of the shared ?year=&month= parser (moved from development.views)."""
+
+    def test_no_params_returns_none(self):
+        self.assertEqual(get_date_range(_request({})), (None, None))
+
+    def test_valid_month_returns_inclusive_bounds(self):
+        self.assertEqual(
+            get_date_range(_request({"year": "2026", "month": "4"})),
+            (date(2026, 4, 1), date(2026, 4, 30)),
+        )
+
+    def test_february_leap_and_non_leap(self):
+        self.assertEqual(month_bounds(2028, 2)[1], date(2028, 2, 29))
+        self.assertEqual(month_bounds(2026, 2)[1], date(2026, 2, 28))
+
+    def test_december(self):
+        self.assertEqual(month_bounds(2026, 12), (date(2026, 12, 1), date(2026, 12, 31)))
+
+    def test_range_limits_inclusive(self):
+        self.assertEqual(get_date_range(_request({"year": "2000", "month": "1"}))[0], date(2000, 1, 1))
+        self.assertEqual(get_date_range(_request({"year": "2100", "month": "12"}))[1], date(2100, 12, 31))
+
+    def test_invalid_inputs_raise(self):
+        for params in (
+            {"year": "2026"},
+            {"month": "5"},
+            {"year": "abc", "month": "5"},
+            {"year": "2026", "month": "1.5"},
+            {"year": "2026", "month": "0"},
+            {"year": "2026", "month": "13"},
+            {"year": "1999", "month": "12"},
+            {"year": "2101", "month": "1"},
+        ):
+            with self.subTest(params=params):
+                with self.assertRaises(ValidationError):
+                    get_date_range(_request(params))
+
+    def test_views_share_the_single_core_helper(self):
+        """No app keeps its own copy of the parser."""
+        import apps.development.views as dev_views
+        import apps.matches.views as match_views
+        import apps.training.views as training_views
+        for module in (dev_views, match_views, training_views):
+            with self.subTest(module=module.__name__):
+                self.assertIs(module.get_date_range, get_date_range)
 
 _PRODUCTION_MODULE = "config.settings.production"
 

@@ -128,6 +128,36 @@ function passAccuracy(completed: number, attempted: number): number | null {
   return Math.round((completed / attempted) * 100)
 }
 
+/**
+ * Summarise the selected month's match rows in the shape of the all-time
+ * /matches/summary/ response, so the match section never mixes all-time
+ * totals with monthly rows.  The rows are already academy-scoped server-side.
+ */
+function summarizeMatches(matches: PlayerMatchStats[]): MatchSummary {
+  const sum = (pick: (m: PlayerMatchStats) => number) =>
+    matches.reduce((acc, m) => acc + pick(m), 0)
+  const ratings = matches
+    .filter((m) => m.rating !== null)
+    .map((m) => parseFloat(m.rating as string))
+  return {
+    matches_played: matches.length,
+    starts: matches.filter((m) => m.started).length,
+    total_minutes: sum((m) => m.minutes_played),
+    goals: sum((m) => m.goals),
+    assists: sum((m) => m.assists),
+    average_rating:
+      ratings.length > 0
+        ? String(ratings.reduce((a, b) => a + b, 0) / ratings.length)
+        : null,
+    total_shots: sum((m) => m.shots),
+    total_passes_completed: sum((m) => m.passes_completed),
+    total_dribbles: sum((m) => m.dribbles),
+    total_tackles: sum((m) => m.tackles),
+    yellow_cards: sum((m) => m.yellow_cards),
+    red_cards: sum((m) => m.red_cards),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Monthly Summary Card
 // ---------------------------------------------------------------------------
@@ -196,7 +226,7 @@ function MonthlySummaryCard({
       isNumber: true,
     },
     {
-      labelKey: 'playerReport.attendanceRate',
+      labelKey: 'playerReport.monthlyAttendanceRate',
       value: current.attendance_rate !== null ? `${current.attendance_rate}%` : '—',
       prevValue: null, // percentage — skip delta
       isNumber: false,
@@ -279,7 +309,7 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-brand-400">
-              {t('playerReport.title')}
+              {t('playerReport.navLabel')}
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
               {player.first_name} {player.last_name}
@@ -643,9 +673,7 @@ function MatchSection({
 
   return (
     <section>
-      <SectionTitle>
-        {t('analytics.seasonStats')} — {t('playerReport.sectionMatchPerformance')}
-      </SectionTitle>
+      <SectionTitle>{t('playerReport.sectionMatchPerformance')}</SectionTitle>
       <Card>
         <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 mb-6">
           {stats.map(({ label, value }) => (
@@ -950,11 +978,11 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
     error,
     player,
     history,
-    matchSummary,
   } = usePlayerProfile(playerId)
 
   const {
     loading: monthlyLoading,
+    error: monthlyError,
     monthlyTimeline,
     monthlyMatches,
     monthlyTraining,
@@ -993,9 +1021,6 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
   const matches     = monthlyMatches?.matches ?? []
   const sessions    = monthlyTraining?.sessions ?? []
 
-  // Match summary is still all-time from usePlayerProfile (period summary is in MonthlySummaryCard)
-  const displayMatchSummary = matchSummary
-
   return (
     <div className="min-h-screen bg-gray-50">
       <ReportHeader player={player} history={history} />
@@ -1023,16 +1048,28 @@ function PlayerReportContent({ playerId }: { playerId: string }) {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
-        {monthlySummary && (
-          <MonthlySummaryCard summary={monthlySummary} periodLabel={periodLabel} />
+        {monthlyLoading ? (
+          <LoadingSpinner />
+        ) : monthlyError ? (
+          <EmptyState
+            icon="⚠️"
+            title={t('playerReport.monthlyLoadFailed')}
+            description={monthlyError}
+          />
+        ) : (
+          <>
+            {monthlySummary && (
+              <MonthlySummaryCard summary={monthlySummary} periodLabel={periodLabel} />
+            )}
+            <CategorySection assessments={assessments} />
+            <SkillProgressionSection assessments={assessments} />
+            <PhysicalSection measurements={measurements} />
+            <MatchSection summary={summarizeMatches(matches)} matches={matches} />
+            <TrainingSection sessions={sessions} />
+            <GoalsSection goals={goals} />
+            <FeedbackSection assessments={assessments} matches={matches} />
+          </>
         )}
-        <CategorySection assessments={assessments} />
-        <SkillProgressionSection assessments={assessments} />
-        <PhysicalSection measurements={measurements} />
-        <MatchSection summary={displayMatchSummary} matches={matches} />
-        <TrainingSection sessions={sessions} />
-        <GoalsSection goals={goals} />
-        <FeedbackSection assessments={assessments} matches={matches} />
       </div>
     </div>
   )

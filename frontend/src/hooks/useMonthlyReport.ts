@@ -33,6 +33,8 @@ export function useMonthlyReport(
   const [state, setState] = useState<MonthlyReportState>(INITIAL_STATE)
 
   useEffect(() => {
+    // Ignore responses for a month the user has already navigated away from.
+    let cancelled = false
     setState(INITIAL_STATE)
 
     const qs = `year=${year}&month=${month}`
@@ -44,6 +46,7 @@ export function useMonthlyReport(
       api.get<MonthlyReportSummary>(`/players/${playerId}/report/monthly/?${qs}`),
     ])
       .then(([monthlyTimeline, monthlyMatches, monthlyTraining, monthlySummary]) => {
+        if (cancelled) return
         setState({
           loading: false,
           error: null,
@@ -54,12 +57,17 @@ export function useMonthlyReport(
         })
       })
       .catch((err: unknown) => {
-        setState((prev) => ({
-          ...prev,
+        if (cancelled) return
+        setState({
+          ...INITIAL_STATE,
           loading: false,
           error: err instanceof Error ? err.message : 'Failed to load monthly report data.',
-        }))
+        })
       })
+
+    return () => {
+      cancelled = true
+    }
   }, [playerId, year, month])
 
   return state

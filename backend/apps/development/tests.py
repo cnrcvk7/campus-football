@@ -1614,3 +1614,298 @@ class MonthlyReportTests(APITestCase):
         response = self._get(2026, 10)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["current"]["measurement_count"], 2)
+
+
+# ---------------------------------------------------------------------------
+# Monthly Report — academy scoping and role access
+# ---------------------------------------------------------------------------
+
+
+class MonthlyReportAcademyScopingTests(APITestCase):
+    """
+    The monthly report must apply the same academy scoping as the match and
+    training history endpoints: staff only aggregate records from academies
+    they are staff of, superusers see everything, PLAYER/PARENT access is
+    scoped to the player itself.
+
+    Setup: `shared` is enrolled in Academy A and Academy B and has one match
+    and one training session at each academy in October 2026, plus a match at
+    Academy B only in September 2026.  `player_b` is enrolled in B only.
+    """
+
+    def setUp(self):
+        from apps.matches.models import Match, MatchPlayerStats
+        from apps.training.models import TrainingAttendance, TrainingSession
+
+        self.academy_a = Academy.objects.create(name="Scope A", city="X", country="Y")
+        self.academy_b = Academy.objects.create(name="Scope B", city="X", country="Y")
+        self.team_a = Team.objects.create(academy=self.academy_a, name="A U15")
+        self.team_b = Team.objects.create(academy=self.academy_b, name="B U15")
+
+        self.coach_a = make_user(User.Role.COACH, "scope_coach_a@test.com")
+        self.admin_a = make_user(User.Role.ACADEMY_ADMIN, "scope_admin_a@test.com")
+        self.coach_b = make_user(User.Role.COACH, "scope_coach_b@test.com")
+        self.coach_none = make_user(User.Role.COACH, "scope_coach_none@test.com")
+        AcademyStaffMembership.objects.create(user=self.coach_a, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.admin_a, academy=self.academy_a)
+        AcademyStaffMembership.objects.create(user=self.coach_b, academy=self.academy_b)
+        self.superuser = User.objects.create_superuser(
+            email="scope_super@test.com", password="testpass123",
+            first_name="Super", last_name="User",
+        )
+
+        self.player_user = make_user(User.Role.PLAYER, "scope_player@test.com")
+        self.shared = make_player(user=self.player_user, first_name="Shared")
+        self.membership_a = PlayerAcademyMembership.objects.create(
+            player=self.shared, academy=self.academy_a, joined_at=datetime.date(2026, 1, 1)
+        )
+        PlayerAcademyMembership.objects.create(
+            player=self.shared, academy=self.academy_b, joined_at=datetime.date(2026, 1, 1)
+        )
+        self.player_b = make_player(first_name="OnlyB")
+        PlayerAcademyMembership.objects.create(
+            player=self.player_b, academy=self.academy_b, joined_at=datetime.date(2026, 1, 1)
+        )
+
+        self.parent = make_user(User.Role.PARENT, "scope_parent@test.com")
+        self.other_parent = make_user(User.Role.PARENT, "scope_other_parent@test.com")
+        from apps.users.models import ParentPlayerLink
+        ParentPlayerLink.objects.create(parent=self.parent, player=self.shared)
+
+        def match(academy, team, coach, match_date, goals, rating, team_score, opponent_score):
+            m = Match.objects.create(
+                academy=academy, team=team, opponent_name=f"Opp {academy.name}",
+                match_date=match_date, home_away="HOME",
+                team_score=team_score, opponent_score=opponent_score, created_by=coach,
+            )
+            MatchPlayerStats.objects.create(
+                match=m, player=self.shared, goals=goals, rating=rating
+            )
+
+        # October: A = win, 1 goal, rating 6; B = loss, 3 goals, rating 9
+        match(self.academy_a, self.team_a, self.coach_a, "2026-10-05", 1, "6.0", 2, 1)
+        match(self.academy_b, self.team_b, self.coach_b, "2026-10-06", 3, "9.0", 0, 1)
+        # September: B only
+        match(self.academy_b, self.team_b, self.coach_b, "2026-09-10", 2, "8.0", 4, 0)
+
+        def session(academy, team, coach, training_date, attendance_status):
+            s = TrainingSession.objects.create(
+                academy=academy, team=team, title=f"Session {academy.name}",
+                training_date=training_date, coach=coach,
+            )
+            TrainingAttendance.objects.create(
+                session=s, player=self.shared, status=attendance_status
+            )
+
+        session(self.academy_a, self.team_a, self.coach_a, "2026-10-12", "PRESENT")
+        session(self.academy_b, self.team_b, self.coach_b, "2026-10-13", "ABSENT")
+
+    def _report(self, player, user, params=None):
+        self.client.force_authenticate(user=user)
+        url = reverse("player-monthly-report", kwargs={"player_pk": player.pk})
+        return self.client.get(url, params if params is not None else {"year": "2026", "month": "10"})
+
+    def _assert_academy_a_only(self, response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data["current"]
+        self.assertEqual(current["match_count"], 1)
+        self.assertEqual(current["matches_won"], 1)
+        self.assertEqual(current["goals"], 1)
+        self.assertEqual(current["avg_rating"], "6.00")
+        self.assertEqual(current["training_count"], 1)
+        self.assertEqual(current["training_attended"], 1)
+        self.assertEqual(current["attendance_rate"], 100)
+        # September data exists only at Academy B → no comparison for A staff.
+        self.assertFalse(response.data["has_previous_data"])
+        self.assertIsNone(response.data["previous"])
+
+    def _assert_all_academies(self, response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data["current"]
+        self.assertEqual(current["match_count"], 2)
+        self.assertEqual(current["matches_won"], 1)
+        self.assertEqual(current["goals"], 4)
+        self.assertEqual(current["avg_rating"], "7.50")
+        self.assertEqual(current["training_count"], 2)
+        self.assertEqual(current["training_attended"], 1)
+        self.assertEqual(current["attendance_rate"], 50)
+        self.assertTrue(response.data["has_previous_data"])
+        self.assertEqual(response.data["previous"]["match_count"], 1)
+
+    # -- Staff of A: never sees Academy B records ------------------------------
+
+    def test_coach_a_report_excludes_academy_b_stats(self):
+        self._assert_academy_a_only(self._report(self.shared, self.coach_a))
+
+    def test_admin_a_report_excludes_academy_b_stats(self):
+        self._assert_academy_a_only(self._report(self.shared, self.admin_a))
+
+    def test_coach_b_sees_only_academy_b_stats(self):
+        response = self._report(self.shared, self.coach_b)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data["current"]
+        self.assertEqual(current["match_count"], 1)
+        self.assertEqual(current["matches_won"], 0)
+        self.assertEqual(current["goals"], 3)
+        self.assertEqual(current["attendance_rate"], 0)
+        self.assertTrue(response.data["has_previous_data"])
+
+    def test_coach_a_cannot_view_report_of_player_only_in_academy_b(self):
+        make_assessment(self.player_b, self.coach_b, assessment_date="2026-10-01")
+        response = self._report(self.player_b, self.coach_a)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertNotIn("current", response.data)
+
+    def test_admin_a_cannot_view_report_of_player_only_in_academy_b(self):
+        response = self._report(self.player_b, self.admin_a)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_without_any_membership_is_denied(self):
+        response = self._report(self.shared, self.coach_none)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_permission_is_checked_before_param_validation(self):
+        """Unauthorised callers get 403, not a 400 that confirms the player exists."""
+        response = self._report(self.player_b, self.coach_a, params={})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unknown_player_returns_404(self):
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-monthly-report", kwargs={"player_pk": uuid.uuid4()})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # -- Membership status: LEFT keeps read access, loses write access ---------
+
+    def test_coach_keeps_report_access_after_player_left(self):
+        """Matches PlayerViewSet visibility: LEFT players stay readable."""
+        self.membership_a.status = PlayerAcademyMembership.Status.LEFT
+        self.membership_a.left_at = datetime.date(2026, 10, 20)
+        self.membership_a.save()
+        self._assert_academy_a_only(self._report(self.shared, self.coach_a))
+
+    def test_coach_cannot_write_after_player_left(self):
+        self.membership_a.status = PlayerAcademyMembership.Status.LEFT
+        self.membership_a.left_at = datetime.date(2026, 10, 20)
+        self.membership_a.save()
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.shared.pk})
+        response = self.client.post(
+            url, {"measurement_date": "2026-10-25", "height_cm": "175.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_without_membership_cannot_write(self):
+        self.client.force_authenticate(user=self.coach_none)
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.shared.pk})
+        response = self.client.post(
+            url, {"measurement_date": "2026-10-25", "height_cm": "175.00"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # -- Superuser --------------------------------------------------------------
+
+    def test_superuser_sees_all_academies(self):
+        self._assert_all_academies(self._report(self.shared, self.superuser))
+
+    def test_superuser_can_view_player_without_memberships(self):
+        orphan = make_player(first_name="Orphan")
+        response = self._report(orphan, self.superuser)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # -- PLAYER / PARENT ---------------------------------------------------------
+
+    def test_player_sees_own_full_report(self):
+        """Same as the history endpoints: a player's own data is not academy-filtered."""
+        self._assert_all_academies(self._report(self.shared, self.player_user))
+
+    def test_player_cannot_view_other_player_report(self):
+        response = self._report(self.player_b, self.player_user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_linked_parent_sees_child_report(self):
+        self._assert_all_academies(self._report(self.shared, self.parent))
+
+    def test_unlinked_parent_is_denied(self):
+        response = self._report(self.shared, self.other_parent)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_linked_parent_cannot_view_other_player(self):
+        response = self._report(self.player_b, self.parent)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_is_rejected(self):
+        url = reverse("player-monthly-report", kwargs={"player_pk": self.shared.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # -- Period boundaries and empty data ---------------------------------------
+
+    def test_month_boundaries_are_inclusive_and_exclusive(self):
+        from apps.matches.models import Match, MatchPlayerStats
+
+        for match_date in ("2026-10-31", "2026-11-01"):
+            m = Match.objects.create(
+                academy=self.academy_a, team=self.team_a, opponent_name="Edge",
+                match_date=match_date, home_away="AWAY", created_by=self.coach_a,
+            )
+            MatchPlayerStats.objects.create(match=m, player=self.shared)
+        response = self._report(self.shared, self.coach_a)
+        # 2026-10-05 + 2026-10-31; 2026-11-01 belongs to November.
+        self.assertEqual(response.data["current"]["match_count"], 2)
+
+    def test_leap_day_included_in_february(self):
+        make_assessment(self.shared, self.coach_a, assessment_date="2028-02-29")
+        response = self._report(self.shared, self.coach_a, {"year": "2028", "month": "2"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current"]["assessment_count"], 1)
+
+    def test_empty_month_returns_zero_and_null_rates(self):
+        response = self._report(self.shared, self.coach_a, {"year": "2026", "month": "3"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data["current"]
+        self.assertEqual(current["match_count"], 0)
+        self.assertEqual(current["goals"], 0)
+        self.assertIsNone(current["avg_rating"])
+        self.assertIsNone(current["attendance_rate"])
+        self.assertFalse(response.data["has_previous_data"])
+
+    # -- Date-filtered history endpoints keep their academy scoping -------------
+
+    def test_match_history_month_filter_keeps_academy_scoping(self):
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-match-history", kwargs={"player_pk": self.shared.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [m["opponent"] for m in response.data["matches"]], ["Opp Scope A"]
+        )
+
+    def test_match_history_month_filter_superuser_sees_all(self):
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-match-history", kwargs={"player_pk": self.shared.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(len(response.data["matches"]), 2)
+
+    def test_training_history_month_filter_keeps_academy_scoping(self):
+        self.client.force_authenticate(user=self.coach_a)
+        url = reverse("player-training-history", kwargs={"player_pk": self.shared.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [s["training_date"] for s in response.data["sessions"]], ["2026-10-12"]
+        )
+
+    def test_training_history_month_filter_superuser_sees_all(self):
+        self.client.force_authenticate(user=self.superuser)
+        url = reverse("player-training-history", kwargs={"player_pk": self.shared.pk})
+        response = self.client.get(url, {"year": "2026", "month": "10"})
+        self.assertEqual(len(response.data["sessions"]), 2)
+
+    def test_history_endpoints_reject_invalid_month(self):
+        self.client.force_authenticate(user=self.coach_a)
+        for name in ("player-match-history", "player-training-history"):
+            with self.subTest(endpoint=name):
+                url = reverse(name, kwargs={"player_pk": self.shared.pk})
+                response = self.client.get(url, {"year": "2026", "month": "13"})
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

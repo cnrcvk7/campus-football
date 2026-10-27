@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { toDisplayLocale } from '../../utils/localeDateFormatter'
 
+const MIN_YEAR = 2000
+
 interface MonthSelectorProps {
   year: number
   month: number // 1-12
@@ -26,8 +28,11 @@ export default function MonthSelector({
   const isAtMax =
     year > effectiveMaxYear ||
     (year === effectiveMaxYear && month >= effectiveMaxMonth)
+  // The report API only accepts years from MIN_YEAR onwards.
+  const isAtMin = year < MIN_YEAR || (year === MIN_YEAR && month <= 1)
 
   function goPrev() {
+    if (isAtMin) return
     if (month === 1) {
       onChange(year - 1, 12)
     } else {
@@ -54,8 +59,9 @@ export default function MonthSelector({
       <button
         type="button"
         onClick={goPrev}
+        disabled={isAtMin}
         aria-label={t('playerReport.prevMonth')}
-        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
       >
         ‹
       </button>

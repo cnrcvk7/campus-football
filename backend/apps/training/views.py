@@ -4,7 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.development.views import get_date_range
+from apps.core.dates import get_date_range
 from apps.users.models import User
 
 from .models import Exercise, TrainingAttendance, TrainingSession, TrainingSessionExercise

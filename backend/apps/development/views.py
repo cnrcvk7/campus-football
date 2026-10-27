@@ -1,11 +1,11 @@
-import calendar
 from collections import defaultdict
-from datetime import date
 
 from rest_framework import mixins, status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.core.dates import get_date_range, month_bounds
 
 from .models import Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement, Skill
 from .permissions import get_player_and_check_access
@@ -16,36 +16,6 @@ from .serializers import (
     PhysicalMeasurementSerializer,
     SkillSerializer,
 )
-
-
-# ---------------------------------------------------------------------------
-# Date filtering helper
-# ---------------------------------------------------------------------------
-
-
-def get_date_range(request):
-    """
-    Parse ?year=YYYY&month=MM from request.
-    Returns (start_date, end_date) tuple as date objects, or (None, None) if not provided.
-    Validates: year 2000-2100, month 1-12.
-    Raises ValidationError if invalid.
-    """
-    year = request.query_params.get('year')
-    month = request.query_params.get('month')
-    if not year and not month:
-        return None, None
-    if not year or not month:
-        raise ValidationError("Both 'year' and 'month' parameters are required.")
-    try:
-        year = int(year)
-        month = int(month)
-    except ValueError:
-        raise ValidationError("'year' and 'month' must be integers.")
-    if not (2000 <= year <= 2100) or not (1 <= month <= 12):
-        raise ValidationError("Invalid year or month.")
-    start = date(year, month, 1)
-    end = date(year, month, calendar.monthrange(year, month)[1])
-    return start, end
 
 
 # ---------------------------------------------------------------------------
@@ -420,14 +390,54 @@ class PlayerComparisonView(APIView):
 # ---------------------------------------------------------------------------
 
 
-def _compute_period_stats(player, start, end):
+def _get_report_academy_scope(request, player):
+    """
+    Return the academy IDs the report aggregation must be restricted to, or
+    None when no academy filter applies.
+
+    Mirrors the scoping already used by PlayerMatchHistoryView and
+    PlayerTrainingHistoryView:
+      SUPERUSER            — None (cross-academy access, PR #7).
+      COACH / ACADEMY_ADMIN — staff academies only.  The player must also be
+                             visible to them under PlayerViewSet rules (a
+                             membership, active or left, at one of their
+                             academies); otherwise 403.
+      PLAYER / PARENT      — None; access is already scoped to the player
+                             itself by get_player_and_check_access.
+    """
+    from rest_framework.exceptions import PermissionDenied
+
+    from apps.academies.models import PlayerAcademyMembership
+    from apps.academies.permissions import get_user_academy_ids
+    from apps.users.models import User
+
+    user = request.user
+    if user.is_superuser or user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        return None
+
+    academy_ids = get_user_academy_ids(user)
+    if not PlayerAcademyMembership.objects.filter(
+        player=player, academy_id__in=academy_ids
+    ).exists():
+        raise PermissionDenied(
+            "You can only view reports for players affiliated with your academy."
+        )
+    return academy_ids
+
+
+def _compute_period_stats(player, start, end, academy_ids=None):
     """
     Compute aggregated stats for a player within a calendar period.
     Returns a dict matching MonthlyPeriodStats shape.
-    """
-    from django.db.models import Avg, Sum
 
-    from apps.matches.models import Match, MatchPlayerStats
+    When `academy_ids` is given, match and training figures only include
+    records belonging to those academies.  Assessments, goals and
+    measurements carry no academy and are returned as the player-scoped
+    development endpoints return them.
+    """
+    from django.db.models import Avg, F, Sum
+
+    from apps.matches.models import MatchPlayerStats
     from apps.training.models import TrainingAttendance, TrainingSession
 
     # Assessments
@@ -443,14 +453,14 @@ def _compute_period_stats(player, start, end):
         player=player,
         match__match_date__gte=start,
         match__match_date__lte=end,
-    ).select_related("match")
-    match_count = match_stats_qs.count()
-    matches_won = sum(
-        1 for ms in match_stats_qs
-        if ms.match.team_score is not None
-        and ms.match.opponent_score is not None
-        and ms.match.team_score > ms.match.opponent_score
     )
+    if academy_ids is not None:
+        match_stats_qs = match_stats_qs.filter(match__academy_id__in=academy_ids)
+    match_count = match_stats_qs.count()
+    # NULL scores never satisfy the comparison, so unplayed matches are excluded.
+    matches_won = match_stats_qs.filter(
+        match__team_score__gt=F("match__opponent_score")
+    ).count()
     match_agg = match_stats_qs.aggregate(
         total_goals=Sum("goals"),
         total_assists=Sum("assists"),
@@ -466,12 +476,15 @@ def _compute_period_stats(player, start, end):
         training_date__gte=start,
         training_date__lte=end,
     ).distinct()
-    training_count = training_sessions_qs.count()
     attendance_qs = TrainingAttendance.objects.filter(
         player=player,
         session__training_date__gte=start,
         session__training_date__lte=end,
     )
+    if academy_ids is not None:
+        training_sessions_qs = training_sessions_qs.filter(academy_id__in=academy_ids)
+        attendance_qs = attendance_qs.filter(session__academy_id__in=academy_ids)
+    training_count = training_sessions_qs.count()
     training_attended = attendance_qs.filter(
         status__in=("PRESENT", "LATE")
     ).count()
@@ -529,33 +542,24 @@ class MonthlyReportSummaryView(APIView):
 
     def get(self, request, player_pk):
         player = get_player_and_check_access(request, player_pk, require_write=False)
+        academy_ids = _get_report_academy_scope(request, player)
 
-        year_param = request.query_params.get('year')
-        month_param = request.query_params.get('month')
-
-        if not year_param or not month_param:
+        # Unlike the list endpoints, the period is mandatory here.
+        current_start, current_end = get_date_range(request)
+        if current_start is None:
             raise ValidationError("Both 'year' and 'month' parameters are required.")
-        try:
-            year = int(year_param)
-            month = int(month_param)
-        except ValueError:
-            raise ValidationError("'year' and 'month' must be integers.")
-        if not (2000 <= year <= 2100) or not (1 <= month <= 12):
-            raise ValidationError("Invalid year or month.")
-
-        # Current period
-        current_start = date(year, month, 1)
-        current_end = date(year, month, calendar.monthrange(year, month)[1])
-        current_stats = _compute_period_stats(player, current_start, current_end)
+        year, month = current_start.year, current_start.month
+        current_stats = _compute_period_stats(
+            player, current_start, current_end, academy_ids
+        )
 
         # Previous period
         if month == 1:
             prev_year, prev_month = year - 1, 12
         else:
             prev_year, prev_month = year, month - 1
-        prev_start = date(prev_year, prev_month, 1)
-        prev_end = date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
-        prev_stats = _compute_period_stats(player, prev_start, prev_end)
+        prev_start, prev_end = month_bounds(prev_year, prev_month)
+        prev_stats = _compute_period_stats(player, prev_start, prev_end, academy_ids)
 
         has_previous_data = any(
             v != 0 and v is not None
