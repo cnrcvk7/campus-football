@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   CalendarDays,
+  ChevronRight,
   Clock,
-  Eye,
   MapPin,
   Plus,
   Search,
 } from 'lucide-react'
+import Badge, { type BadgeVariant } from '../components/ui/Badge'
+import Button from '../components/ui/Button'
+import DataTable, { type Column } from '../components/ui/DataTable'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import PageHeader from '../components/ui/PageHeader'
+import Pagination from '../components/ui/Pagination'
+import { CATEGORY_VARIANT } from '../constants/badgeVariants'
 import { trainingService } from '../services/trainingService'
 import type { TrainingSession } from '../types'
+import { parseDateOnly, relativeToToday, type DayRelation } from '../utils/dateOnly'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
 import { cn } from '../lib/utils'
 
@@ -21,100 +28,50 @@ import { cn } from '../lib/utils'
 // Helpers
 // ---------------------------------------------------------------------------
 
-const SKILL_CATEGORY_COLOR: Record<string, string> = {
-  TECHNICAL: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:ring-sky-800',
-  TACTICAL:  'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:ring-violet-800',
-  PHYSICAL:  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-800',
-  MENTAL:    'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:ring-amber-800',
+const PAGE_SIZE = 20
+
+const STATUS_VARIANT: Record<DayRelation, BadgeVariant> = {
+  past: 'default',
+  today: 'sky',
+  future: 'emerald',
 }
 
-function formatShortDate(d: string, locale: string): string {
-  const date = new Date(d)
-  const day = date.getDate().toString().padStart(2, '0')
-  const month = date.toLocaleDateString(locale, { month: 'short' })
-  const year = date.getFullYear()
-  return `${day} ${month} ${year}`
+const STATUS_KEY: Record<DayRelation, string> = {
+  past: 'training.statusCompleted',
+  today: 'training.statusToday',
+  future: 'training.statusUpcoming',
 }
 
-// ---------------------------------------------------------------------------
-// Desktop table row
-// ---------------------------------------------------------------------------
+/** "HH:MM:SS" → "HH:MM" */
+function shortTime(time: string | null): string | null {
+  return time ? time.substring(0, 5) : null
+}
 
-function SessionTableRow({ session, onView }: { session: TrainingSession; onView: () => void }) {
-  const { i18n, t } = useTranslation()
-  const displayLocale = toDisplayLocale(i18n.language)
+function FocusSkillBadges({ session, max = 2 }: { session: TrainingSession; max?: number }) {
   const skills = session.focus_skills
-  const visibleSkills = skills.slice(0, 2)
-  const extraCount = skills.length - 2
+  if (skills.length === 0) return <span className="text-cf-muted-foreground">—</span>
+  const extra = skills.length - max
 
   return (
-    <tr className="hover:bg-cf-muted/50 transition-colors">
-      <td className="py-3 pl-4 pr-3 whitespace-nowrap">
-        <div className="flex items-center gap-2 text-sm text-cf-muted-foreground">
-          <CalendarDays size={14} className="shrink-0" />
-          {formatShortDate(session.training_date, displayLocale)}
-        </div>
-      </td>
-      <td className="px-3 py-3">
-        <p className="text-sm font-semibold text-cf-surface-foreground">{session.title}</p>
-      </td>
-      <td className="px-3 py-3 text-sm text-cf-muted-foreground">
-        {session.team_name ?? '—'}
-      </td>
-      <td className="px-3 py-3">
-        {session.location ? (
-          <span className="flex items-center gap-1.5 text-sm text-cf-muted-foreground">
-            <MapPin size={12} className="shrink-0" />
-            {session.location}
-          </span>
-        ) : (
-          <span className="text-sm text-cf-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-3 py-3 whitespace-nowrap">
-        {session.duration_minutes ? (
-          <span className="flex items-center gap-1.5 text-sm text-cf-muted-foreground">
-            <Clock size={12} className="shrink-0" />
-            {t('training.durationMin', { n: session.duration_minutes })}
-          </span>
-        ) : (
-          <span className="text-sm text-cf-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex flex-wrap gap-1">
-          {visibleSkills.map((s) => (
-            <span
-              key={s.id}
-              className={cn(
-                'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-                SKILL_CATEGORY_COLOR[s.category] ?? 'bg-cf-muted text-cf-muted-foreground ring-cf-border',
-              )}
-            >
-              {s.name}
-            </span>
-          ))}
-          {extraCount > 0 && (
-            <span className="rounded-full px-2 py-0.5 text-xs text-cf-muted-foreground ring-1 ring-inset ring-cf-border bg-cf-muted">
-              +{extraCount}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="pl-3 pr-4 py-3 text-right">
-        <button
-          onClick={onView}
-          aria-label="View session"
-          className={cn(
-            'inline-flex items-center justify-center h-8 w-8 rounded-lg transition',
-            'text-cf-muted-foreground hover:text-cf-surface-foreground hover:bg-cf-muted',
-          )}
-        >
-          <Eye size={16} />
-        </button>
-      </td>
-    </tr>
+    <div className="flex flex-wrap gap-1">
+      {skills.slice(0, max).map((s) => (
+        <Badge key={s.id} variant={CATEGORY_VARIANT[s.category] ?? 'default'}>
+          {s.name}
+        </Badge>
+      ))}
+      {extra > 0 && (
+        <span title={skills.slice(max).map((s) => s.name).join(', ')}>
+          <Badge>+{extra}</Badge>
+        </span>
+      )}
+    </div>
   )
+}
+
+function StatusBadge({ date }: { date: string }) {
+  const { t } = useTranslation()
+  const relation = relativeToToday(date)
+  return <Badge variant={STATUS_VARIANT[relation]}>{t(STATUS_KEY[relation])}</Badge>
 }
 
 // ---------------------------------------------------------------------------
@@ -124,65 +81,55 @@ function SessionTableRow({ session, onView }: { session: TrainingSession; onView
 function SessionMobileCard({ session, onView }: { session: TrainingSession; onView: () => void }) {
   const { i18n, t } = useTranslation()
   const displayLocale = toDisplayLocale(i18n.language)
-  const skills = session.focus_skills
-  const visibleSkills = skills.slice(0, 2)
-  const extraCount = skills.length - 2
-  const date = new Date(session.training_date)
+  const date = parseDateOnly(session.training_date)
+  const time = shortTime(session.start_time)
 
   return (
     <button
       onClick={onView}
       className={cn(
-        'w-full text-left rounded-2xl p-4 ring-1 bg-cf-surface ring-cf-border transition',
-        'hover:ring-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400',
+        'w-full rounded-xl p-3 text-left ring-1 transition',
+        'bg-cf-surface ring-cf-border hover:ring-emerald-400',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
       )}
     >
       <div className="flex items-start gap-3">
         {/* Date block */}
-        <div className="flex-shrink-0 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 px-1 py-2 text-center">
-          <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase">
+        <div className="w-11 flex-shrink-0 rounded-lg bg-cf-muted py-1.5 text-center ring-1 ring-cf-border">
+          <p className="text-[10px] font-semibold uppercase leading-none text-cf-muted-foreground">
             {date.toLocaleDateString(displayLocale, { month: 'short' })}
           </p>
-          <p className="text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">
+          <p className="mt-1 text-lg font-bold leading-none text-cf-surface-foreground">
             {date.getDate()}
           </p>
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-cf-surface-foreground truncate">{session.title}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="truncate text-sm font-semibold text-cf-surface-foreground">{session.title}</p>
+            <StatusBadge date={session.training_date} />
+          </div>
           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-cf-muted-foreground">
             {session.team_name && <span>{session.team_name}</span>}
-            {session.location && (
+            {time && (
               <span className="flex items-center gap-1">
-                <MapPin size={10} />
-                {session.location}
+                <Clock size={11} />
+                {time}
               </span>
             )}
             {session.duration_minutes && (
+              <span>{t('training.durationMin', { n: session.duration_minutes })}</span>
+            )}
+            {session.location && (
               <span className="flex items-center gap-1">
-                <Clock size={10} />
-                {t('training.durationMin', { n: session.duration_minutes })}
+                <MapPin size={11} />
+                {session.location}
               </span>
             )}
           </div>
-          {visibleSkills.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {visibleSkills.map((s) => (
-                <span
-                  key={s.id}
-                  className={cn(
-                    'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-                    SKILL_CATEGORY_COLOR[s.category] ?? 'bg-cf-muted text-cf-muted-foreground ring-cf-border',
-                  )}
-                >
-                  {s.name}
-                </span>
-              ))}
-              {extraCount > 0 && (
-                <span className="rounded-full px-2 py-0.5 text-xs text-cf-muted-foreground ring-1 ring-inset ring-cf-border bg-cf-muted">
-                  +{extraCount}
-                </span>
-              )}
+          {session.focus_skills.length > 0 && (
+            <div className="mt-2">
+              <FocusSkillBadges session={session} />
             </div>
           )}
         </div>
@@ -192,12 +139,54 @@ function SessionMobileCard({ session, onView }: { session: TrainingSession; onVi
 }
 
 // ---------------------------------------------------------------------------
+// Ownership filter (segmented control)
+// ---------------------------------------------------------------------------
+
+function OwnershipFilter({ myOnly, onChange }: { myOnly: boolean; onChange: (v: boolean) => void }) {
+  const { t } = useTranslation()
+  const options = [
+    { value: false, label: t('training.allSessions') },
+    { value: true, label: t('training.filterMine') },
+  ]
+
+  return (
+    <div
+      role="group"
+      aria-label={t('training.filterLabel')}
+      className="inline-flex rounded-md bg-cf-muted p-0.5 ring-1 ring-cf-border"
+    >
+      {options.map((opt) => {
+        const active = myOnly === opt.value
+        return (
+          <button
+            key={String(opt.value)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'h-7 rounded px-3 text-xs font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50',
+              active
+                ? 'bg-cf-surface text-cf-surface-foreground shadow-sm ring-1 ring-cf-border'
+                : 'text-cf-muted-foreground hover:text-cf-surface-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function CoachSessionsPage() {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const [sessions, setSessions] = useState<TrainingSession[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -207,9 +196,7 @@ export default function CoachSessionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    setPage(1)
-  }, [myOnly])
+  const loadFailedMsg = t('training.error.loadFailed')
 
   useEffect(() => {
     setLoading(true)
@@ -224,162 +211,173 @@ export default function CoachSessionsPage() {
         setLoading(false)
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('training.error.loadFailed'))
+        setError(err instanceof Error ? err.message : loadFailedMsg)
         setLoading(false)
       })
-  }, [myOnly, page, t])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myOnly, page])
 
-  const totalPages = Math.max(1, Math.ceil(total / 20))
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const openSession = (s: TrainingSession) => navigate(`/coach/sessions/${s.id}`)
+
+  // Inside the table the EmptyState drops its own frame (the table provides one)
+  const renderEmpty = (inTable: boolean) => (
+    <EmptyState
+      icon={myOnly ? <Search size={20} /> : <CalendarDays size={20} />}
+      title={myOnly ? t('training.noResultsTitle') : t('training.emptyTitle')}
+      description={myOnly ? t('training.noResultsDesc') : t('training.emptyDesc')}
+      className={inTable ? 'rounded-none ring-0' : undefined}
+    />
+  )
+
+  const columns: Column<TrainingSession>[] = [
+    {
+      key: 'date',
+      header: t('training.date'),
+      cellClassName: 'whitespace-nowrap',
+      render: (s) => {
+        const date = parseDateOnly(s.training_date)
+        return (
+          <div>
+            <p className="font-medium tabular-nums text-cf-surface-foreground">
+              {date.toLocaleDateString(displayLocale, { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
+            <p className="text-xs text-cf-muted-foreground">
+              {date.toLocaleDateString(displayLocale, { weekday: 'short' })}
+              {s.start_time && <> · <span className="tabular-nums">{shortTime(s.start_time)}</span></>}
+            </p>
+          </div>
+        )
+      },
+    },
+    {
+      key: 'title',
+      header: t('training.titleField'),
+      render: (s) => (
+        <div className="min-w-0">
+          <Link
+            to={`/coach/sessions/${s.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-semibold text-cf-surface-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 rounded-sm"
+          >
+            {s.title}
+          </Link>
+          {s.team_name && <p className="text-xs text-cf-muted-foreground">{s.team_name}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'location',
+      header: t('training.detailLocation'),
+      cellClassName: 'text-cf-muted-foreground',
+      render: (s) =>
+        s.location ? (
+          <span className="flex items-center gap-1.5">
+            <MapPin size={12} className="shrink-0" />
+            {s.location}
+          </span>
+        ) : '—',
+    },
+    {
+      key: 'duration',
+      header: t('training.detailDuration'),
+      cellClassName: 'whitespace-nowrap text-cf-muted-foreground tabular-nums',
+      render: (s) => (s.duration_minutes ? t('training.durationMin', { n: s.duration_minutes }) : '—'),
+    },
+    {
+      key: 'skills',
+      header: t('training.sectionFocusSkills'),
+      render: (s) => <FocusSkillBadges session={s} />,
+    },
+    {
+      key: 'status',
+      header: t('training.tableStatus'),
+      render: (s) => <StatusBadge date={s.training_date} />,
+    },
+    {
+      key: 'chevron',
+      header: '',
+      headerClassName: 'w-8',
+      render: () => <ChevronRight size={14} className="ml-auto text-cf-muted-foreground" />,
+    },
+  ]
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('training.listTitle')}</h1>
-            <p className="mt-1 text-sm text-cf-muted-foreground">
-              {!loading && t('training.sessionCount', { count: total })}
-            </p>
-          </div>
+      <PageHeader
+        title={t('training.listTitle')}
+        subtitle={t('training.pageSubtitle')}
+        action={
+          <Button onClick={() => navigate('/coach/sessions/new')}>
+            <Plus size={14} />
+            {t('training.newSession')}
+          </Button>
+        }
+      />
 
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-3">
-            {/* My sessions toggle */}
-            <label
-              className={cn(
-                'flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition',
-                myOnly
-                  ? 'bg-emerald-500 text-white ring-emerald-500'
-                  : 'bg-cf-surface text-cf-surface-foreground ring-cf-border hover:bg-cf-muted',
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={myOnly}
-                onChange={(e) => setMyOnly(e.target.checked)}
-                className="sr-only"
-              />
-              {t('training.mySessionsOnly')}
-            </label>
-
-            <button
-              onClick={() => navigate('/coach/sessions/new')}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-            >
-              <Plus size={16} />
-              {t('training.addButton')}
-            </button>
-          </div>
-        </div>
-
-        {/* Loading */}
-        {loading && sessions.length === 0 && <LoadingSpinner />}
-
-        {/* Error */}
-        {!loading && error && (
-          <EmptyState
-            icon={<AlertTriangle size={24} />}
-            title={t('training.error.loadFailed')}
-            description={error}
-          />
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <OwnershipFilter myOnly={myOnly} onChange={(v) => { setMyOnly(v); setPage(1) }} />
+        {!loading && !error && (
+          <p className="text-xs text-cf-muted-foreground">
+            {t('training.sessionCount', { count: total })}
+          </p>
         )}
+      </div>
 
-        {/* Content */}
-        {(!loading || sessions.length > 0) && !error && (
-          <>
-            {sessions.length === 0 && !loading ? (
-              myOnly ? (
-                <EmptyState
-                  icon={<Search size={24} />}
-                  title={t('training.noResultsTitle')}
-                  description={t('training.noResultsDesc')}
-                />
-              ) : (
-                <EmptyState
-                  icon={<CalendarDays size={24} />}
-                  title={t('training.emptyTitle')}
-                  description={t('training.emptyDesc')}
-                />
-              )
+      {/* Initial loading */}
+      {loading && sessions.length === 0 && <LoadingSpinner />}
+
+      {/* Error */}
+      {!loading && error && (
+        <EmptyState
+          icon={<AlertTriangle size={20} />}
+          title={t('training.error.loadFailed')}
+          description={error}
+        />
+      )}
+
+      {/* Content */}
+      {(!loading || sessions.length > 0) && !error && (
+        <>
+          {/* Desktop table (md+) */}
+          <div className={cn('hidden md:block', loading && 'opacity-60')}>
+            <DataTable
+              columns={columns}
+              rows={sessions}
+              rowKey={(s) => s.id}
+              onRowClick={openSession}
+              empty={renderEmpty(true)}
+            />
+          </div>
+
+          {/* Mobile cards (< md) */}
+          <div className={cn('md:hidden', loading && 'opacity-60')}>
+            {sessions.length === 0 ? (
+              renderEmpty(false)
             ) : (
-              <>
-                {/* Desktop table */}
-                <div className="hidden md:block overflow-hidden rounded-2xl ring-1 ring-cf-border">
-                  <table className="min-w-full divide-y divide-cf-border">
-                    <thead>
-                      <tr className="bg-cf-muted">
-                        <th className="py-3 pl-4 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.date', 'Date')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.titleField')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.detailTeam')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.detailLocation')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.detailDuration')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('training.sectionFocusSkills')}
-                        </th>
-                        <th className="pl-3 pr-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-cf-border bg-cf-surface">
-                      {sessions.map((s) => (
-                        <SessionTableRow
-                          key={s.id}
-                          session={s}
-                          onView={() => navigate(`/coach/sessions/${s.id}`)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile cards */}
-                <div className="md:hidden space-y-3">
-                  {sessions.map((s) => (
-                    <SessionMobileCard
-                      key={s.id}
-                      session={s}
-                      onView={() => navigate(`/coach/sessions/${s.id}`)}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Pagination */}
-            {(hasNext || hasPrev) && (
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  onClick={() => setPage((p) => p - 1)}
-                  disabled={!hasPrev || loading}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-cf-surface ring-1 ring-cf-border text-cf-surface-foreground hover:bg-cf-muted transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t('pagination.previous')}
-                </button>
-                <p className="text-sm text-cf-muted-foreground">
-                  {t('pagination.page')}{' '}
-                  <span className="font-semibold text-cf-surface-foreground">{page}</span>
-                  {' '}{t('pagination.of')}{' '}
-                  <span className="font-semibold text-cf-surface-foreground">{totalPages}</span>
-                </p>
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!hasNext || loading}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-cf-surface ring-1 ring-cf-border text-cf-surface-foreground hover:bg-cf-muted transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t('pagination.next')}
-                </button>
+              <div className="space-y-2">
+                {sessions.map((s) => (
+                  <SessionMobileCard key={s.id} session={s} onView={() => openSession(s)} />
+                ))}
               </div>
             )}
-          </>
-        )}
+          </div>
+
+          {(hasNext || hasPrev) && (
+            <Pagination
+              className="mt-6"
+              page={page}
+              totalPages={totalPages}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onPrev={() => setPage((p) => p - 1)}
+              onNext={() => setPage((p) => p + 1)}
+              disabled={loading}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }

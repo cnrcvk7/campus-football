@@ -244,7 +244,12 @@
     "deleteConfirm": "{{name}} adlı oyuncuyu silmek istediğinizden emin misiniz? Bu işlem kalıcıdır.",
     "deleteConfirmYes": "Evet, kalıcı olarak sil",
     "addButton": "Oyuncu Ekle",
-    "saveButton": "Değişiklikleri Kaydet"
+    "saveButton": "Değişiklikleri Kaydet",
+    "sectionAcademy": "Akademi",
+    "academy": "Akademi",
+    "academyPlaceholder": "Akademi se\u00e7in\u2026",
+    "errorNoAcademy": "Herhangi bir akademinin personeli de\u011filsiniz.",
+    "errorAcademyRequired": "L\u00fctfen bir akademi se\u00e7in."
   },
   "playerProfile": {
     "navLabel": "Oyuncu Profili",
@@ -522,13 +527,35 @@
     "validation": { "nameRequired": "Takım adı zorunludur.", "nameTooLong": "Takım adı en fazla 200 karakter olabilir.", "academyRequired": "Lütfen bir akademi seçin." }
   },
   "training": {
+    "pageSubtitle": "Seansları planlayın, egzersizleri takip edin ve devamı kaydedin.",
+    "newSession": "Yeni seans",
+    "allSessions": "Tüm seanslar",
+    "filterMine": "Seanslarım",
+    "filterLabel": "Seansları filtrele",
+    "recordAttendance": "Devam ekle",
+    "exercisesTitle": "Egzersizler",
+    "attendanceTitle": "Devam",
+    "editAction": "Düzenle",
+    "statusToday": "Bugün",
+    "tableStatus": "Durum",
+    "attendanceStatus": {
+      "PRESENT": "Katıldı",
+      "LATE": "Geç",
+      "EXCUSED": "Mazeretli",
+      "ABSENT": "Katılmadı"
+    },
+    "exerciseCategoryLabel": {
+      "TECHNICAL": "Teknik",
+      "TACTICAL": "Taktik",
+      "PHYSICAL": "Fiziksel",
+      "MENTAL": "Mental"
+    },
     "sessionsNavLabel": "Antrenman Seansları",
     "sessionNavLabel": "Antrenman Seansı",
     "newNavLabel": "Yeni Antrenman Seansı",
     "editNavLabel": "Antrenman Seansını Düzenle",
     "listTitle": "Antrenman Seansları",
     "listSubtitle": "Tüm antrenman seansları — egzersizler ve devam için bir karta tıklayın.",
-    "mySessionsOnly": "Yalnızca benim seanslarım",
     "addButton": "+ Yeni Seans",
     "backToSessions": "← Tüm seanslar",
     "editSession": "Seansı Düzenle",
@@ -616,6 +643,15 @@
     "error": { "notFound": "Kayıt bulunamadı." }
   },
   "matches": {
+    "pageSubtitle": "Fikstür, sonuçlar ve oyuncu performansı.",
+    "newMatch": "Yeni maç",
+    "allMatches": "Tüm maçlar",
+    "addStats": "Oyuncu istatistikleri ekle",
+    "playerStatsTitle": "Oyuncu istatistikleri",
+    "recordedBy": "Kaydeden",
+    "tableKeyPasses": "KP",
+    "tableDribbles": "Çalım",
+    "tableInterceptions": "Top Ç.",
     "listNavLabel": "Maçlar",
     "matchNavLabel": "Maç",
     "newNavLabel": "Yeni Maç",
@@ -751,12 +787,19 @@
     }
   },
   "pagination": {
+    "navLabel": "Sayfalama",
     "previous": "← Önceki",
     "next": "Sonraki →",
     "page": "Sayfa",
     "of": "/"
   },
   "schedule": {
+    "dayEmpty": "Bu gün etkinlik yok",
+    "showWholeMonth": "Tüm ayı göster",
+    "partialTitle": "Yalnızca son etkinlikler yüklendi",
+    "partialDesc": "{{sessionsTotal}} antrenman seansınızdan {{sessionsLoaded}} tanesi ve {{matchesTotal}} maçtan {{matchesLoaded}} tanesi gösteriliyor. {{date}} ve öncesindeki etkinlikler takvimde eksik olabilir.",
+    "dayAria_one": "{{date}}, {{count}} etkinlik",
+    "dayAria_other": "{{date}}, {{count}} etkinlik",
     "title": "Takvim",
     "subtitle": "Antrenman seansları ve maçlarınız",
     "noEventsThisMonth": "Bu ay etkinlik yok",

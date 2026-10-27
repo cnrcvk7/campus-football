@@ -1,6 +1,8 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.response import Response
 
@@ -47,8 +49,21 @@ class PlayerViewSet(
         qs = super().get_queryset()
         user = self.request.user
 
-        if user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
-            pass  # full access to all players
+        if user.is_superuser:
+            pass  # superuser sees all players
+        elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+            # Strict academy scoping: only players enrolled in the user's
+            # academies via PlayerAcademyMembership.
+            from apps.academies.models import PlayerAcademyMembership
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(user)
+            player_ids = (
+                PlayerAcademyMembership.objects
+                .filter(academy_id__in=academy_ids)
+                .values_list("player_id", flat=True)
+                .distinct()
+            )
+            qs = qs.filter(id__in=player_ids).distinct()
         elif user.role == User.Role.PLAYER:
             qs = qs.filter(user=user)
         elif user.role == User.Role.PARENT:
@@ -77,10 +92,61 @@ class PlayerViewSet(
         return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
-        """POST /api/players/ — COACH and ACADEMY_ADMIN only."""
+        """
+        POST /api/players/ — COACH or ACADEMY_ADMIN with academy affiliation.
+
+        Requires an ``academy`` UUID in the request body.  If omitted and the
+        user is staff of exactly one academy, that academy is used as default.
+        If the user is staff of several academies, 400 is returned.
+        If the user is staff of none, 403 is returned.
+
+        Superusers must always provide ``academy`` explicitly.
+
+        A PlayerAcademyMembership is created atomically alongside the Player.
+        """
+        from apps.academies.models import Academy, PlayerAcademyMembership
+        from apps.academies.permissions import get_user_academy_ids, require_staff_of_academy
         from .permissions import require_coach_or_admin
+
         require_coach_or_admin(request)
-        return super().create(request, *args, **kwargs)
+
+        academy_id = request.data.get("academy")
+
+        if request.user.is_superuser:
+            if not academy_id:
+                return Response(
+                    {"academy": ["Superuser must specify an academy."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            user_academy_ids = get_user_academy_ids(request.user)
+            if not user_academy_ids:
+                raise PermissionDenied(
+                    "You are not a staff member of any academy."
+                )
+            if not academy_id:
+                if len(user_academy_ids) == 1:
+                    academy_id = next(iter(user_academy_ids))
+                else:
+                    return Response(
+                        {"academy": ["You are staff of multiple academies. Please specify one."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+        require_staff_of_academy(request.user, academy_id)
+        academy = get_object_or_404(Academy, pk=academy_id)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            player = serializer.save()
+            PlayerAcademyMembership.objects.create(
+                player=player,
+                academy=academy,
+                joined_at=player.created_at.date(),
+            )
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def partial_update(self, request, *args, **kwargs):
         """PATCH /api/players/{id}/ — COACH or ACADEMY_ADMIN, affiliated academy required."""

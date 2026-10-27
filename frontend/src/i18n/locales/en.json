@@ -244,7 +244,12 @@
     "deleteConfirm": "Are you sure you want to delete {{name}}? This action is permanent.",
     "deleteConfirmYes": "Yes, delete permanently",
     "addButton": "Add Player",
-    "saveButton": "Save Changes"
+    "saveButton": "Save Changes",
+    "sectionAcademy": "Academy",
+    "academy": "Academy",
+    "academyPlaceholder": "Select academy\u2026",
+    "errorNoAcademy": "You are not a staff member of any academy.",
+    "errorAcademyRequired": "Please select an academy."
   },
   "playerProfile": {
     "navLabel": "Player Profile",
@@ -522,13 +527,35 @@
     "validation": { "nameRequired": "Team name is required.", "nameTooLong": "Team name must be 200 characters or fewer.", "academyRequired": "Please select an academy." }
   },
   "training": {
+    "pageSubtitle": "Plan sessions, track exercises and record attendance.",
+    "newSession": "New session",
+    "allSessions": "All sessions",
+    "filterMine": "My sessions",
+    "filterLabel": "Filter sessions",
+    "recordAttendance": "Add attendance",
+    "exercisesTitle": "Exercises",
+    "attendanceTitle": "Attendance",
+    "editAction": "Edit",
+    "statusToday": "Today",
+    "tableStatus": "Status",
+    "attendanceStatus": {
+      "PRESENT": "Present",
+      "LATE": "Late",
+      "EXCUSED": "Excused",
+      "ABSENT": "Absent"
+    },
+    "exerciseCategoryLabel": {
+      "TECHNICAL": "Technical",
+      "TACTICAL": "Tactical",
+      "PHYSICAL": "Physical",
+      "MENTAL": "Mental"
+    },
     "sessionsNavLabel": "Training Sessions",
     "sessionNavLabel": "Training Session",
     "newNavLabel": "New Training Session",
     "editNavLabel": "Edit Training Session",
     "listTitle": "Training Sessions",
     "listSubtitle": "All training sessions — click a card to view exercises and attendance.",
-    "mySessionsOnly": "My sessions only",
     "addButton": "+ New Session",
     "backToSessions": "← All sessions",
     "editSession": "Edit Session",
@@ -616,6 +643,15 @@
     "error": { "notFound": "Record not found." }
   },
   "matches": {
+    "pageSubtitle": "Fixtures, results and player performance.",
+    "newMatch": "New match",
+    "allMatches": "All matches",
+    "addStats": "Add player stats",
+    "playerStatsTitle": "Player statistics",
+    "recordedBy": "Recorded by",
+    "tableKeyPasses": "KP",
+    "tableDribbles": "Drb",
+    "tableInterceptions": "Int",
     "listNavLabel": "Matches",
     "matchNavLabel": "Match",
     "newNavLabel": "New Match",
@@ -751,12 +787,19 @@
     }
   },
   "pagination": {
+    "navLabel": "Pagination",
     "previous": "← Previous",
     "next": "Next →",
     "page": "Page",
     "of": "of"
   },
   "schedule": {
+    "dayEmpty": "No events on this day",
+    "showWholeMonth": "Show whole month",
+    "partialTitle": "Only recent events are loaded",
+    "partialDesc": "Showing {{sessionsLoaded}} of {{sessionsTotal}} of your training sessions and {{matchesLoaded}} of {{matchesTotal}} matches. Events on or before {{date}} may be missing from the calendar.",
+    "dayAria_one": "{{date}}, {{count}} event",
+    "dayAria_other": "{{date}}, {{count}} events",
     "title": "Schedule",
     "subtitle": "Your training sessions and matches",
     "noEventsThisMonth": "No events this month",

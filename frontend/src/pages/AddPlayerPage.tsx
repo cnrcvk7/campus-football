@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
 import { POSITIONS } from '../constants/football'
 import { playerService } from '../services/playerService'
+import { academyService } from '../services/academyService'
 import { ApiError } from '../services/api'
+import type { Academy } from '../types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,6 +20,7 @@ interface FormState {
   preferred_position: string
   jersey_number: string
   profile_photo_url: string
+  academy: string
 }
 
 const EMPTY: FormState = {
@@ -28,6 +31,7 @@ const EMPTY: FormState = {
   preferred_position: '',
   jersey_number: '',
   profile_photo_url: '',
+  academy: '',
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,22 @@ export default function AddPlayerPage() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [academies, setAcademies] = useState<Academy[]>([])
+  const [academiesLoading, setAcademiesLoading] = useState(true)
+
+  useEffect(() => {
+    academyService.list().then((res) => {
+      const list = res.results
+      setAcademies(list)
+      if (list.length === 1) {
+        setForm((prev) => ({ ...prev, academy: list[0].id }))
+      }
+    }).catch(() => {
+      // If academies fail to load, user will see the error on submit
+    }).finally(() => {
+      setAcademiesLoading(false)
+    })
+  }, [])
 
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -77,23 +97,29 @@ export default function AddPlayerPage() {
         preferred_position: form.preferred_position || undefined,
         jersey_number: jerseyRaw ? parseInt(jerseyRaw, 10) : null,
         profile_photo_url: form.profile_photo_url.trim() || undefined,
+        academy: form.academy || undefined,
       })
       navigate(`/players/${player.id}`)
     } catch (err) {
       if (err instanceof ApiError) {
-        try {
-          const body = JSON.parse(err.message)
-          // DRF field errors: { field: ["msg"] } or { detail: "msg" }
-          const messages = Object.entries(body)
-            .map(([field, msgs]) =>
-              field === 'non_field_errors' || field === 'detail'
-                ? String(Array.isArray(msgs) ? msgs[0] : msgs)
-                : `${field}: ${Array.isArray(msgs) ? msgs[0] : msgs}`
-            )
-            .join(' · ')
-          setError(messages)
-        } catch {
-          setError(err.message)
+        if (err.status === 403) {
+          setError(t('playerForm.errorNoAcademy'))
+        } else {
+          try {
+            const body = JSON.parse(err.message)
+            const messages = Object.entries(body)
+              .map(([field, msgs]) => {
+                const msg = String(Array.isArray(msgs) ? msgs[0] : msgs)
+                if (field === 'academy') return t('playerForm.errorAcademyRequired')
+                return field === 'non_field_errors' || field === 'detail'
+                  ? msg
+                  : `${field}: ${msg}`
+              })
+              .join(' · ')
+            setError(messages)
+          } catch {
+            setError(err.message)
+          }
         }
       } else {
         setError(t('common.error.generic'))
@@ -101,6 +127,8 @@ export default function AddPlayerPage() {
       setSubmitting(false)
     }
   }
+
+  const showAcademySelect = academies.length > 1
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
@@ -113,6 +141,31 @@ export default function AddPlayerPage() {
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="space-y-8">
+
+            {/* ── Academy selection (only when multiple) ── */}
+            {showAcademySelect && (
+              <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
+                <h2 className="mb-5 text-sm font-semibold uppercase tracking-widest text-gray-400">
+                  {t('playerForm.sectionAcademy')}
+                </h2>
+                <div>
+                  <FieldLabel htmlFor="academy" required>{t('playerForm.academy')}</FieldLabel>
+                  <select
+                    id="academy"
+                    required
+                    value={form.academy}
+                    onChange={(e) => set('academy', e.target.value)}
+                    className={`${inputCls} bg-white`}
+                    disabled={academiesLoading}
+                  >
+                    <option value="">{t('playerForm.academyPlaceholder')}</option>
+                    {academies.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </section>
+            )}
 
             {/* ── Personal details ── */}
             <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-100">
@@ -246,7 +299,7 @@ export default function AddPlayerPage() {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || academiesLoading}
                 className="rounded-xl bg-brand-600 px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
               >
                 {submitting ? t('common.loading') : t('playerForm.addButton')}

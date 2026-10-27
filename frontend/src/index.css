@@ -42,6 +42,11 @@
   /* Active sidebar item */
   --cf-nav-active:         5   150 105;   /* emerald-600  */
   --cf-nav-active-fg:      255 255 255;   /* white        */
+
+  /* Warning / amber notice banners */
+  --cf-warning:            255 251 235;   /* amber-50  */
+  --cf-warning-foreground: 146  64  14;   /* amber-800 */
+  --cf-warning-border:     253 230 138;   /* amber-200 */
 }
 
 .dark {
@@ -74,6 +79,11 @@
   /* Active sidebar item */
   --cf-nav-active:         5   150 105;   /* emerald-600  */
   --cf-nav-active-fg:      255 255 255;   /* white        */
+
+  /* Warning / amber notice banners */
+  --cf-warning:             69  26   3;   /* amber-950 */
+  --cf-warning-foreground: 252 211  77;   /* amber-300 */
+  --cf-warning-border:     146  64  14;   /* amber-800 */
 }
 
 @layer base {

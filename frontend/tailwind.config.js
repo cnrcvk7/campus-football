@@ -40,6 +40,9 @@ export default {
         'cf-nav-muted':          'rgb(var(--cf-nav-muted) / <alpha-value>)',
         'cf-nav-active':         'rgb(var(--cf-nav-active) / <alpha-value>)',
         'cf-nav-active-fg':      'rgb(var(--cf-nav-active-fg) / <alpha-value>)',
+        'cf-warning':            'rgb(var(--cf-warning) / <alpha-value>)',
+        'cf-warning-foreground': 'rgb(var(--cf-warning-foreground) / <alpha-value>)',
+        'cf-warning-border':     'rgb(var(--cf-warning-border) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

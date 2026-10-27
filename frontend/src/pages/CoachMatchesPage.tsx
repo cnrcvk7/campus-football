@@ -1,109 +1,56 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Eye, Plus, Trophy } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Plus, Trophy } from 'lucide-react'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
+import DataTable, { type Column } from '../components/ui/DataTable'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import PageHeader from '../components/ui/PageHeader'
+import Pagination from '../components/ui/Pagination'
+import { RESULT_VARIANT, resultLabelKey } from '../constants/badgeVariants'
 import { matchService } from '../services/matchService'
 import type { Match } from '../types'
+import { parseDateOnly, relativeToToday } from '../utils/dateOnly'
 import { toDisplayLocale } from '../utils/localeDateFormatter'
 import { cn } from '../lib/utils'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Shared cells
 // ---------------------------------------------------------------------------
 
-const RESULT_BADGE: Record<string, string> = {
-  WIN:  'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-800',
-  DRAW: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:ring-amber-800',
-  LOSS: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-400 dark:ring-red-800',
+const PAGE_SIZE = 20
+
+function HomeAwayBadge({ match }: { match: Match }) {
+  const { t } = useTranslation()
+  return match.home_away === 'HOME'
+    ? <Badge variant="emerald">{t('matches.homeBadge')}</Badge>
+    : <Badge>{t('matches.awayBadge')}</Badge>
 }
 
-function formatShortDate(d: string, locale: string): string {
-  const date = new Date(d)
-  const day = date.getDate().toString().padStart(2, '0')
-  const month = date.toLocaleDateString(locale, { month: 'short' })
-  const year = date.getFullYear()
-  return `${day} ${month} ${year}`
+function ResultBadge({ match }: { match: Match }) {
+  const { t } = useTranslation()
+  if (!match.result) return null
+  return <Badge variant={RESULT_VARIANT[match.result]}>{t(resultLabelKey(match.result))}</Badge>
 }
 
-// ---------------------------------------------------------------------------
-// Desktop table row
-// ---------------------------------------------------------------------------
-
-function MatchTableRow({ match, onView }: { match: Match; onView: () => void }) {
-  const { t, i18n } = useTranslation()
-  const displayLocale = toDisplayLocale(i18n.language)
-
-  return (
-    <tr className="hover:bg-cf-muted/50 transition-colors">
-      <td className="py-3 pl-4 pr-3 whitespace-nowrap text-sm text-cf-muted-foreground">
-        {formatShortDate(match.match_date, displayLocale)}
-      </td>
-      <td className="px-3 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-cf-surface-foreground">
-            vs {match.opponent_name}
-          </p>
-          <span
-            className={cn(
-              'rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-              match.home_away === 'HOME'
-                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-800'
-                : 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700',
-            )}
-          >
-            {match.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')}
-          </span>
-        </div>
-      </td>
-      <td className="px-3 py-3 text-sm text-cf-muted-foreground">
-        {match.competition || '—'}
-      </td>
-      <td className="px-3 py-3 whitespace-nowrap">
-        {match.score_display ? (
-          <span className="font-mono text-sm font-bold text-cf-surface-foreground">
-            {match.score_display}
-          </span>
-        ) : (
-          <span className="text-sm text-cf-muted-foreground">{t('matches.upcomingBadge')}</span>
-        )}
-      </td>
-      <td className="px-3 py-3">
-        {match.result ? (
-          <span
-            className={cn(
-              'rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-              RESULT_BADGE[match.result] ?? 'bg-cf-muted text-cf-muted-foreground ring-cf-border',
-            )}
-          >
-            {match.result === 'WIN'
-              ? t('matches.winBadge')
-              : match.result === 'DRAW'
-              ? t('matches.drawBadge')
-              : t('matches.lossBadge')}
-          </span>
-        ) : (
-          <span className="text-sm text-cf-muted-foreground">—</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-cf-muted-foreground">
-        {match.team_name}
-      </td>
-      <td className="pl-3 pr-4 py-3 text-right">
-        <button
-          onClick={onView}
-          aria-label="View match"
-          className={cn(
-            'inline-flex items-center justify-center h-8 w-8 rounded-lg transition',
-            'text-cf-muted-foreground hover:text-cf-surface-foreground hover:bg-cf-muted',
-          )}
-        >
-          <Eye size={16} />
-        </button>
-      </td>
-    </tr>
-  )
+/**
+ * Recorded score, or — when no score exists — "Upcoming" for today/future
+ * fixtures and "Score not recorded" for past ones. Never invents a score.
+ */
+function ScoreCell({ match }: { match: Match }) {
+  const { t } = useTranslation()
+  if (match.score_display) {
+    return (
+      <span className="font-mono text-sm font-bold tabular-nums text-cf-surface-foreground">
+        {match.score_display}
+      </span>
+    )
+  }
+  return relativeToToday(match.match_date) === 'past'
+    ? <span className="text-xs text-cf-muted-foreground">{t('matches.noScore')}</span>
+    : <Badge variant="sky">{t('matches.upcomingBadge')}</Badge>
 }
 
 // ---------------------------------------------------------------------------
@@ -113,65 +60,37 @@ function MatchTableRow({ match, onView }: { match: Match; onView: () => void }) 
 function MatchMobileCard({ match, onView }: { match: Match; onView: () => void }) {
   const { t, i18n } = useTranslation()
   const displayLocale = toDisplayLocale(i18n.language)
-  const date = new Date(match.match_date)
+  const date = parseDateOnly(match.match_date)
 
   return (
     <button
       onClick={onView}
       className={cn(
-        'w-full text-left rounded-2xl p-4 ring-1 bg-cf-surface ring-cf-border transition',
-        'hover:ring-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400',
+        'w-full rounded-xl p-3 text-left ring-1 transition',
+        'bg-cf-surface ring-cf-border hover:ring-emerald-400',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {/* Date + result row */}
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="text-xs text-cf-muted-foreground">
-              {date.toLocaleDateString(displayLocale, { day: 'numeric', month: 'short', year: 'numeric' })}
-            </span>
-            {match.result && (
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset',
-                  RESULT_BADGE[match.result] ?? 'bg-cf-muted text-cf-muted-foreground ring-cf-border',
-                )}
-              >
-                {match.result === 'WIN'
-                  ? t('matches.winBadge')
-                  : match.result === 'DRAW'
-                  ? t('matches.drawBadge')
-                  : t('matches.lossBadge')}
-              </span>
-            )}
-          </div>
+      <div className="flex items-center justify-between gap-2 text-xs text-cf-muted-foreground">
+        <span className="truncate">
+          {date.toLocaleDateString(displayLocale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+          {match.competition && <> · {match.competition}</>}
+        </span>
+        <ResultBadge match={match} />
+      </div>
 
-          {/* Opponent + score */}
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="font-semibold text-cf-surface-foreground">vs {match.opponent_name}</p>
-            {match.score_display && (
-              <span className="font-mono text-sm font-bold text-cf-surface-foreground">
-                {match.score_display}
-              </span>
-            )}
-          </div>
-
-          {/* Meta */}
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-cf-muted-foreground">
-            <span>{match.team_name}</span>
-            {match.competition && <span>{match.competition}</span>}
-            <span
-              className={cn(
-                'rounded-full px-1.5 py-0.5 font-medium ring-1 ring-inset',
-                match.home_away === 'HOME'
-                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-800'
-                  : 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700',
-              )}
-            >
-              {match.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')}
-            </span>
-          </div>
+      <div className="mt-1.5 flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm font-semibold text-cf-surface-foreground">
+          {t('matches.vsOpponent', { opponent: match.opponent_name })}
+        </p>
+        <div className="flex-shrink-0">
+          <ScoreCell match={match} />
         </div>
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-cf-muted-foreground">
+        <HomeAwayBadge match={match} />
+        <span>{match.team_name}</span>
       </div>
     </button>
   )
@@ -183,7 +102,8 @@ function MatchMobileCard({ match, onView }: { match: Match; onView: () => void }
 
 export default function CoachMatchesPage() {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const displayLocale = toDisplayLocale(i18n.language)
   const [matches, setMatches] = useState<Match[]>([])
   const [total, setTotal] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -210,128 +130,154 @@ export default function CoachMatchesPage() {
       })
   }, [page, t])
 
-  const totalPages = Math.max(1, Math.ceil(total / 20))
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const openMatch = (m: Match) => navigate(`/coach/matches/${m.id}`)
+
+  // Inside the table the EmptyState drops its own frame (the table provides one)
+  const renderEmpty = (inTable: boolean) => (
+    <EmptyState
+      icon={<Trophy size={20} />}
+      title={t('matches.emptyTitle')}
+      description={t('matches.emptyDesc')}
+      className={inTable ? 'rounded-none ring-0' : undefined}
+    />
+  )
+
+  const columns: Column<Match>[] = [
+    {
+      key: 'date',
+      header: t('matches.tableDate'),
+      cellClassName: 'whitespace-nowrap',
+      render: (m) => {
+        const date = parseDateOnly(m.match_date)
+        return (
+          <div>
+            <p className="font-medium tabular-nums text-cf-surface-foreground">
+              {date.toLocaleDateString(displayLocale, { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
+            <p className="text-xs text-cf-muted-foreground">
+              {date.toLocaleDateString(displayLocale, { weekday: 'short' })}
+            </p>
+          </div>
+        )
+      },
+    },
+    {
+      key: 'opponent',
+      header: t('matches.tableOpponent'),
+      render: (m) => (
+        <div className="min-w-0">
+          <Link
+            to={`/coach/matches/${m.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-semibold text-cf-surface-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 rounded-sm"
+          >
+            {t('matches.vsOpponent', { opponent: m.opponent_name })}
+          </Link>
+          <p className="text-xs text-cf-muted-foreground">{m.team_name}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'homeAway',
+      header: t('playerProfile.tableHomeAway'),
+      render: (m) => <HomeAwayBadge match={m} />,
+    },
+    {
+      key: 'competition',
+      header: t('matches.tableCompetition'),
+      cellClassName: 'text-cf-muted-foreground',
+      render: (m) => m.competition || '—',
+    },
+    {
+      key: 'score',
+      header: t('matches.tableScore'),
+      cellClassName: 'whitespace-nowrap',
+      render: (m) => <ScoreCell match={m} />,
+    },
+    {
+      key: 'result',
+      header: t('matches.tableResult'),
+      render: (m) => (m.result ? <ResultBadge match={m} /> : <span className="text-cf-muted-foreground">—</span>),
+    },
+    {
+      key: 'chevron',
+      header: '',
+      headerClassName: 'w-8',
+      render: () => <ChevronRight size={14} className="ml-auto text-cf-muted-foreground" />,
+    },
+  ]
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('matches.listTitle')}</h1>
-            <p className="mt-1 text-sm text-cf-muted-foreground">
-              {!loading && t('matches.matchCount', { count: total })}
-            </p>
+      <PageHeader
+        title={t('matches.listTitle')}
+        subtitle={t('matches.pageSubtitle')}
+        action={
+          <Button onClick={() => navigate('/coach/matches/new')}>
+            <Plus size={14} />
+            {t('matches.newMatch')}
+          </Button>
+        }
+      />
+
+      {!loading && !error && (
+        <p className="mb-4 text-xs text-cf-muted-foreground">{t('matches.matchCount', { count: total })}</p>
+      )}
+
+      {/* Initial loading */}
+      {loading && matches.length === 0 && <LoadingSpinner />}
+
+      {/* Error */}
+      {!loading && error && (
+        <EmptyState
+          icon={<AlertTriangle size={20} />}
+          title={t('matches.error.loadFailed')}
+          description={error}
+        />
+      )}
+
+      {/* Content */}
+      {(!loading || matches.length > 0) && !error && (
+        <>
+          {/* Desktop table (md+) */}
+          <div className={cn('hidden md:block', loading && 'opacity-60')}>
+            <DataTable
+              columns={columns}
+              rows={matches}
+              rowKey={(m) => m.id}
+              onRowClick={openMatch}
+              empty={renderEmpty(true)}
+            />
           </div>
-          <button
-            onClick={() => navigate('/coach/matches/new')}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-          >
-            <Plus size={16} />
-            {t('matches.addButton')}
-          </button>
-        </div>
 
-        {/* Loading */}
-        {loading && matches.length === 0 && <LoadingSpinner />}
-
-        {/* Error */}
-        {!loading && error && (
-          <EmptyState
-            icon={<AlertTriangle size={24} />}
-            title={t('matches.error.loadFailed')}
-            description={error}
-          />
-        )}
-
-        {/* Content */}
-        {(!loading || matches.length > 0) && !error && (
-          <>
-            {matches.length === 0 && !loading ? (
-              <EmptyState
-                icon={<Trophy size={24} />}
-                title={t('matches.emptyTitle')}
-                description={t('matches.emptyDesc')}
-              />
+          {/* Mobile cards (< md) */}
+          <div className={cn('md:hidden', loading && 'opacity-60')}>
+            {matches.length === 0 ? (
+              renderEmpty(false)
             ) : (
-              <>
-                {/* Desktop table */}
-                <div className="hidden md:block overflow-hidden rounded-2xl ring-1 ring-cf-border">
-                  <table className="min-w-full divide-y divide-cf-border">
-                    <thead>
-                      <tr className="bg-cf-muted">
-                        <th className="py-3 pl-4 pr-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableDate')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableOpponent')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableCompetition')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableScore')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableResult')}
-                        </th>
-                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-                          {t('matches.tableTeam')}
-                        </th>
-                        <th className="pl-3 pr-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-cf-border bg-cf-surface">
-                      {matches.map((m) => (
-                        <MatchTableRow
-                          key={m.id}
-                          match={m}
-                          onView={() => navigate(`/coach/matches/${m.id}`)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile cards */}
-                <div className="md:hidden space-y-3">
-                  {matches.map((m) => (
-                    <MatchMobileCard
-                      key={m.id}
-                      match={m}
-                      onView={() => navigate(`/coach/matches/${m.id}`)}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Pagination */}
-            {(hasNext || hasPrev) && (
-              <div className="mt-8 flex items-center justify-between">
-                <button
-                  onClick={() => setPage((p) => p - 1)}
-                  disabled={!hasPrev || loading}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-cf-surface ring-1 ring-cf-border text-cf-surface-foreground hover:bg-cf-muted transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t('pagination.previous')}
-                </button>
-                <p className="text-sm text-cf-muted-foreground">
-                  {t('pagination.page')}{' '}
-                  <span className="font-semibold text-cf-surface-foreground">{page}</span>
-                  {' '}{t('pagination.of')}{' '}
-                  <span className="font-semibold text-cf-surface-foreground">{totalPages}</span>
-                </p>
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!hasNext || loading}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium bg-cf-surface ring-1 ring-cf-border text-cf-surface-foreground hover:bg-cf-muted transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {t('pagination.next')}
-                </button>
+              <div className="space-y-2">
+                {matches.map((m) => (
+                  <MatchMobileCard key={m.id} match={m} onView={() => openMatch(m)} />
+                ))}
               </div>
             )}
-          </>
-        )}
+          </div>
+
+          {(hasNext || hasPrev) && (
+            <Pagination
+              className="mt-6"
+              page={page}
+              totalPages={totalPages}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onPrev={() => setPage((p) => p - 1)}
+              onNext={() => setPage((p) => p + 1)}
+              disabled={loading}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }

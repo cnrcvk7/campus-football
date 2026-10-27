@@ -1,198 +1,181 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Trophy,
+  Clock,
+  MapPin,
+  Plus,
 } from 'lucide-react'
+import Badge from '../components/ui/Badge'
+import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import PageHeader from '../components/ui/PageHeader'
+import Panel from '../components/ui/Panel'
+import { RESULT_VARIANT, resultLabelKey } from '../constants/badgeVariants'
 import { trainingService } from '../services/trainingService'
 import { matchService } from '../services/matchService'
-import type { Match, MatchResult, TrainingSession } from '../types'
+import type { Match, PaginatedResponse, TrainingSession } from '../types'
+import { parseDateOnly, toIsoDate } from '../utils/dateOnly'
+import { toDisplayLocale } from '../utils/localeDateFormatter'
 import { cn } from '../lib/utils'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type TrainingEvent = {
-  kind: 'training'
-  id: string
-  date: string  // YYYY-MM-DD
-  title: string
-  team: string | null
-  location: string
-}
+type ScheduleEvent =
+  | { kind: 'training'; id: string; date: string; session: TrainingSession }
+  | { kind: 'match'; id: string; date: string; match: Match }
 
-type MatchEvent = {
-  kind: 'match'
-  id: string
-  date: string  // YYYY-MM-DD
-  opponent: string
-  team: string
-  result: MatchResult | null
-  score: string | null
+/** How much of a paginated source was actually loaded. */
+interface SourceCoverage {
+  loaded: number
+  total: number
+  /** Oldest date in the loaded page, when more (older) pages exist */
+  truncatedAt: string | null
 }
-
-type ScheduleEvent = TrainingEvent | MatchEvent
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isoDate(dateStr: string): string {
-  return dateStr.substring(0, 10)
-}
-
-function toTrainingEvent(s: TrainingSession): TrainingEvent {
+function coverageOf<T>(data: PaginatedResponse<T>, dateOf: (item: T) => string): SourceCoverage {
+  // Both endpoints are ordered newest-first, so a truncated response is
+  // missing events on or before the oldest date it contains.
+  const dates = data.results.map((r) => dateOf(r).substring(0, 10)).sort()
   return {
-    kind: 'training',
-    id: s.id,
-    date: isoDate(s.training_date),
-    title: s.title,
-    team: s.team_name,
-    location: s.location,
-  }
-}
-
-function toMatchEvent(m: Match): MatchEvent {
-  return {
-    kind: 'match',
-    id: m.id,
-    date: isoDate(m.match_date),
-    opponent: m.opponent_name,
-    team: m.team_name,
-    result: m.result,
-    score: m.score_display,
+    loaded: data.results.length,
+    total: data.count,
+    truncatedAt: data.next !== null && dates.length > 0 ? dates[0] : null,
   }
 }
 
 function buildCalendarDays(year: number, month: number): (string | null)[] {
-  // month is 0-indexed
-  const firstDay = new Date(year, month, 1)
-  // Monday = 0 offset, shift so Mon = 0
-  const startDow = (firstDay.getDay() + 6) % 7   // Mon=0 .. Sun=6
+  // month is 0-indexed; weeks start on Monday
+  const startDow = (new Date(year, month, 1).getDay() + 6) % 7   // Mon=0 .. Sun=6
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
   const cells: (string | null)[] = []
   for (let i = 0; i < startDow; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    cells.push(dateStr)
-  }
-  // Pad to complete last week
+  for (let d = 1; d <= daysInMonth; d++) cells.push(toIsoDate(new Date(year, month, d)))
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
 }
 
-function formatMonthYear(year: number, month: number, locale: string): string {
-  return new Date(year, month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+function eventPath(ev: ScheduleEvent): string {
+  return ev.kind === 'training' ? `/coach/sessions/${ev.id}` : `/coach/matches/${ev.id}`
 }
 
-function formatDayLabel(dateStr: string, locale: string): string {
-  return new Date(dateStr).toLocaleDateString(locale, {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
-}
-
-const TODAY = isoDate(new Date().toISOString())
+const KIND_STYLES = {
+  training: {
+    dot: 'bg-emerald-500',
+    bar: 'border-l-emerald-500',
+    chip: 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900',
+  },
+  match: {
+    dot: 'bg-sky-500',
+    bar: 'border-l-sky-500',
+    chip: 'bg-sky-50 text-sky-800 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900',
+  },
+} as const
 
 // ---------------------------------------------------------------------------
-// Event chip
+// Event chip (inside a calendar cell, sm+)
 // ---------------------------------------------------------------------------
 
-function EventChip({
-  event,
-  onClick,
-}: {
-  event: ScheduleEvent
-  onClick: () => void
-}) {
+function EventChip({ event }: { event: ScheduleEvent }) {
   const { t } = useTranslation()
-  const label =
-    event.kind === 'training'
-      ? event.title
-      : `vs ${event.opponent}`
+  const label = event.kind === 'training'
+    ? event.session.title
+    : t('matches.vsOpponent', { opponent: event.match.opponent_name })
+  const kindLabel = event.kind === 'training' ? t('schedule.trainingLabel') : t('schedule.matchLabel')
 
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        onClick()
-      }}
-      title={label}
+    <Link
+      to={eventPath(event)}
+      onClick={(e) => e.stopPropagation()}
+      title={`${kindLabel}: ${label}`}
       className={cn(
-        'w-full truncate rounded px-1 py-0.5 text-left text-xs font-medium transition',
-        event.kind === 'training'
-          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-400 dark:hover:bg-emerald-900'
-          : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-400 dark:hover:bg-sky-900',
+        'block truncate rounded-sm border-l-2 px-1 py-0.5 text-[11px] font-medium leading-tight transition-colors pointer-events-auto',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50',
+        KIND_STYLES[event.kind].bar,
+        KIND_STYLES[event.kind].chip,
       )}
     >
-      <span className="mr-1">
-        {event.kind === 'training' ? t('schedule.trainingLabel') : t('schedule.matchLabel')}
-      </span>
+      <span className="sr-only">{kindLabel}: </span>
       {label}
-    </button>
+    </Link>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Event list item
+// Agenda item (side panel)
 // ---------------------------------------------------------------------------
 
-function EventListItem({ event, onNavigate }: { event: ScheduleEvent; onNavigate: () => void }) {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.language
+function AgendaItem({ event }: { event: ScheduleEvent }) {
+  const { t } = useTranslation()
+  const styles = KIND_STYLES[event.kind]
 
-  const dateLabel = new Date(event.date).toLocaleDateString(locale, {
-    weekday: 'short', day: 'numeric', month: 'short',
-  })
+  let title: string
+  let meta: (string | null)[]
+  let time: string | null = null
+  let trailing: React.ReactNode = null
+
+  if (event.kind === 'training') {
+    const s = event.session
+    title = s.title
+    time = s.start_time ? s.start_time.substring(0, 5) : null
+    meta = [s.team_name, s.location || null]
+  } else {
+    const m = event.match
+    title = t('matches.vsOpponent', { opponent: m.opponent_name })
+    meta = [m.team_name, m.competition || null, m.home_away === 'HOME' ? t('matches.homeBadge') : t('matches.awayBadge')]
+    trailing = (
+      <div className="flex flex-col items-end gap-1">
+        {m.score_display && (
+          <span className="font-mono text-sm font-bold tabular-nums text-cf-surface-foreground">
+            {m.score_display}
+          </span>
+        )}
+        {m.result && <Badge variant={RESULT_VARIANT[m.result]}>{t(resultLabelKey(m.result))}</Badge>}
+      </div>
+    )
+  }
 
   return (
-    <button
-      onClick={onNavigate}
+    <Link
+      to={eventPath(event)}
       className={cn(
-        'w-full text-left flex items-start gap-3 rounded-xl p-3 ring-1 bg-cf-surface ring-cf-border transition',
-        'hover:ring-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400',
+        'flex items-start gap-3 border-l-2 px-4 py-2.5 transition-colors hover:bg-cf-muted/50',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/50',
+        styles.bar,
       )}
     >
-      <div
-        className={cn(
-          'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-          event.kind === 'training'
-            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
-            : 'bg-sky-50 text-sky-600 dark:bg-sky-950 dark:text-sky-400',
-        )}
-      >
-        {event.kind === 'training' ? <CalendarDays size={16} /> : <Trophy size={16} />}
-      </div>
-
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-cf-muted-foreground">{dateLabel}</span>
-          <span
-            className={cn(
-              'rounded-full px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-              event.kind === 'training'
-                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:ring-emerald-800'
-                : 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-400 dark:ring-sky-800',
-            )}
-          >
-            {event.kind === 'training' ? t('schedule.trainingLabel') : t('schedule.matchLabel')}
-          </span>
-        </div>
-        <p className="mt-0.5 text-sm font-medium text-cf-surface-foreground truncate">
-          {event.kind === 'training' ? event.title : `vs ${event.opponent}`}
+        <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-cf-muted-foreground">
+          {event.kind === 'training' ? t('schedule.trainingLabel') : t('schedule.matchLabel')}
+          {time && (
+            <span className="flex items-center gap-1 font-medium normal-case tracking-normal tabular-nums">
+              <Clock size={10} />
+              {time}
+            </span>
+          )}
         </p>
-        <p className="text-xs text-cf-muted-foreground mt-0.5">
-          {event.kind === 'training' ? (event.team ?? '') : event.team}
-        </p>
+        <p className="mt-0.5 truncate text-sm font-medium text-cf-surface-foreground">{title}</p>
+        {meta.some(Boolean) && (
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-cf-muted-foreground">
+            {event.kind === 'training' && event.session.location && <MapPin size={10} className="shrink-0" />}
+            {meta.filter(Boolean).join(' · ')}
+          </p>
+        )}
       </div>
-    </button>
+      {trailing}
+    </Link>
   )
 }
 
@@ -203,10 +186,11 @@ function EventListItem({ event, onNavigate }: { event: ScheduleEvent; onNavigate
 export default function SchedulePage() {
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
-  const locale = i18n.language
+  const locale = toDisplayLocale(i18n.language)
 
   // Calendar month state
   const today = new Date()
+  const todayIso = toIsoDate(today)
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth()) // 0-indexed
 
@@ -215,23 +199,33 @@ export default function SchedulePage() {
 
   // Data
   const [events, setEvents] = useState<ScheduleEvent[]>([])
+  const [coverage, setCoverage] = useState<{ sessions: SourceCoverage; matches: SourceCoverage } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
+    // NOTE: only the first page of each endpoint is loaded — the API has no
+    // date-range filter yet. Missing data is surfaced via `coverage` below.
     Promise.all([
       trainingService.listSessions({ coach: 'me' }),
       matchService.listMatches(),
     ])
       .then(([sessionsData, matchesData]) => {
-        const trainingEvents: ScheduleEvent[] = sessionsData.results.map(toTrainingEvent)
-        const matchEvents: ScheduleEvent[] = matchesData.results.map(toMatchEvent)
-        const combined = [...trainingEvents, ...matchEvents].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        )
+        const combined: ScheduleEvent[] = [
+          ...sessionsData.results.map((s): ScheduleEvent => ({
+            kind: 'training', id: s.id, date: s.training_date.substring(0, 10), session: s,
+          })),
+          ...matchesData.results.map((m): ScheduleEvent => ({
+            kind: 'match', id: m.id, date: m.match_date.substring(0, 10), match: m,
+          })),
+        ].sort((a, b) => a.date.localeCompare(b.date))
         setEvents(combined)
+        setCoverage({
+          sessions: coverageOf(sessionsData, (s) => s.training_date),
+          matches: coverageOf(matchesData, (m) => m.match_date),
+        })
         setLoading(false)
       })
       .catch((err: unknown) => {
@@ -241,33 +235,24 @@ export default function SchedulePage() {
   }, [t])
 
   // Month navigation
-  function prevMonth() {
-    if (viewMonth === 0) {
-      setViewYear((y) => y - 1)
-      setViewMonth(11)
-    } else {
-      setViewMonth((m) => m - 1)
-    }
+  function shiftMonth(delta: number) {
+    const d = new Date(viewYear, viewMonth + delta, 1)
+    setViewYear(d.getFullYear())
+    setViewMonth(d.getMonth())
     setSelectedDay(null)
   }
 
-  function nextMonth() {
-    if (viewMonth === 11) {
-      setViewYear((y) => y + 1)
-      setViewMonth(0)
-    } else {
-      setViewMonth((m) => m + 1)
-    }
-    setSelectedDay(null)
+  function goToToday() {
+    setViewYear(today.getFullYear())
+    setViewMonth(today.getMonth())
+    setSelectedDay(todayIso)
   }
 
-  // Calendar cells
   const calendarCells = useMemo(
     () => buildCalendarDays(viewYear, viewMonth),
     [viewYear, viewMonth],
   )
 
-  // Events grouped by date
   const eventsByDate = useMemo(() => {
     const map: Record<string, ScheduleEvent[]> = {}
     for (const ev of events) {
@@ -277,21 +262,40 @@ export default function SchedulePage() {
     return map
   }, [events])
 
-  // Events for the current month (for the list panel)
   const monthPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}`
   const eventsThisMonth = useMemo(
     () => events.filter((ev) => ev.date.startsWith(monthPrefix)),
     [events, monthPrefix],
   )
+  const monthCounts = {
+    training: eventsThisMonth.filter((e) => e.kind === 'training').length,
+    match: eventsThisMonth.filter((e) => e.kind === 'match').length,
+  }
 
-  // Events shown in the side panel
-  const panelEvents = selectedDay
-    ? (eventsByDate[selectedDay] ?? [])
-    : eventsThisMonth
+  // Latest date before which data may be incomplete (null = everything loaded)
+  const truncatedAt = coverage
+    ? [coverage.sessions.truncatedAt, coverage.matches.truncatedAt]
+        .filter((d): d is string => d !== null)
+        .sort()
+        .pop() ?? null
+    : null
+  const monthMayBeIncomplete = truncatedAt !== null && `${monthPrefix}-01` <= truncatedAt
 
-  const panelTitle = selectedDay
-    ? t('schedule.eventsFor', { date: formatDayLabel(selectedDay, locale) })
-    : t('schedule.allEventsThisMonth')
+  const panelEvents = selectedDay ? (eventsByDate[selectedDay] ?? []) : eventsThisMonth
+  const monthTitle = new Date(viewYear, viewMonth, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+  const formatDay = (iso: string, opts: Intl.DateTimeFormatOptions) =>
+    parseDateOnly(iso).toLocaleDateString(locale, opts)
+
+  // Month agenda grouped by day (already sorted ascending)
+  const agendaGroups = useMemo(() => {
+    const groups: { date: string; items: ScheduleEvent[] }[] = []
+    for (const ev of panelEvents) {
+      const last = groups[groups.length - 1]
+      if (last && last.date === ev.date) last.items.push(ev)
+      else groups.push({ date: ev.date, items: [ev] })
+    }
+    return groups
+  }, [panelEvents])
 
   const WEEKDAYS = [
     t('schedule.weekdayMon'),
@@ -303,11 +307,6 @@ export default function SchedulePage() {
     t('schedule.weekdaySun'),
   ]
 
-  function navigateEvent(ev: ScheduleEvent) {
-    if (ev.kind === 'training') navigate(`/coach/sessions/${ev.id}`)
-    else navigate(`/coach/matches/${ev.id}`)
-  }
-
   if (loading) {
     return <LoadingSpinner />
   }
@@ -316,7 +315,7 @@ export default function SchedulePage() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <EmptyState
-          icon={<AlertTriangle size={24} />}
+          icon={<AlertTriangle size={20} />}
           title={t('common.error.generic')}
           description={error}
         />
@@ -326,148 +325,227 @@ export default function SchedulePage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Page header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-cf-surface-foreground">{t('schedule.title')}</h1>
-          <p className="mt-1 text-sm text-cf-muted-foreground">{t('schedule.subtitle')}</p>
+      <PageHeader
+        title={t('schedule.title')}
+        subtitle={t('schedule.subtitle')}
+        className="flex-wrap"
+        action={
+          <>
+            <Button variant="secondary" onClick={() => navigate('/coach/matches/new')}>
+              <Plus size={14} />
+              {t('matches.newMatch')}
+            </Button>
+            <Button onClick={() => navigate('/coach/sessions/new')}>
+              <Plus size={14} />
+              {t('training.newSession')}
+            </Button>
+          </>
+        }
+      />
+
+      {/* Partial-data notice */}
+      {coverage && truncatedAt && monthMayBeIncomplete && (
+        <div
+          role="note"
+          className="mb-4 flex items-start gap-2.5 rounded-lg bg-cf-warning px-3 py-2.5 text-cf-warning-foreground ring-1 ring-inset ring-cf-warning-border"
+        >
+          <AlertTriangle size={15} aria-hidden="true" className="mt-0.5 shrink-0" />
+          <div className="text-xs">
+            <p className="font-semibold">{t('schedule.partialTitle')}</p>
+            <p className="mt-0.5">
+              {t('schedule.partialDesc', {
+                sessionsLoaded: coverage.sessions.loaded,
+                sessionsTotal: coverage.sessions.total,
+                matchesLoaded: coverage.matches.loaded,
+                matchesTotal: coverage.matches.total,
+                date: formatDay(truncatedAt, { day: 'numeric', month: 'long', year: 'numeric' }),
+              })}
+            </p>
+          </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {/* Calendar (2/3 width on lg) */}
-          <div className="lg:col-span-2">
-            <div className="rounded-2xl ring-1 bg-cf-surface ring-cf-border overflow-hidden">
-              {/* Month navigation */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-cf-border">
-                <button
-                  onClick={prevMonth}
-                  aria-label={t('schedule.navPrev')}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-cf-muted-foreground hover:bg-cf-muted hover:text-cf-surface-foreground transition-colors"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                <h2 className="text-sm font-semibold text-cf-surface-foreground capitalize">
-                  {formatMonthYear(viewYear, viewMonth, locale)}
-                </h2>
-                <button
-                  onClick={nextMonth}
-                  aria-label={t('schedule.navNext')}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-cf-muted-foreground hover:bg-cf-muted hover:text-cf-surface-foreground transition-colors"
-                >
-                  <ChevronRight size={18} />
-                </button>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* Calendar */}
+        <section className="overflow-hidden rounded-xl bg-cf-surface ring-1 ring-cf-border lg:col-span-2">
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cf-border px-4 py-2.5">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => shiftMonth(-1)} aria-label={t('schedule.navPrev')}>
+                <ChevronLeft size={16} />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => shiftMonth(1)} aria-label={t('schedule.navNext')}>
+                <ChevronRight size={16} />
+              </Button>
+              <h2 className="ml-1 text-sm font-semibold capitalize text-cf-surface-foreground" aria-live="polite">
+                {monthTitle}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 text-xs text-cf-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className={cn('h-2 w-2 rounded-full', KIND_STYLES.training.dot)} />
+                  {t('schedule.trainingLabel')}
+                  <span className="tabular-nums text-cf-surface-foreground">{monthCounts.training}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className={cn('h-2 w-2 rounded-full', KIND_STYLES.match.dot)} />
+                  {t('schedule.matchLabel')}
+                  <span className="tabular-nums text-cf-surface-foreground">{monthCounts.match}</span>
+                </span>
               </div>
-
-              {/* Weekday headers */}
-              <div className="grid grid-cols-7 border-b border-cf-border">
-                {WEEKDAYS.map((wd) => (
-                  <div
-                    key={wd}
-                    className="py-2 text-center text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground"
-                  >
-                    {wd}
-                  </div>
-                ))}
-              </div>
-
-              {/* Day cells */}
-              <div className="grid grid-cols-7">
-                {calendarCells.map((dateStr, i) => {
-                  if (!dateStr) {
-                    return (
-                      <div
-                        key={`empty-${i}`}
-                        className="min-h-[80px] border-b border-r border-cf-border last:border-r-0 bg-cf-muted/30"
-                      />
-                    )
-                  }
-
-                  const dayEvents = eventsByDate[dateStr] ?? []
-                  const isToday = dateStr === TODAY
-                  const isSelected = dateStr === selectedDay
-                  const visibleEvents = dayEvents.slice(0, 2)
-                  const moreCount = dayEvents.length - 2
-
-                  return (
-                    <button
-                      key={dateStr}
-                      onClick={() => setSelectedDay(isSelected ? null : dateStr)}
-                      className={cn(
-                        'min-h-[80px] border-b border-r border-cf-border last:border-r-0 p-1.5 text-left transition-colors',
-                        'focus:outline-none focus:ring-inset focus:ring-2 focus:ring-emerald-400',
-                        isSelected
-                          ? 'bg-emerald-50 dark:bg-emerald-950'
-                          : 'hover:bg-cf-muted/50',
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold',
-                          isToday
-                            ? 'bg-emerald-500 text-white'
-                            : 'text-cf-surface-foreground',
-                        )}
-                      >
-                        {new Date(dateStr).getDate()}
-                      </div>
-
-                      <div className="space-y-0.5">
-                        {visibleEvents.map((ev) => (
-                          <EventChip
-                            key={ev.id}
-                            event={ev}
-                            onClick={() => navigateEvent(ev)}
-                          />
-                        ))}
-                        {moreCount > 0 && (
-                          <p className="px-1 text-xs text-cf-muted-foreground">
-                            {t('schedule.moreEvents', { count: moreCount })}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+              <Button variant="secondary" size="sm" onClick={goToToday}>
+                {t('schedule.today')}
+              </Button>
             </div>
           </div>
 
-          {/* Side panel (1/3 width on lg) */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-cf-muted-foreground">
-              {panelTitle}
-            </h3>
-
-            {panelEvents.length === 0 ? (
-              <EmptyState
-                icon={<CalendarDays size={20} />}
-                title={t('schedule.noEventsThisMonth')}
-                description={
-                  selectedDay ? undefined : t('schedule.noEventsDesc')
-                }
-                className="py-8"
-              />
-            ) : (
-              <div className="space-y-2">
-                {panelEvents.map((ev) => (
-                  <EventListItem
-                    key={ev.id}
-                    event={ev}
-                    onNavigate={() => navigateEvent(ev)}
-                  />
-                ))}
-              </div>
-            )}
-
-            {selectedDay && (
-              <button
-                onClick={() => setSelectedDay(null)}
-                className="text-xs text-cf-muted-foreground hover:text-cf-surface-foreground transition-colors"
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 border-b border-cf-border bg-cf-muted">
+            {WEEKDAYS.map((wd) => (
+              <div
+                key={wd}
+                className="py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-cf-muted-foreground"
               >
-                {t('schedule.allEventsThisMonth')} →
-              </button>
-            )}
+                {wd}
+              </div>
+            ))}
           </div>
-        </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7">
+            {calendarCells.map((dateStr, i) => {
+              const borders = cn('border-b border-cf-border', (i + 1) % 7 !== 0 && 'border-r')
+
+              if (!dateStr) {
+                return <div key={`empty-${i}`} className={cn('min-h-[3.25rem] bg-cf-muted/40 sm:min-h-[6rem]', borders)} />
+              }
+
+              const dayEvents = eventsByDate[dateStr] ?? []
+              const isToday = dateStr === todayIso
+              const isSelected = dateStr === selectedDay
+              const visibleEvents = dayEvents.slice(0, 2)
+              const moreCount = dayEvents.length - visibleEvents.length
+              const select = () => setSelectedDay(isSelected ? null : dateStr)
+
+              return (
+                <div
+                  key={dateStr}
+                  className={cn(
+                    'relative min-h-[3.25rem] p-1 transition-colors sm:min-h-[6rem] sm:p-1.5',
+                    borders,
+                    isSelected ? 'bg-emerald-50/70 dark:bg-emerald-950/60' : '',
+                  )}
+                >
+                  {/* Full-cell toggle button (behind chips so Links stay reachable) */}
+                  <button
+                    type="button"
+                    onClick={select}
+                    aria-pressed={isSelected}
+                    aria-current={isToday ? 'date' : undefined}
+                    aria-label={t('schedule.dayAria', {
+                      count: dayEvents.length,
+                      date: formatDay(dateStr, { weekday: 'long', day: 'numeric', month: 'long' }),
+                    })}
+                    className={cn(
+                      'absolute inset-0 cursor-pointer transition-colors',
+                      !isSelected && 'hover:bg-cf-muted/50',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/60',
+                    )}
+                  />
+
+                  {/* Date number — above the button overlay */}
+                  <span
+                    className={cn(
+                      'relative z-10 flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold tabular-nums pointer-events-none',
+                      isToday
+                        ? 'bg-cf-brand text-cf-brand-foreground'
+                        : isSelected
+                          ? 'text-emerald-700 ring-1 ring-emerald-400 dark:text-emerald-300'
+                          : 'text-cf-surface-foreground',
+                    )}
+                  >
+                    {Number(dateStr.substring(8, 10))}
+                  </span>
+
+                  {/* Chips (sm+) — above the button overlay so Links stay clickable */}
+                  <div className="relative z-10 mt-1 hidden space-y-0.5 sm:block pointer-events-none">
+                    {visibleEvents.map((ev) => (
+                      <EventChip key={`${ev.kind}-${ev.id}`} event={ev} />
+                    ))}
+                    {moreCount > 0 && (
+                      <p className="px-1 text-[11px] text-cf-muted-foreground">
+                        {t('schedule.moreEvents', { count: moreCount })}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Dots (mobile) */}
+                  {dayEvents.length > 0 && (
+                    <div className="relative z-10 mt-1 flex flex-wrap gap-0.5 px-0.5 sm:hidden pointer-events-none" aria-hidden="true">
+                      {dayEvents.slice(0, 4).map((ev) => (
+                        <span key={`${ev.kind}-${ev.id}`} className={cn('h-1.5 w-1.5 rounded-full', KIND_STYLES[ev.kind].dot)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* Agenda */}
+        <Panel
+          title={
+            selectedDay
+              ? formatDay(selectedDay, { weekday: 'long', day: 'numeric', month: 'long' })
+              : t('schedule.allEventsThisMonth')
+          }
+          count={panelEvents.length}
+          bodyClassName="p-0"
+          className="self-start"
+          action={
+            selectedDay ? (
+              <Button variant="link" size="sm" onClick={() => setSelectedDay(null)}>
+                {t('schedule.showWholeMonth')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {panelEvents.length === 0 ? (
+            <EmptyState
+              icon={<CalendarDays size={18} />}
+              title={selectedDay ? t('schedule.dayEmpty') : t('schedule.noEventsThisMonth')}
+              description={selectedDay ? undefined : t('schedule.noEventsDesc')}
+              className="rounded-none ring-0"
+            />
+          ) : (
+            <div className="max-h-[36rem] divide-y divide-cf-border overflow-y-auto">
+              {agendaGroups.map((group) => (
+                <div key={group.date}>
+                  {!selectedDay && (
+                    <p
+                      className={cn(
+                        'sticky top-0 z-10 border-b border-cf-border bg-cf-muted px-4 py-1 text-[11px] font-semibold uppercase tracking-wide',
+                        group.date === todayIso ? 'text-emerald-700 dark:text-emerald-400' : 'text-cf-muted-foreground',
+                      )}
+                    >
+                      {formatDay(group.date, { weekday: 'short', day: 'numeric', month: 'short' })}
+                      {group.date === todayIso && <> · {t('schedule.today')}</>}
+                    </p>
+                  )}
+                  <div className="divide-y divide-cf-border">
+                    {group.items.map((ev) => (
+                      <AgendaItem key={`${ev.kind}-${ev.id}`} event={ev} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
     </div>
   )
 }

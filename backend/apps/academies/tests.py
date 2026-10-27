@@ -487,7 +487,8 @@ class AcademyListRetrieveAuthorizationTests(APITestCase):
         self.assertEqual(self.client.get(self.list_url).status_code, status.HTTP_403_FORBIDDEN)
 
     def test_coach_can_retrieve_academy(self):
-        self._auth(User.Role.COACH)
+        user = self._auth(User.Role.COACH)
+        AcademyStaffMembership.objects.create(user=user, academy=self.academy)
         self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_200_OK)
 
     def test_player_cannot_retrieve_academy(self):
