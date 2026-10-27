@@ -39,6 +39,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 
 const LineupEditorPage = lazy(() => import('./pages/LineupEditorPage'))
 const TacticsPage = lazy(() => import('./pages/TacticsPage'))
+const TacticsBoardPage = lazy(() => import('./pages/TacticsBoardPage'))
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -172,6 +173,10 @@ function AppRoutes() {
         <Route
           path="/coach/tactics"
           element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><TacticsPage /></Suspense></CoachRoute>}
+        />
+        <Route
+          path="/coach/tactics/:boardId"
+          element={<CoachRoute><Suspense fallback={<LoadingSpinner />}><TacticsBoardPage /></Suspense></CoachRoute>}
         />
         <Route
           path="/coach/matches/:matchId/lineup"

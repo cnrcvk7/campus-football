@@ -186,6 +186,44 @@
       "duplicate_player": "Bir oyuncu kadroda birden fazla kez yer alıyor.",
       "invalid_formation": "Seçilen diziliş bu oyun formatı için geçerli değil.",
       "invalid_drawing": "Çizim verisi geçersiz."
+    },
+    "board": {
+      "pageTitle": "Taktik Tahtaları",
+      "pageSubtitle": "Antrenman ve maç hazırlığı için serbest taktik tahtaları.",
+      "newBoard": "Yeni tahta",
+      "createTitle": "Tahta Oluştur",
+      "titlePlaceholder": "örn. 4-4-2'ye karşı hücum planı",
+      "selectAcademy": "Akademi seçin…",
+      "create": "Oluştur",
+      "count_one": "{{count}} tahta",
+      "count_other": "{{count}} tahta",
+      "emptyTitle": "Henüz taktik tahtası yok",
+      "emptyDescription": "Planlamaya başlamak için ilk tahtanızı oluşturun.",
+      "delete": "Sil",
+      "deleteConfirm": "Bu tahtayı silmek istediğinizden emin misiniz?",
+      "viewOnly": "Sadece görüntüleme",
+      "toolSelect": "Seç / Taşı",
+      "toolPen": "Kalem",
+      "toolText": "Metin",
+      "toolEraser": "Silgi",
+      "addHome": "Ev sahibi jeton ekle",
+      "addAway": "Deplasman jeton ekle",
+      "addBall": "Top ekle",
+      "textPlaceholder": "Yazın ve Enter'a basın",
+      "noTeamHint": "Gerçek oyuncuları eklemek için yukarıdan bir takım seçin.",
+      "noTeam": "Takım yok (genel jetonlar)",
+      "players": "Oyuncular",
+      "addPlayerShort": "Oyuncu",
+      "addOpponentShort": "Rakip",
+      "addToPitch": "Sahaya ekle",
+      "teamChangeConfirm": "Takımı değiştirmek mevcut oyuncu jetonlarını numaralı jetonlara dönüştürecek. Devam edilsin mi?",
+      "unsaved": "Kaydedilmemiş",
+      "myBoards": "Tahtalarım",
+      "error": {
+        "academy_required": "Bu tahtayı kaydetmek için bir akademi seçin.",
+        "academy_not_found": "Akademi bulunamadı veya erişiminiz yok.",
+        "team_not_in_academy": "Bu takım seçilen akademiye ait değil."
+      }
     }
   }
 }

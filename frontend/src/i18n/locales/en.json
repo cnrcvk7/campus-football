@@ -939,6 +939,44 @@
       "duplicate_player": "A player appears more than once in the lineup.",
       "invalid_formation": "The selected formation is not valid for this game format.",
       "invalid_drawing": "The drawing data is invalid."
+    },
+    "board": {
+      "pageTitle": "Tactics Boards",
+      "pageSubtitle": "Free-form tactics boards for training and match preparation.",
+      "newBoard": "New board",
+      "createTitle": "Create Board",
+      "titlePlaceholder": "e.g. Attack pattern vs 4-4-2",
+      "selectAcademy": "Select academy…",
+      "create": "Create",
+      "count_one": "{{count}} board",
+      "count_other": "{{count}} boards",
+      "emptyTitle": "No tactics boards yet",
+      "emptyDescription": "Create your first board to start planning.",
+      "delete": "Delete",
+      "deleteConfirm": "Are you sure you want to delete this board?",
+      "viewOnly": "View only",
+      "toolSelect": "Select / Move",
+      "toolPen": "Pen",
+      "toolText": "Text",
+      "toolEraser": "Eraser",
+      "addHome": "Add home token",
+      "addAway": "Add away token",
+      "addBall": "Add ball",
+      "textPlaceholder": "Type and press Enter",
+      "noTeamHint": "Select a team above to add real players.",
+      "noTeam": "No team (generic tokens)",
+      "players": "Players",
+      "addPlayerShort": "Player",
+      "addOpponentShort": "Opponent",
+      "addToPitch": "Add to pitch",
+      "teamChangeConfirm": "Changing the team will convert existing player tokens to numbered tokens. Continue?",
+      "unsaved": "Unsaved",
+      "myBoards": "My Boards",
+      "error": {
+        "academy_required": "Please select an academy to save this board.",
+        "academy_not_found": "Academy not found or you do not have access.",
+        "team_not_in_academy": "This team does not belong to the selected academy."
+      }
     }
   }
 }

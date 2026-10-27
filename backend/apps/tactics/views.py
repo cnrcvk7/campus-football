@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -156,9 +156,11 @@ class LineupView(APIView):
                     Lineup.objects.select_for_update()
                     .get(match=match)
                 )
-                # Optimistic concurrency check
+                # Optimistic concurrency check — version is always required
+                # when updating an existing lineup (version 0 is only valid
+                # for the initial create).
                 client_version = data.get("version", 0)
-                if client_version != 0 and client_version != lineup.version:
+                if client_version != lineup.version:
                     return Response(
                         {
                             "detail": "Lineup has been modified by someone else. Please reload.",
@@ -188,15 +190,34 @@ class LineupView(APIView):
                         },
                         status=status.HTTP_409_CONFLICT,
                     )
-                lineup = Lineup.objects.create(
-                    match=match,
-                    game_format=data["game_format"],
-                    formation=data["formation"],
-                    drawing=data.get("drawing", []),
-                    version=1,
-                    created_by=user,
-                    updated_by=user,
-                )
+                try:
+                    with transaction.atomic():
+                        lineup = Lineup.objects.create(
+                            match=match,
+                            game_format=data["game_format"],
+                            formation=data["formation"],
+                            drawing=data.get("drawing", []),
+                            version=1,
+                            created_by=user,
+                            updated_by=user,
+                        )
+                except IntegrityError:
+                    # Another request created the lineup between our
+                    # DoesNotExist check and our INSERT — return 409
+                    # with the winning lineup's version.
+                    try:
+                        winner = Lineup.objects.get(match=match)
+                        current_version = winner.version
+                    except Lineup.DoesNotExist:
+                        current_version = 0
+                    return Response(
+                        {
+                            "detail": "Lineup has been modified by someone else. Please reload.",
+                            "code": "version_conflict",
+                            "current_version": current_version,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
                 created = True
 
             # Create slots
@@ -265,6 +286,51 @@ class LineupPublishView(APIView):
         return Response({"status": lineup.status, "published_at": lineup.published_at})
 
 
+class LineupSummaryView(APIView):
+    """
+    GET /api/lineups/summary/
+    Returns lineup status for matches visible to the caller.
+    Staff + superuser only; players/parents get 403.
+    """
+
+    def get(self, request):
+        user = request.user
+
+        if not user.is_superuser and user.role not in (
+            User.Role.COACH, User.Role.ACADEMY_ADMIN
+        ):
+            raise PermissionDenied("Only coaches and academy admins can view lineup summaries.")
+
+        qs = Lineup.objects.select_related("match").all()
+        if not user.is_superuser:
+            academy_ids = get_user_academy_ids(user)
+            qs = qs.filter(match__academy_id__in=academy_ids)
+
+        match_ids = request.query_params.get("match_ids")
+        if match_ids:
+            ids = [mid.strip() for mid in match_ids.split(",") if mid.strip()]
+            qs = qs.filter(match_id__in=ids)
+
+        date_from = request.query_params.get("date_from")
+        if date_from:
+            qs = qs.filter(match__match_date__gte=date_from)
+
+        date_to = request.query_params.get("date_to")
+        if date_to:
+            qs = qs.filter(match__match_date__lte=date_to)
+
+        data = [
+            {
+                "match_id": str(lineup.match_id),
+                "status": lineup.status,
+                "version": lineup.version,
+                "updated_at": lineup.updated_at.isoformat(),
+            }
+            for lineup in qs
+        ]
+        return Response(data)
+
+
 class LineupUnpublishView(APIView):
     """POST /api/matches/{match_pk}/lineup/unpublish/"""
 
@@ -289,3 +355,154 @@ class LineupUnpublishView(APIView):
         lineup.updated_by = user
         lineup.save(update_fields=["status", "published_at", "updated_by", "updated_at"])
         return Response({"status": lineup.status, "published_at": None})
+
+
+from rest_framework.pagination import PageNumberPagination
+
+
+class BoardPagination(PageNumberPagination):
+    page_size = 20
+
+
+class TacticBoardListView(APIView):
+    """
+    GET  /api/tactics/boards/   — list boards (academy-scoped, paginated, newest first)
+    POST /api/tactics/boards/   — create a new board
+    """
+
+    def get(self, request):
+        user = request.user
+        if not user.is_superuser and user.role not in (
+            User.Role.COACH, User.Role.ACADEMY_ADMIN
+        ):
+            raise NotFound(_LINEUP_NOT_FOUND)  # 404 for players/parents
+
+        from .models import TacticBoard
+        qs = TacticBoard.objects.select_related("academy", "team", "created_by").all()
+        if not user.is_superuser:
+            academy_ids = get_user_academy_ids(user)
+            qs = qs.filter(academy_id__in=academy_ids)
+
+        paginator = BoardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        from .serializers import TacticBoardReadSerializer
+        serializer = TacticBoardReadSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request):
+        user = request.user
+        if not user.is_superuser and user.role not in (
+            User.Role.COACH, User.Role.ACADEMY_ADMIN
+        ):
+            raise PermissionDenied("Only coaches and academy admins can create boards.")
+
+        from .serializers import TacticBoardWriteSerializer
+        serializer = TacticBoardWriteSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        academy = data["_academy"]
+        team = data.get("_team")
+
+        from .models import TacticBoard
+        board = TacticBoard.objects.create(
+            academy=academy,
+            team=team,
+            title=data["title"],
+            game_format=data["game_format"],
+            tokens=data.get("tokens", []),
+            drawing=data.get("drawing", []),
+            version=1,
+            created_by=user,
+            updated_by=user,
+        )
+        from .serializers import TacticBoardReadSerializer
+        return Response(
+            TacticBoardReadSerializer(board).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TacticBoardDetailView(APIView):
+    """
+    GET    /api/tactics/boards/{id}/   — read board
+    PATCH  /api/tactics/boards/{id}/   — update board (creator or superuser)
+    DELETE /api/tactics/boards/{id}/   — delete board (creator or superuser)
+    """
+
+    def _get_board(self, user, board_pk):
+        from .models import TacticBoard
+        qs = TacticBoard.objects.select_related("academy", "team", "created_by")
+        if not user.is_superuser:
+            if user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+                raise NotFound(_LINEUP_NOT_FOUND)
+            academy_ids = get_user_academy_ids(user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        try:
+            return qs.get(pk=board_pk)
+        except TacticBoard.DoesNotExist:
+            raise NotFound(_LINEUP_NOT_FOUND)
+
+    def get(self, request, board_pk):
+        board = self._get_board(request.user, board_pk)
+        from .serializers import TacticBoardReadSerializer
+        return Response(TacticBoardReadSerializer(board).data)
+
+    def patch(self, request, board_pk):
+        user = request.user
+        board = self._get_board(user, board_pk)
+
+        # Only creator or superuser can edit
+        if not user.is_superuser and board.created_by_id != user.pk:
+            raise PermissionDenied("Only the creator can edit this board.")
+
+        from .serializers import TacticBoardWriteSerializer
+        serializer = TacticBoardWriteSerializer(
+            data={**request.data, "academy": str(board.academy_id)},
+            context={"request": request},
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Version conflict check
+        client_version = data.get("version", 0)
+        if client_version != board.version:
+            return Response(
+                {
+                    "detail": "Board has been modified by someone else. Please reload.",
+                    "code": "version_conflict",
+                    "current_version": board.version,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if "title" in data:
+            board.title = data["title"]
+        if "game_format" in data:
+            board.game_format = data["game_format"]
+        if "tokens" in data:
+            board.tokens = data["tokens"]
+        if "drawing" in data:
+            board.drawing = data["drawing"]
+        if data.get("_team") is not None or "team" in request.data:
+            board.team = data.get("_team")
+
+        board.version += 1
+        board.updated_by = user
+        board.save()
+
+        from .serializers import TacticBoardReadSerializer
+        return Response(TacticBoardReadSerializer(board).data)
+
+    def delete(self, request, board_pk):
+        user = request.user
+        board = self._get_board(user, board_pk)
+
+        if not user.is_superuser and board.created_by_id != user.pk:
+            raise PermissionDenied("Only the creator can delete this board.")
+
+        board.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

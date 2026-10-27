@@ -219,3 +219,139 @@ def validate_drawing(drawing) -> list:
         _validate_element(elem)
 
     return drawing
+
+
+# --- Token validation (TacticBoard) -----------------------------------------
+
+ALLOWED_TOKEN_KINDS = {"home", "away", "ball"}
+_TOKEN_KEYS = {"id", "kind", "x", "y", "label", "player_id"}
+MAX_TOKENS = 40
+MAX_TOKEN_LABEL_LENGTH = 3
+
+
+def _validate_token(token: dict, index: int) -> None:
+    if not isinstance(token, dict):
+        raise ValidationError(
+            detail=f"Token {index} must be an object.",
+            code="invalid_tokens",
+        )
+
+    # Unknown keys
+    unknown = set(token.keys()) - _TOKEN_KEYS
+    if unknown:
+        raise ValidationError(
+            detail=f"Unknown keys in token {index}: {', '.join(sorted(unknown))}.",
+            code="invalid_tokens",
+        )
+
+    # id
+    tid = token.get("id")
+    if tid is not None and not isinstance(tid, str):
+        raise ValidationError(detail=f"Token {index} id must be a string.", code="invalid_tokens")
+
+    # kind
+    kind = token.get("kind")
+    if kind not in ALLOWED_TOKEN_KINDS:
+        raise ValidationError(
+            detail=f"Token {index} has invalid kind: {kind}. Allowed: {sorted(ALLOWED_TOKEN_KINDS)}.",
+            code="invalid_tokens",
+        )
+
+    # x, y
+    for coord_name in ("x", "y"):
+        val = token.get(coord_name)
+        if val is None:
+            raise ValidationError(
+                detail=f"Token {index} requires {coord_name}.",
+                code="invalid_tokens",
+            )
+        _check_coord(val, f"token[{index}].{coord_name}")
+
+    # label
+    label = token.get("label")
+    if label is not None:
+        if not isinstance(label, str):
+            raise ValidationError(detail=f"Token {index} label must be a string.", code="invalid_tokens")
+        if len(label) > MAX_TOKEN_LABEL_LENGTH:
+            raise ValidationError(
+                detail=f"Token {index} label exceeds {MAX_TOKEN_LABEL_LENGTH} characters.",
+                code="invalid_tokens",
+            )
+
+    # player_id
+    player_id = token.get("player_id")
+    if player_id is not None:
+        if not isinstance(player_id, str):
+            raise ValidationError(detail=f"Token {index} player_id must be a string.", code="invalid_tokens")
+        if kind != "home":
+            raise ValidationError(
+                detail=f"Token {index}: player_id is only allowed for 'home' tokens.",
+                code="invalid_tokens",
+            )
+
+
+def validate_tokens(tokens, *, team=None, academy=None) -> list:
+    """
+    Validate the full token list for a TacticBoard.
+    If team is provided, player_id values are checked against ACTIVE members.
+    """
+    if not isinstance(tokens, list):
+        raise ValidationError(detail="Tokens must be a list.", code="invalid_tokens")
+
+    if len(tokens) > MAX_TOKENS:
+        raise ValidationError(
+            detail=f"Tokens list exceeds {MAX_TOKENS} items.",
+            code="invalid_tokens",
+        )
+
+    ball_count = 0
+    player_ids_seen = []
+
+    for i, token in enumerate(tokens):
+        _validate_token(token, i)
+
+        if token.get("kind") == "ball":
+            ball_count += 1
+            if ball_count > 1:
+                raise ValidationError(
+                    detail="At most one ball token is allowed.",
+                    code="invalid_tokens",
+                )
+
+        pid = token.get("player_id")
+        if pid is not None:
+            if team is None:
+                raise ValidationError(
+                    detail=f"Token {i} has player_id but the board has no team.",
+                    code="invalid_tokens",
+                )
+            player_ids_seen.append(pid)
+
+    # Validate player IDs against team roster
+    if player_ids_seen and team is not None:
+        from apps.teams.models import PlayerTeamMembership
+        import uuid as _uuid
+
+        try:
+            parsed_ids = [_uuid.UUID(pid) for pid in player_ids_seen]
+        except (ValueError, AttributeError):
+            raise ValidationError(
+                detail="Token player_id must be a valid UUID.",
+                code="invalid_tokens",
+            )
+
+        active_ids = set(
+            PlayerTeamMembership.objects.filter(
+                team=team,
+                status=PlayerTeamMembership.Status.ACTIVE,
+            ).values_list("player_id", flat=True)
+        )
+
+        for pid in parsed_ids:
+            if pid not in active_ids:
+                raise ValidationError(
+                    detail=f"Player {pid} is not an active member of the board's team.",
+                    code="invalid_tokens",
+                )
+
+    return tokens
