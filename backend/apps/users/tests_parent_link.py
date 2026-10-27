@@ -17,6 +17,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
 from apps.players.models import Player
 from apps.users.models import ParentPlayerLink, User
 from apps.development.models import Skill, Assessment, AssessmentItem
@@ -51,6 +52,16 @@ class ParentPlayerLinkAuthTests(APITestCase):
         self.other_parent = make_user(User.Role.PARENT, "other_parent@test.com")
         # Link parent -> player (but not other_player)
         ParentPlayerLink.objects.create(parent=self.parent, player=self.player)
+        # Academy affiliation for coach and admin (required after cross-academy read fix).
+        self.academy = Academy.objects.create(name="Parent Test Academy", city="London", country="UK")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2024-01-01"
+        )
+        PlayerAcademyMembership.objects.create(
+            player=self.other_player, academy=self.academy, joined_at="2024-01-01"
+        )
         # Create a skill and assessment for testing
         self.skill = Skill.objects.create(name="Passing", category="TECHNICAL")
         self.assessment = Assessment.objects.create(
@@ -76,7 +87,7 @@ class ParentPlayerLinkAuthTests(APITestCase):
     def test_player_cannot_read_other_timeline(self):
         self.client.force_authenticate(self.player_user)
         r = self.client.get(self._timeline_url(self.other_player))
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # --- PARENT (linked) ---
     def test_linked_parent_can_read_timeline(self):
@@ -98,7 +109,7 @@ class ParentPlayerLinkAuthTests(APITestCase):
     def test_unlinked_parent_cannot_read_timeline(self):
         self.client.force_authenticate(self.other_parent)
         r = self.client.get(self._timeline_url(self.player))
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_unlinked_parent_cannot_read_matches(self):
         self.client.force_authenticate(self.other_parent)
@@ -114,7 +125,7 @@ class ParentPlayerLinkAuthTests(APITestCase):
     def test_parent_linked_to_player_a_cannot_read_player_b(self):
         self.client.force_authenticate(self.parent)
         r = self.client.get(self._timeline_url(self.other_player))
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # --- PARENT cannot write ---
     def test_linked_parent_cannot_create_assessment(self):

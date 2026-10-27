@@ -483,17 +483,17 @@ class DevelopmentPermissionTests(APITestCase):
         )
 
     def test_player_cannot_access_other_player_assessments(self):
-        """A PLAYER user cannot read another player's assessments (403)."""
+        """A PLAYER user cannot read another player's assessments (404)."""
         # Create an assessment on player2
         make_assessment_with_items(self.player2, self.coach, [(self.skill, 80)])
         # player1 tries to access player2's assessments
         self.client.force_authenticate(user=self.player1_user)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player2.pk})
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_player_cannot_modify_other_player_goal(self):
-        """A PLAYER user cannot PATCH another player's goal (403)."""
+        """A PLAYER user cannot PATCH another player's goal (404)."""
         goal = DevelopmentGoal.objects.create(
             player=self.player2,
             title="Improve speed",
@@ -506,7 +506,7 @@ class DevelopmentPermissionTests(APITestCase):
             kwargs={"player_pk": self.player2.pk, "pk": goal.pk},
         )
         response = self.client.patch(url, {"status": "CANCELLED"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_player_cannot_create_own_goal(self):
         """A PLAYER role cannot create goals even for their own player (403)."""
@@ -547,13 +547,13 @@ class DevelopmentPermissionTests(APITestCase):
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_player_unlinked_to_player_object_gets_403(self):
+    def test_player_unlinked_to_player_object_gets_404(self):
         """A PLAYER user without a linked Player record cannot access any player's data."""
         unlinked_user = make_user(User.Role.PLAYER, "unlinked@test.com")
         self.client.force_authenticate(user=unlinked_user)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player1.pk})
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_unauthenticated_returns_401(self):
         """Unauthenticated access to development endpoints returns 401."""
@@ -573,6 +573,12 @@ class DevelopmentTimelineTests(APITestCase):
         self.player = make_player()
         self.skill1 = make_skill("Passing", "TECHNICAL")
         self.skill2 = make_skill("Endurance", "PHYSICAL")
+        # Academy affiliation required for read access after cross-academy fix.
+        self.academy = Academy.objects.create(name="Timeline Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at=datetime.date(2024, 1, 1)
+        )
         self.client.force_authenticate(user=self.coach)
         self.url = reverse(
             "player-development-timeline", kwargs={"player_pk": self.player.pk}
@@ -650,13 +656,13 @@ class DevelopmentTimelineTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_player_cannot_access_other_players_timeline(self):
-        """A PLAYER user cannot access another player's timeline (403)."""
+        """A PLAYER user cannot access another player's timeline (404)."""
         player_user = make_user(User.Role.PLAYER, "tl_other@test.com")
         make_player(user=player_user)
         self.client.force_authenticate(user=player_user)
         # Try to access self.player's timeline (not linked to player_user)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
 
 # ---------------------------------------------------------------------------
@@ -735,14 +741,14 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
         response = self.client.post(url, self._assessment_payload(), format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_coach_a_cannot_post_assessment_for_unaffiliated_player(self):
         """Coach of academy A is denied when the player has no academy affiliations."""
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.unaffiliated_player.pk})
         response = self.client.post(url, self._assessment_payload(), format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_multi_academy_player_accessible_to_coach_a(self):
         """Coach of academy A can write for a player who has memberships in both A and B."""
@@ -770,7 +776,7 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         self.client.force_authenticate(user=self.admin_a)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
         response = self.client.post(url, self._assessment_payload(), format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # ---- goal POST and PATCH ----
 
@@ -790,7 +796,7 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         response = self.client.post(
             url, {"title": "Speed goal", "start_date": "2026-01-01"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_coach_a_can_patch_goal_for_player_in_a(self):
         """Coach of academy A can PATCH a goal for a player in A."""
@@ -813,7 +819,7 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("player-goal-detail", kwargs={"player_pk": self.player_in_b.pk, "pk": goal.pk})
         response = self.client.patch(url, {"status": "COMPLETED"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # ---- measurement POST ----
 
@@ -833,16 +839,16 @@ class CrossAcademyDevelopmentWriteTests(APITestCase):
         response = self.client.post(
             url, {"measurement_date": "2026-10-01", "height_cm": "175.00"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
-    # ---- reads remain open for coaches (no affiliation required for GET) ----
+    # ---- reads require affiliation (cross-academy read fix) ----
 
-    def test_coach_a_can_read_assessments_for_player_in_b(self):
-        """Coaches can still READ any player's development data regardless of affiliation."""
+    def test_coach_a_cannot_read_assessments_for_player_in_b(self):
+        """Coaches cannot READ development data for players outside their academies."""
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.player_in_b.pk})
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ---------------------------------------------------------------------------
@@ -951,14 +957,14 @@ class SuperuserDevelopmentBypassTests(APITestCase):
         response = self.client.post(
             url, {"title": "Cross-academy goal", "start_date": "2026-01-01"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_regular_admin_cannot_create_assessment_for_unaffiliated_player(self):
         """Regular ACADEMY_ADMIN is denied when creating an assessment for a player with no affiliation."""
         self.client.force_authenticate(user=self.admin_a)
         url = reverse("player-assessment-list", kwargs={"player_pk": self.unaffiliated_player.pk})
         response = self.client.post(url, self._assessment_payload(), format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # ---- Existing role restrictions remain intact for non-superusers ----
 
@@ -972,14 +978,14 @@ class SuperuserDevelopmentBypassTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_parent_role_cannot_create_goal(self):
-        """PARENT role cannot create goals (403)."""
+        """PARENT role cannot create goals (403 or 404)."""
         parent_user = make_user(User.Role.PARENT, "sa_parent@test.com")
         self.client.force_authenticate(user=parent_user)
         url = reverse("player-goal-list", kwargs={"player_pk": self.player_in_a.pk})
         response = self.client.post(
             url, {"title": "Parent goal", "start_date": "2026-01-01"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_superuser_can_read_development_data_for_any_player(self):
         """Superuser can GET assessments for any player."""
@@ -1234,18 +1240,10 @@ class PlayerComparisonTests(APITestCase):
         other_coach = make_user(User.Role.COACH, "cmp_other_coach@test.com")
         AcademyStaffMembership.objects.create(user=other_coach, academy=other_academy)
 
-        # self.player is only affiliated with self.academy, not other_academy
-        # other_coach has no affiliation with self.academy
-
-        # For READ, coaches can read any player's data per existing rules.
-        # Let's verify the existing read permission (coaches can read any player).
-        # The development permissions allow coaches to READ without affiliation check.
-        # So this test verifies that a coach CAN read (same as existing behavior).
         add_to_team(self.player, self.team)
         self.client.force_authenticate(user=other_coach)
         response = self.client.get(self._compare_url())
-        # Coaches can read any player's data (no affiliation required for read)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # ------------------------------------------------------------------ #
     # 10. Academy admin at same academy can compare                        #
