@@ -1,6 +1,7 @@
 import uuid
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -11,6 +12,11 @@ class Academy(models.Model):
     city = models.CharField(max_length=100, blank=True, default="")
     country = models.CharField(max_length=100, blank=True, default="")
     logo_url = models.URLField(blank=True, default="")
+    parental_consent_age = models.PositiveSmallIntegerField(
+        default=18,
+        validators=[MinValueValidator(13), MaxValueValidator(18)],
+        help_text="Players below this age require parental consent (13–18).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

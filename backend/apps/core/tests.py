@@ -20,6 +20,8 @@ _VALID_ENV = {
     "JWT_SIGNING_KEY": "y" * 50,
     "DJANGO_ALLOWED_HOSTS": "example.com",
     "CORS_ALLOWED_ORIGINS": "",
+    "DEFAULT_FROM_EMAIL": "noreply@example.com",
+    "FRONTEND_BASE_URL": "https://app.example.com",
 }
 
 

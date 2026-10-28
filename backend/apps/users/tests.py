@@ -765,3 +765,102 @@ class InactiveUserTokenTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
         response = self.client.get(self.me_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Email normalization tests
+# ---------------------------------------------------------------------------
+
+class EmailNormalizationTests(APITestCase):
+    """Login and password-reset must work regardless of the email case typed."""
+
+    def setUp(self):
+        self.user = make_user(email="alice@example.com")
+        self.token_url = reverse("token-obtain-pair")
+
+    def test_login_with_mixed_case_email(self):
+        """POST /api/auth/token/ normalises email before authenticating."""
+        response = self.client.post(
+            self.token_url,
+            {"email": "Alice@Example.COM", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+
+    def test_login_with_leading_trailing_spaces(self):
+        response = self.client.post(
+            self.token_url,
+            {"email": "  alice@example.com  ", "password": "securepass123"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_create_user_stores_email_lowercased(self):
+        user = User.objects.create_user(
+            email="BOB@Example.COM", password="testpass123!",
+            first_name="Bob", last_name="Test", role=User.Role.COACH,
+        )
+        self.assertEqual(user.email, "bob@example.com")
+
+
+class PasswordResetEmailNormalizationTests(APITestCase):
+    """Password reset must find the user case-insensitively."""
+
+    def setUp(self):
+        self.user = make_user(email="alice@example.com")
+        self.url = reverse("password-reset-request")
+
+    def test_reset_with_mixed_case_sends_email(self):
+        from unittest.mock import patch
+        with patch("apps.users.views.send_mail") as mock_send:
+            response = self.client.post(
+                self.url,
+                {"email": "ALICE@Example.COM"},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            mock_send.assert_called_once()
+            # Verify it was sent to the right user
+            self.assertEqual(mock_send.call_args[1]["recipient_list"], [self.user.email])
+
+
+class EmailCollisionMigrationTests(TestCase):
+    """Test the collision detection in the lowercase-emails data migration."""
+
+    def test_no_collision_runs_cleanly(self):
+        """When no emails collide, the migration logic lowers them."""
+        User.objects.create_user(
+            email="upper@test.com", password="testpass123!",
+            first_name="A", last_name="B", role=User.Role.COACH,
+        )
+        # Directly set an upper-case email via update (bypass create_user normalization)
+        User.objects.filter(email="upper@test.com").update(email="UPPER@test.com")
+        # Run the migration function directly
+        import importlib
+        mod = importlib.import_module("apps.users.migrations.0004_lowercase_user_emails")
+        lowercase_emails = mod.lowercase_emails
+        from django.apps import apps
+        lowercase_emails(apps, None)
+        self.assertTrue(User.objects.filter(email="upper@test.com").exists())
+
+    def test_collision_raises_error(self):
+        """When lowercasing would create duplicates, migration aborts."""
+        u1 = User.objects.create_user(
+            email="dup@test.com", password="testpass123!",
+            first_name="A", last_name="B", role=User.Role.COACH,
+        )
+        u2 = User.objects.create_user(
+            email="dup2@test.com", password="testpass123!",
+            first_name="C", last_name="D", role=User.Role.COACH,
+        )
+        # Force both to collide when lowercased
+        User.objects.filter(pk=u1.pk).update(email="DUP@test.com")
+        User.objects.filter(pk=u2.pk).update(email="dup@test.com")
+        import importlib
+        mod = importlib.import_module("apps.users.migrations.0004_lowercase_user_emails")
+        lowercase_emails = mod.lowercase_emails
+        from django.apps import apps
+        with self.assertRaises(RuntimeError) as ctx:
+            lowercase_emails(apps, None)
+        self.assertIn("would collide", str(ctx.exception))
