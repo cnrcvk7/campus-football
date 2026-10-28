@@ -8,7 +8,7 @@ class UserManager(BaseUserManager):
     def create_user(self, email: str, password: str | None = None, **extra_fields):
         if not email:
             raise ValueError("Email is required.")
-        email = self.normalize_email(email)
+        email = self.normalize_email(email).lower()
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -50,6 +50,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=Role.choices)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)  # grants Django Admin access
+    consent_version = models.CharField(max_length=50, blank=True, default="")
+    consent_accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -93,7 +95,16 @@ class ParentPlayerLink(models.Model):
 
     class Meta:
         db_table = "parent_player_links"
-        unique_together = [("parent", "player")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["parent", "player"],
+                name="unique_parent_player",
+            ),
+            models.UniqueConstraint(
+                fields=["player"],
+                name="unique_player_one_parent",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.parent.email} → {self.player}"
