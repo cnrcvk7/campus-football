@@ -1748,6 +1748,69 @@ class MonthlyReportAcademyScopingTests(APITestCase):
         self.assertEqual(current["attendance_rate"], 0)
         self.assertTrue(response.data["has_previous_data"])
 
+    def test_previous_month_and_assists_are_academy_scoped(self):
+        """
+        Previous-month stats and assists must use the same academy scope as the
+        current month.  Adds September records at both academies (setUp only has
+        a B match in September) and October assists at B only.
+        """
+        from apps.matches.models import Match, MatchPlayerStats
+        from apps.training.models import TrainingAttendance, TrainingSession
+
+        # September, Academy A: draw, 0 goals, 1 assist, rating 7
+        m = Match.objects.create(
+            academy=self.academy_a, team=self.team_a, opponent_name="Sep A",
+            match_date="2026-09-15", home_away="HOME",
+            team_score=1, opponent_score=1, created_by=self.coach_a,
+        )
+        MatchPlayerStats.objects.create(
+            match=m, player=self.shared, goals=0, assists=1, rating="7.0"
+        )
+        # September training: B present, A absent
+        for academy, team, coach, training_date, attendance_status in (
+            (self.academy_b, self.team_b, self.coach_b, "2026-09-20", "PRESENT"),
+            (self.academy_a, self.team_a, self.coach_a, "2026-09-21", "ABSENT"),
+        ):
+            s = TrainingSession.objects.create(
+                academy=academy, team=team, title=f"Sep {academy.name}",
+                training_date=training_date, coach=coach,
+            )
+            TrainingAttendance.objects.create(
+                session=s, player=self.shared, status=attendance_status
+            )
+        # October, Academy B: 5 assists
+        MatchPlayerStats.objects.filter(
+            player=self.shared, match__academy=self.academy_b,
+            match__match_date="2026-10-06",
+        ).update(assists=5)
+
+        cases = {
+            "coach_a": (self.coach_a, 0, {
+                "match_count": 1, "matches_won": 0, "goals": 0, "assists": 1,
+                "avg_rating": "7.00", "training_count": 1,
+                "training_attended": 0, "attendance_rate": 0,
+            }),
+            "coach_b": (self.coach_b, 5, {
+                "match_count": 1, "matches_won": 1, "goals": 2, "assists": 0,
+                "avg_rating": "8.00", "training_count": 1,
+                "training_attended": 1, "attendance_rate": 100,
+            }),
+            "superuser": (self.superuser, 5, {
+                "match_count": 2, "matches_won": 1, "goals": 2, "assists": 1,
+                "avg_rating": "7.50", "training_count": 2,
+                "training_attended": 1, "attendance_rate": 50,
+            }),
+        }
+        for name, (user, current_assists, expected_previous) in cases.items():
+            with self.subTest(user=name):
+                response = self._report(self.shared, user)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["current"]["assists"], current_assists)
+                self.assertTrue(response.data["has_previous_data"])
+                previous = response.data["previous"]
+                for field, value in expected_previous.items():
+                    self.assertEqual(previous[field], value, f"{name}: previous.{field}")
+
     def test_coach_a_cannot_view_report_of_player_only_in_academy_b(self):
         make_assessment(self.player_b, self.coach_b, assessment_date="2026-10-01")
         response = self._report(self.player_b, self.coach_a)
