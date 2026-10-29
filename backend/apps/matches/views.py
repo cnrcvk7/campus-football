@@ -4,6 +4,7 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.dates import get_date_range
 from apps.users.models import User
 
 from .models import Match, MatchPlayerStats
@@ -155,6 +156,7 @@ class PlayerMatchHistoryView(APIView):
 
     def get(self, request, player_pk):
         player = get_player_and_check_match_access(request, player_pk)
+        start, end = get_date_range(request)
 
         stats_qs = (
             MatchPlayerStats.objects.filter(player=player)
@@ -172,6 +174,11 @@ class PlayerMatchHistoryView(APIView):
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(request.user)
             stats_qs = stats_qs.filter(match__academy_id__in=academy_ids)
+
+        if start and end:
+            stats_qs = stats_qs.filter(
+                match__match_date__gte=start, match__match_date__lte=end
+            )
 
         serializer = PlayerMatchHistorySerializer(
             stats_qs,

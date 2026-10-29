@@ -377,6 +377,56 @@
     "accessDeniedDesc": "You are not authorized to view this player's report.",
     "tableDate": "Date",
     "height": "Height", "weight": "Weight", "bodyFat": "Body Fat", "sprint10m": "10m Sprint",
+    "monthlyTitle": "Monthly Report",
+    "selectedPeriod": "{{month}} {{year}}",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "monthlySummary": "Monthly Summary",
+    "monthlyLoadFailed": "Could not load the monthly report",
+    "vsLastMonth": "vs last month",
+    "noActivityMonth": "No activity recorded for this month.",
+    "noActivityMonthHint": "Try selecting a different month.",
+    "assessmentCount": "Assessments",
+    "matchCount": "Matches",
+    "trainingCount": "Training Sessions",
+    "monthlyAttendanceRate": "Attendance",
+    "measurementCount": "Measurements",
+    "goalsCompleted": "Goals Completed",
+    "goalsActive": "Active Goals",
+    "insufficientDataComparison": "Insufficient data for comparison",
+    "baselineLabel": "Baseline (pre-period)",
+    "periodFilterActive": "Showing data for {{period}}",
+    "allTimeLabel": "All Time",
+    "generatedOn": "Report generated: {{date}}",
+    "printReport": "Print Report",
+    "goalStatus": {
+      "active": "Active",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "goalCount": {
+      "active": "{{count}} Active",
+      "completed": "{{count}} Completed",
+      "cancelled": "{{count}} Cancelled"
+    },
+    "attendanceBreakdown": {
+      "present": "Present",
+      "late": "Late",
+      "excused": "Excused",
+      "absent": "Absent"
+    },
+    "feedbackSource": {
+      "assessment": "Assessment",
+      "match": "Match"
+    },
+    "feedbackDefaultAuthor": "Coach",
+    "sinceFirst": "since first",
+    "units": {
+      "cm": "cm",
+      "kg": "kg",
+      "percent": "%",
+      "seconds": "s"
+    },
     "empty": {
       "noAssessments": "No assessments recorded",
       "noAssessmentsHint": "Category scores appear after the first coach assessment.",
