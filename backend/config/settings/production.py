@@ -159,3 +159,39 @@ LOGGING = {
         },
     },
 }
+
+# ---------------------------------------------------------------------------
+# Email — SMTP in production (provider configured via environment variables)
+# ---------------------------------------------------------------------------
+_EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+if _EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = _EMAIL_HOST
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+
+_DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "")
+if not _DEFAULT_FROM_EMAIL:
+    raise ImproperlyConfigured(
+        "DEFAULT_FROM_EMAIL must be set in production "
+        "(e.g. 'noreply@campusfootball.com')."
+    )
+DEFAULT_FROM_EMAIL = _DEFAULT_FROM_EMAIL  # noqa: F811
+
+# ---------------------------------------------------------------------------
+# Frontend base URL — required and must be HTTPS in production
+# ---------------------------------------------------------------------------
+_FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "")
+if not _FRONTEND_BASE_URL:
+    raise ImproperlyConfigured(
+        "FRONTEND_BASE_URL must be set in production "
+        "(e.g. 'https://app.campusfootball.com')."
+    )
+if not _FRONTEND_BASE_URL.startswith("https://"):
+    raise ImproperlyConfigured(
+        "FRONTEND_BASE_URL must use HTTPS in production "
+        f"(got '{_FRONTEND_BASE_URL}')."
+    )
+FRONTEND_BASE_URL = _FRONTEND_BASE_URL  # noqa: F811

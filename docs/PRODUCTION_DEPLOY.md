@@ -43,6 +43,8 @@ cp .env.prod.example .env.prod
 | `JWT_SIGNING_KEY` | Dedicated JWT signing key — **must differ from `DJANGO_SECRET_KEY`** | `python -c "import secrets; print(secrets.token_hex(50))"` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames Django will serve | `app.example.com,www.example.com` |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated scheme+host CORS origins | `https://app.example.com` |
+| `FRONTEND_BASE_URL` | Public HTTPS URL of the frontend app — used in invitation links and password-reset emails. **Must start with `https://`**; app refuses to start otherwise. | `https://app.campusfootball.com` |
+| `DEFAULT_FROM_EMAIL` | Sender address for transactional emails (password reset). **Required in production.** | `noreply@campusfootball.com` |
 | `DJANGO_SETTINGS_MODULE` | Must be `config.settings.production` | set in `docker-compose.prod.yml` — do not override here |
 
 ### Database
@@ -54,6 +56,16 @@ cp .env.prod.example .env.prod
 | `POSTGRES_PASSWORD` | Database password — use a strong random value |
 | `POSTGRES_HOST` | Set to `db` by `docker-compose.prod.yml` — do not override here |
 | `POSTGRES_PORT` | PostgreSQL port (default `5432`) |
+
+### Email (SMTP)
+
+| Variable | Description |
+|---|---|
+| `EMAIL_HOST` | SMTP server hostname. When set, enables SMTP backend (otherwise console backend). |
+| `EMAIL_PORT` | SMTP port (default `587`) |
+| `EMAIL_USE_TLS` | `True` or `False` (default `True`) |
+| `EMAIL_HOST_USER` | SMTP username |
+| `EMAIL_HOST_PASSWORD` | SMTP password |
 
 ### Nginx
 

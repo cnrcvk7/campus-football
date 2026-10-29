@@ -13,6 +13,7 @@ class AcademySerializer(serializers.ModelSerializer):
             "city",
             "country",
             "logo_url",
+            "parental_consent_age",
             "created_at",
             "updated_at",
         ]
