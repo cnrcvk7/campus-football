@@ -397,6 +397,36 @@
     "baselineLabel": "Baseline (pre-period)",
     "periodFilterActive": "Showing data for {{period}}",
     "allTimeLabel": "All Time",
+    "generatedOn": "Report generated: {{date}}",
+    "printReport": "Print Report",
+    "goalStatus": {
+      "active": "Active",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "goalCount": {
+      "active": "{{count}} Active",
+      "completed": "{{count}} Completed",
+      "cancelled": "{{count}} Cancelled"
+    },
+    "attendanceBreakdown": {
+      "present": "Present",
+      "late": "Late",
+      "excused": "Excused",
+      "absent": "Absent"
+    },
+    "feedbackSource": {
+      "assessment": "Assessment",
+      "match": "Match"
+    },
+    "feedbackDefaultAuthor": "Coach",
+    "sinceFirst": "since first",
+    "units": {
+      "cm": "cm",
+      "kg": "kg",
+      "percent": "%",
+      "seconds": "s"
+    },
     "empty": {
       "noAssessments": "No assessments recorded",
       "noAssessmentsHint": "Category scores appear after the first coach assessment.",

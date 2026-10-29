@@ -322,7 +322,7 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
               {activeAcademy && <span>· {activeAcademy.academy.name}</span>}
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Report generated: {today}
+              {t('playerReport.generatedOn', { date: today })}
             </p>
           </div>
           <div className="no-print mt-2 flex flex-col gap-2 self-start sm:flex-row">
@@ -337,7 +337,7 @@ function ReportHeader({ player, history }: { player: Player; history: PlayerHist
               className="no-print inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white ring-1 ring-emerald-400/40 transition hover:bg-emerald-700"
             >
               <Printer size={14} aria-hidden="true" />
-              Print Report
+              {t('playerReport.printReport')}
             </button>
           </div>
         </div>
@@ -529,15 +529,15 @@ function SkillProgressionSection({ assessments }: { assessments: Assessment[] })
 interface PhysField {
   key: keyof PhysicalMeasurement
   labelKey: string
-  unit: string
+  unitKey: string
   lowerIsBetter: boolean
 }
 
 const PHYS_FIELDS_DEF: PhysField[] = [
-  { key: 'height_cm',              labelKey: 'playerReport.height',    unit: 'cm', lowerIsBetter: false },
-  { key: 'weight_kg',              labelKey: 'playerReport.weight',    unit: 'kg', lowerIsBetter: false },
-  { key: 'body_fat_percentage',    labelKey: 'playerReport.bodyFat',   unit: '%',  lowerIsBetter: false },
-  { key: 'sprint_time_seconds',    labelKey: 'playerReport.sprint10m', unit: 's',  lowerIsBetter: true  },
+  { key: 'height_cm',              labelKey: 'playerReport.height',    unitKey: 'playerReport.units.cm',      lowerIsBetter: false },
+  { key: 'weight_kg',              labelKey: 'playerReport.weight',    unitKey: 'playerReport.units.kg',      lowerIsBetter: false },
+  { key: 'body_fat_percentage',    labelKey: 'playerReport.bodyFat',   unitKey: 'playerReport.units.percent', lowerIsBetter: false },
+  { key: 'sprint_time_seconds',    labelKey: 'playerReport.sprint10m', unitKey: 'playerReport.units.seconds', lowerIsBetter: true  },
 ]
 
 function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[] }) {
@@ -564,7 +564,7 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
           {t('playerReport.latestPrefix')} {fmtDate(latest.measurement_date, displayLocale)}
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
-          {PHYS_FIELDS_DEF.map(({ key, labelKey, unit, lowerIsBetter }) => {
+          {PHYS_FIELDS_DEF.map(({ key, labelKey, unitKey, lowerIsBetter }) => {
             const currVal = latest[key] as string | null
             if (currVal === null) return null
             const firstVal = measurements.length >= 2 ? (first[key] as string | null) : null
@@ -577,10 +577,10 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
               <div key={key} className="rounded-xl bg-gray-50 p-4 text-center">
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">{t(labelKey)}</p>
                 <p className="mt-1 text-2xl font-bold text-gray-900">{parseFloat(currVal).toFixed(1)}</p>
-                <p className="text-xs text-gray-400">{unit}</p>
+                <p className="text-xs text-gray-400">{t(unitKey)}</p>
                 {delta !== null && (
                   <p className="mt-1 text-xs font-semibold text-gray-500">
-                    {delta > 0 ? '+' : ''}{delta.toFixed(1)} since first
+                    {delta > 0 ? '+' : ''}{delta.toFixed(1)} {t('playerReport.sinceFirst')}
                     {lowerIsBetter && delta < 0 && <span className="text-emerald-600"> &darr;</span>}
                     {!lowerIsBetter && delta > 0 && <span className="text-emerald-600"> &uarr;</span>}
                   </p>
@@ -608,11 +608,11 @@ function PhysicalSection({ measurements }: { measurements: PhysicalMeasurement[]
                   {[...measurements].reverse().map((m) => (
                     <tr key={m.id}>
                       <td className="py-2 text-xs text-gray-500 whitespace-nowrap">{fmtDate(m.measurement_date, displayLocale)}</td>
-                      {PHYS_FIELDS_DEF.map(({ key, unit }) => {
+                      {PHYS_FIELDS_DEF.map(({ key, unitKey }) => {
                         const val = m[key] as string | null
                         return (
                           <td key={key} className="py-2 px-3 text-right text-sm text-gray-700 whitespace-nowrap">
-                            {val ? `${parseFloat(val).toFixed(1)} ${unit}` : '—'}
+                            {val ? `${parseFloat(val).toFixed(1)} ${t(unitKey)}` : '—'}
                           </td>
                         )
                       })}
@@ -719,10 +719,10 @@ function TrainingSection({ sessions }: { sessions: TrainingSessionSummary[] }) {
     : null
 
   const breakdown: { label: string; count: number; color: string }[] = [
-    { label: 'Present',  count: presentCount,  color: 'text-emerald-600' },
-    { label: 'Late',     count: lateCount,      color: 'text-amber-600'   },
-    { label: 'Excused',  count: excusedCount,   color: 'text-brand-500'   },
-    { label: 'Absent',   count: absentCount,    color: 'text-red-500'     },
+    { label: t('playerReport.attendanceBreakdown.present'), count: presentCount, color: 'text-emerald-600' },
+    { label: t('playerReport.attendanceBreakdown.late'),    count: lateCount,    color: 'text-amber-600'   },
+    { label: t('playerReport.attendanceBreakdown.excused'), count: excusedCount, color: 'text-brand-500'   },
+    { label: t('playerReport.attendanceBreakdown.absent'),  count: absentCount,  color: 'text-red-500'     },
   ]
 
   return (
@@ -832,25 +832,25 @@ function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
       <SectionTitle>{t('playerReport.sectionGoals')}</SectionTitle>
       <Card>
         <div className="flex gap-4 mb-6 text-sm">
-          <span className="text-brand-600 font-medium">{active.length} Active</span>
-          <span className="text-emerald-600 font-medium">{completed.length} Completed</span>
-          {cancelled.length > 0 && <span className="text-gray-400">{cancelled.length} Cancelled</span>}
+          <span className="text-brand-600 font-medium">{t('playerReport.goalCount.active', { count: active.length })}</span>
+          <span className="text-emerald-600 font-medium">{t('playerReport.goalCount.completed', { count: completed.length })}</span>
+          {cancelled.length > 0 && <span className="text-gray-400">{t('playerReport.goalCount.cancelled', { count: cancelled.length })}</span>}
         </div>
         {active.length > 0 && (
           <div className="mb-6">
-            <p className="mb-3 text-xs font-semibold text-brand-600 uppercase tracking-widest">Active</p>
+            <p className="mb-3 text-xs font-semibold text-brand-600 uppercase tracking-widest">{t('playerReport.goalStatus.active')}</p>
             <div className="space-y-3">{active.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
           </div>
         )}
         {completed.length > 0 && (
           <div className="mb-6">
-            <p className="mb-3 text-xs font-semibold text-emerald-600 uppercase tracking-widest">Completed</p>
+            <p className="mb-3 text-xs font-semibold text-emerald-600 uppercase tracking-widest">{t('playerReport.goalStatus.completed')}</p>
             <div className="space-y-3">{completed.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
           </div>
         )}
         {cancelled.length > 0 && (
           <div>
-            <p className="mb-3 text-xs font-semibold text-gray-400 uppercase tracking-widest">Cancelled</p>
+            <p className="mb-3 text-xs font-semibold text-gray-400 uppercase tracking-widest">{t('playerReport.goalStatus.cancelled')}</p>
             <div className="space-y-3">{cancelled.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
           </div>
         )}
@@ -865,10 +865,16 @@ function GoalsSection({ goals }: { goals: DevelopmentGoal[] }) {
 
 interface FeedbackEntry {
   id: string
-  source: string
+  source: 'ASSESSMENT' | 'MATCH'
   date: string
-  author: string
+  /** Recorded coach name; null means unknown and a translated fallback is shown. */
+  author: string | null
   comment: string
+}
+
+const FEEDBACK_SOURCE_KEYS: Record<FeedbackEntry['source'], string> = {
+  ASSESSMENT: 'playerReport.feedbackSource.assessment',
+  MATCH: 'playerReport.feedbackSource.match',
 }
 
 function buildFeedback(
@@ -881,9 +887,9 @@ function buildFeedback(
     if (a.overall_comment.trim().length > 0) {
       entries.push({
         id: `a-${a.id}`,
-        source: 'Assessment',
+        source: 'ASSESSMENT',
         date: a.assessment_date,
-        author: a.coach_name ?? 'Coach',
+        author: a.coach_name ?? null,
         comment: a.overall_comment.trim(),
       })
     }
@@ -893,9 +899,9 @@ function buildFeedback(
     if (m.coach_comment.trim().length > 0) {
       entries.push({
         id: `m-${m.id}`,
-        source: 'Match',
+        source: 'MATCH',
         date: m.match_date,
-        author: 'Coach',
+        author: null,
         comment: m.coach_comment.trim(),
       })
     }
@@ -933,16 +939,19 @@ function FeedbackSection({
           {t('playerReport.feedbackNote')}
         </p>
         <div className="space-y-4">
-          {entries.map((e) => (
-            <div key={e.id} className="border-l-2 border-brand-200 pl-4">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-brand-600 uppercase tracking-wide">{e.source}</span>
-                <span className="text-xs text-gray-400">{fmtDate(e.date, displayLocale)}</span>
-                {e.author && <span className="text-xs text-gray-400">· {e.author}</span>}
+          {entries.map((e) => {
+            const author = e.author ?? t('playerReport.feedbackDefaultAuthor')
+            return (
+              <div key={e.id} className="border-l-2 border-brand-200 pl-4">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-xs font-semibold text-brand-600 uppercase tracking-wide">{t(FEEDBACK_SOURCE_KEYS[e.source])}</span>
+                  <span className="text-xs text-gray-400">{fmtDate(e.date, displayLocale)}</span>
+                  {author && <span className="text-xs text-gray-400">· {author}</span>}
+                </div>
+                <p className="text-sm text-gray-700 italic">"{e.comment}"</p>
               </div>
-              <p className="text-sm text-gray-700 italic">"{e.comment}"</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
     </section>
