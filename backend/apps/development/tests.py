@@ -1514,14 +1514,14 @@ class MonthlyReportTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_monthly_summary_permission_denied(self):
-        """User at different academy → 403 when player is linked to a different user."""
+        """PLAYER user requesting another player's report → 404 (same as a non-existent player)."""
         other_player_user = make_user(User.Role.PLAYER, "monthly_other@test.com")
         other_player = make_player(user=other_player_user)
         self.client.force_authenticate(user=other_player_user)
         # Try to access self.player's report (not linked to other_player_user)
         url = reverse("player-monthly-report", kwargs={"player_pk": self.player.pk})
         response = self.client.get(url, {"year": "2026", "month": "10"})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_monthly_summary_superuser_access(self):
         """Superuser can access any player's monthly report."""
@@ -1751,21 +1751,21 @@ class MonthlyReportAcademyScopingTests(APITestCase):
     def test_coach_a_cannot_view_report_of_player_only_in_academy_b(self):
         make_assessment(self.player_b, self.coach_b, assessment_date="2026-10-01")
         response = self._report(self.player_b, self.coach_a)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertNotIn("current", response.data)
 
     def test_admin_a_cannot_view_report_of_player_only_in_academy_b(self):
         response = self._report(self.player_b, self.admin_a)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_staff_without_any_membership_is_denied(self):
         response = self._report(self.shared, self.coach_none)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_permission_is_checked_before_param_validation(self):
-        """Unauthorised callers get 403, not a 400 that confirms the player exists."""
+        """Unauthorised callers get 404, not a 400 that confirms the player exists."""
         response = self._report(self.player_b, self.coach_a, params={})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unknown_player_returns_404(self):
         self.client.force_authenticate(user=self.coach_a)
@@ -1799,7 +1799,7 @@ class MonthlyReportAcademyScopingTests(APITestCase):
         response = self.client.post(
             url, {"measurement_date": "2026-10-25", "height_cm": "175.00"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # -- Superuser --------------------------------------------------------------
 
@@ -1819,18 +1819,18 @@ class MonthlyReportAcademyScopingTests(APITestCase):
 
     def test_player_cannot_view_other_player_report(self):
         response = self._report(self.player_b, self.player_user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_linked_parent_sees_child_report(self):
         self._assert_all_academies(self._report(self.shared, self.parent))
 
     def test_unlinked_parent_is_denied(self):
         response = self._report(self.shared, self.other_parent)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_linked_parent_cannot_view_other_player(self):
         response = self._report(self.player_b, self.parent)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_is_rejected(self):
         url = reverse("player-monthly-report", kwargs={"player_pk": self.shared.pk})
