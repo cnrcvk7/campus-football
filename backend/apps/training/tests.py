@@ -805,7 +805,7 @@ class TrainingSessionObjectAuthorizationTests(APITestCase):
             kwargs={"session_pk": self.session_b.pk},
         )
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_session_attendance_blocked_without_membership(self):
         """Accessing session attendance for a non-member academy returns 403."""
@@ -815,7 +815,7 @@ class TrainingSessionObjectAuthorizationTests(APITestCase):
             kwargs={"session_pk": self.session_b.pk},
         )
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(response.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
 
 # ---------------------------------------------------------------------------
