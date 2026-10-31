@@ -247,20 +247,28 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
     # Helpers
     # -----------------------------------------------------------------------
 
-    def _assert_blocked(self, user, url, expected_status=status.HTTP_404_NOT_FOUND):
-        """Assert the user gets blocked (404 or 403) when accessing the URL."""
+    def _assert_blocked(self, user, url):
+        """Assert the user gets 404 when accessing the URL (no info leakage)."""
         self.client.force_authenticate(user=user)
         resp = self.client.get(url)
-        self.assertIn(
+        self.assertEqual(
             resp.status_code,
-            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
-            f"{user.email} should be blocked from {url}, got {resp.status_code}",
+            status.HTTP_404_NOT_FOUND,
+            f"{user.email} should get 404 from {url}, got {resp.status_code}",
         )
 
     def _assert_404_for_all_b_users(self, url):
-        """All B-side users must get 404 (or 403 where role-blocked)."""
+        """All B-side users must get 404."""
         for user in (self.coach_b, self.admin_b, self.player_user_b, self.parent_b):
             self._assert_blocked(user, url)
+
+    def _assert_404_body_identical(self, user, real_url, fake_url):
+        """Assert the 404 body for a real-but-out-of-scope URL matches a non-existent UUID."""
+        self.client.force_authenticate(user=user)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
 
     @staticmethod
     def _extract_ids(data):
@@ -320,11 +328,19 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.team_a.pk), ids)
 
     def test_team_players(self):
-        """GET /api/teams/{team_pk}/players/ — scoped by staff_of_academy."""
+        """GET /api/teams/{team_pk}/players/ — resolved through academy-scoped queryset."""
         url = reverse("team-players", kwargs={"team_pk": self.team_a.pk})
         self._assert_blocked(self.coach_b, url)
         self._assert_blocked(self.admin_b, url)
         self._assert_allowed(self.coach_a, url)
+
+    def test_team_players_404_body_identical(self):
+        """Out-of-scope team-players 404 body must match non-existent team."""
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("team-players", kwargs={"team_pk": self.team_a.pk}),
+            reverse("team-players", kwargs={"team_pk": FAKE_PK}),
+        )
 
     # ===================================================================
     # 3. PLAYERS (detail + history)
@@ -337,13 +353,11 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self._assert_allowed(self.coach_a, url)
 
     def test_player_detail_404_body_identical(self):
-        url_real = reverse("player-detail", kwargs={"pk": self.player_a.pk})
-        url_fake = reverse("player-detail", kwargs={"pk": FAKE_PK})
-        self.client.force_authenticate(user=self.coach_b)
-        real_resp = self.client.get(url_real)
-        fake_resp = self.client.get(url_fake)
-        self.assertEqual(real_resp.status_code, 404)
-        self.assertEqual(real_resp.json(), fake_resp.json())
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("player-detail", kwargs={"pk": self.player_a.pk}),
+            reverse("player-detail", kwargs={"pk": FAKE_PK}),
+        )
 
     def test_player_history(self):
         """GET /api/players/{id}/history/"""
@@ -352,13 +366,11 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self._assert_allowed(self.coach_a, url)
 
     def test_player_history_404_body_identical(self):
-        url_real = reverse("player-history", kwargs={"pk": self.player_a.pk})
-        url_fake = reverse("player-history", kwargs={"pk": FAKE_PK})
-        self.client.force_authenticate(user=self.coach_b)
-        real_resp = self.client.get(url_real)
-        fake_resp = self.client.get(url_fake)
-        self.assertEqual(real_resp.status_code, 404)
-        self.assertEqual(real_resp.json(), fake_resp.json())
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("player-history", kwargs={"pk": self.player_a.pk}),
+            reverse("player-history", kwargs={"pk": FAKE_PK}),
+        )
 
     def test_player_list_does_not_leak(self):
         """GET /api/players/ — B staff must not see A's players."""
@@ -439,19 +451,40 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.match_a.pk), ids)
 
     def test_match_player_stats_list(self):
-        """GET /api/matches/{match_pk}/players/ — staff of match academy only."""
+        """GET /api/matches/{match_pk}/players/ — resolved through academy-scoped queryset."""
         url = reverse("match-player-stats-list", kwargs={"match_pk": self.match_a.pk})
         self._assert_blocked(self.coach_b, url)
         self._assert_blocked(self.admin_b, url)
         self._assert_allowed(self.coach_a, url)
 
+    def test_match_player_stats_list_404_body_identical(self):
+        """Out-of-scope match-player-stats 404 body must match non-existent match."""
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("match-player-stats-list", kwargs={"match_pk": self.match_a.pk}),
+            reverse("match-player-stats-list", kwargs={"match_pk": FAKE_PK}),
+        )
+
     def test_match_player_stats_detail(self):
+        """GET /api/matches/{match_pk}/players/{pk}/ — resolved through academy-scoped queryset."""
         url = reverse("match-player-stats-detail", kwargs={
             "match_pk": self.match_a.pk, "pk": self.match_stats_a.pk,
         })
         self._assert_blocked(self.coach_b, url)
         self._assert_blocked(self.admin_b, url)
         self._assert_allowed(self.coach_a, url)
+
+    def test_match_player_stats_detail_404_body_identical(self):
+        """Out-of-scope match-player-stats detail 404 body must match non-existent match."""
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("match-player-stats-detail", kwargs={
+                "match_pk": self.match_a.pk, "pk": self.match_stats_a.pk,
+            }),
+            reverse("match-player-stats-detail", kwargs={
+                "match_pk": FAKE_PK, "pk": self.match_stats_a.pk,
+            }),
+        )
 
     def test_player_match_history(self):
         """GET /api/players/{player_pk}/matches/ — player-scoped, academy-gated."""
@@ -486,18 +519,34 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.session_a.pk), ids)
 
     def test_session_exercise_list(self):
-        """GET /api/training/sessions/{session_pk}/exercises/ — staff_of_academy."""
+        """GET /api/training/sessions/{session_pk}/exercises/ — resolved through academy-scoped queryset."""
         url = reverse("training-session-exercise-list", kwargs={"session_pk": self.session_a.pk})
         self._assert_blocked(self.coach_b, url)
         self._assert_blocked(self.admin_b, url)
         self._assert_allowed(self.coach_a, url)
 
+    def test_session_exercise_list_404_body_identical(self):
+        """Out-of-scope session-exercises 404 body must match non-existent session."""
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("training-session-exercise-list", kwargs={"session_pk": self.session_a.pk}),
+            reverse("training-session-exercise-list", kwargs={"session_pk": FAKE_PK}),
+        )
+
     def test_training_attendance_list(self):
-        """GET /api/training/sessions/{session_pk}/attendance/ — staff_of_academy."""
+        """GET /api/training/sessions/{session_pk}/attendance/ — resolved through academy-scoped queryset."""
         url = reverse("training-attendance-list", kwargs={"session_pk": self.session_a.pk})
         self._assert_blocked(self.coach_b, url)
         self._assert_blocked(self.admin_b, url)
         self._assert_allowed(self.coach_a, url)
+
+    def test_training_attendance_list_404_body_identical(self):
+        """Out-of-scope attendance 404 body must match non-existent session."""
+        self._assert_404_body_identical(
+            self.coach_b,
+            reverse("training-attendance-list", kwargs={"session_pk": self.session_a.pk}),
+            reverse("training-attendance-list", kwargs={"session_pk": FAKE_PK}),
+        )
 
     def test_player_training_history(self):
         """GET /api/players/{player_pk}/training/history/"""
