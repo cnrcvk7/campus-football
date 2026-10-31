@@ -94,10 +94,16 @@ class MatchPlayerStatsViewSet(viewsets.GenericViewSet):
 
     def _get_match(self) -> Match:
         require_coach_or_admin(self.request)
-        match = get_object_or_404(Match, pk=self.kwargs["match_pk"])
-        from apps.academies.permissions import require_staff_of_academy
-        require_staff_of_academy(self.request.user, match.academy_id)
-        return match
+        qs = Match.objects.select_related("academy", "team")
+        if not self.request.user.is_superuser:
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(self.request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        try:
+            return qs.get(pk=self.kwargs["match_pk"])
+        except Match.DoesNotExist:
+            from django.http import Http404
+            raise Http404
 
     def list(self, request, match_pk=None):
         match = self._get_match()

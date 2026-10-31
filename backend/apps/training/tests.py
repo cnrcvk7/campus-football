@@ -515,13 +515,13 @@ class TrainingPermissionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_player_cannot_view_another_players_history(self):
-        """A PLAYER cannot view another player's training history (403)."""
+        """A PLAYER cannot view another player's training history (404)."""
         other_player_user = make_user(User.Role.PLAYER, "other@training.test")
         other_player = make_player(user=other_player_user)
         self.client.force_authenticate(user=self.player_user)
         url = reverse("player-training-history", kwargs={"player_pk": other_player.pk})
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_returns_401(self):
         """Unauthenticated requests to training endpoints return 401."""
@@ -550,6 +550,11 @@ class PlayerTrainingHistoryTests(APITestCase):
         self.academy = make_academy()
         # Coach must be a staff member so the academy-scoped filter returns sessions.
         AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        # Player must be enrolled in the academy so get_player_and_check_training_access
+        # can verify the coach's visibility of this player (returns 404 otherwise).
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2026-01-01"
+        )
         self.client.force_authenticate(user=self.coach)
         self.url = reverse(
             "player-training-history", kwargs={"player_pk": self.player.pk}
@@ -836,6 +841,11 @@ class PlayerTrainingHistoryAuthorizationTests(APITestCase):
         AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy_a)
         # A player who attended one session in each academy.
         self.player = make_player()
+        # Player must be enrolled in the academy so get_player_and_check_training_access
+        # can verify staff visibility of this player (returns 404 otherwise).
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy_a, joined_at="2026-01-01"
+        )
         self.session_a = make_session(
             self.coach, self.academy_a, title="Academy A Session"
         )
@@ -881,9 +891,15 @@ class PlayerTrainingHistoryAuthorizationTests(APITestCase):
         """
         A coach from academy B only sees academy B's sessions for the same player.
         The session from academy A is hidden from them.
+        The player must also have a membership in academy B so the access guard
+        can confirm coach_b's visibility of this player.
         """
         coach_b = make_user(User.Role.COACH, "coachb_auth@training.test")
         AcademyStaffMembership.objects.create(user=coach_b, academy=self.academy_b)
+        # Enroll the player in academy B so staff_can_read_player passes for coach_b.
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy_b, joined_at="2026-01-01"
+        )
         self.client.force_authenticate(user=coach_b)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -891,13 +907,12 @@ class PlayerTrainingHistoryAuthorizationTests(APITestCase):
         self.assertIn("Academy B Session", titles)
         self.assertNotIn("Academy A Session", titles)
 
-    def test_staff_with_no_memberships_sees_empty_history(self):
-        """COACH with no academy memberships gets 200 with an empty sessions list."""
+    def test_staff_with_no_memberships_cannot_see_player(self):
+        """COACH with no academy memberships cannot see the player at all (404)."""
         no_membership_coach = make_user(User.Role.COACH, "nomem_auth@training.test")
         self.client.force_authenticate(user=no_membership_coach)
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["sessions"], [])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_player_sees_all_own_sessions_across_academies(self):
         """PLAYER sees their complete history regardless of which academy hosted the session."""
