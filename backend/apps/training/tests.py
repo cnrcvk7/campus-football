@@ -798,24 +798,24 @@ class TrainingSessionObjectAuthorizationTests(APITestCase):
     # -- NESTED RESOURCES (exercises & attendance) --
 
     def test_session_exercises_blocked_without_membership(self):
-        """Accessing session exercises for a non-member academy returns 403."""
+        """Accessing session exercises for a non-member academy returns 404."""
         self.client.force_authenticate(user=self.coach)
         url = reverse(
             "training-session-exercise-list",
             kwargs={"session_pk": self.session_b.pk},
         )
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_session_attendance_blocked_without_membership(self):
-        """Accessing session attendance for a non-member academy returns 403."""
+        """Accessing session attendance for a non-member academy returns 404."""
         self.client.force_authenticate(user=self.coach)
         url = reverse(
             "training-attendance-list",
             kwargs={"session_pk": self.session_b.pk},
         )
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ---------------------------------------------------------------------------

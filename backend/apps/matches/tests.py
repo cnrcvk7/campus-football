@@ -622,19 +622,19 @@ class MatchAcademyAuthorizationTests(APITestCase):
     # --- Nested player-stats isolation ----------------------------------------
 
     def test_coach_cannot_list_stats_for_another_academys_match(self):
-        """Coach A receives 403 when listing stats for Academy B's match."""
+        """Coach A receives 404 when listing stats for Academy B's match."""
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-list", args=[self.match_b.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_cannot_add_stats_to_another_academys_match(self):
-        """Coach A receives 403 when adding stats to Academy B's match."""
+        """Coach A receives 404 when adding stats to Academy B's match."""
         player = make_player()
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-list", args=[self.match_b.pk])
         response = self.client.post(url, {"player": str(player.pk), "started": True}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # --- Player history and summary scoping -----------------------------------
 
@@ -695,20 +695,20 @@ class MatchAcademyAuthorizationTests(APITestCase):
     # --- Nested stats retrieve / update cross-academy ------------------------
 
     def test_coach_cannot_retrieve_stats_for_another_academys_match(self):
-        """Coach A receives 403 when retrieving a stats record from Academy B's match."""
+        """Coach A receives 404 when retrieving a stats record from Academy B's match."""
         stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player)
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_cannot_update_stats_for_another_academys_match(self):
-        """Coach A receives 403 when updating a stats record in Academy B's match and the record is unchanged."""
+        """Coach A receives 404 when updating a stats record in Academy B's match and the record is unchanged."""
         stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player, goals=3)
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
         response = self.client.patch(url, {"goals": 99}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         # Verify the record was not modified
         stats.refresh_from_db()
         self.assertEqual(stats.goals, 3)
