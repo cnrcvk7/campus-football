@@ -320,11 +320,24 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.team_a.pk), ids)
 
     def test_team_players(self):
-        """GET /api/teams/{team_pk}/players/ — scoped by staff_of_academy."""
+        """GET /api/teams/{team_pk}/players/ — resolved through academy-scoped queryset."""
         url = reverse("team-players", kwargs={"team_pk": self.team_a.pk})
-        self._assert_blocked(self.coach_b, url)
-        self._assert_blocked(self.admin_b, url)
+        for user in (self.coach_b, self.admin_b):
+            self.client.force_authenticate(user=user)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND,
+                             f"{user.email} should get 404 from {url}")
         self._assert_allowed(self.coach_a, url)
+
+    def test_team_players_404_body_identical(self):
+        """Out-of-scope team-players 404 body must match non-existent team."""
+        real_url = reverse("team-players", kwargs={"team_pk": self.team_a.pk})
+        fake_url = reverse("team-players", kwargs={"team_pk": FAKE_PK})
+        self.client.force_authenticate(user=self.coach_b)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
 
     # ===================================================================
     # 3. PLAYERS (detail + history)
@@ -439,19 +452,50 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.match_a.pk), ids)
 
     def test_match_player_stats_list(self):
-        """GET /api/matches/{match_pk}/players/ — staff of match academy only."""
+        """GET /api/matches/{match_pk}/players/ — resolved through academy-scoped queryset."""
         url = reverse("match-player-stats-list", kwargs={"match_pk": self.match_a.pk})
-        self._assert_blocked(self.coach_b, url)
-        self._assert_blocked(self.admin_b, url)
+        for user in (self.coach_b, self.admin_b):
+            self.client.force_authenticate(user=user)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND,
+                             f"{user.email} should get 404 from {url}")
         self._assert_allowed(self.coach_a, url)
 
+    def test_match_player_stats_list_404_body_identical(self):
+        """Out-of-scope match-player-stats 404 body must match non-existent match."""
+        real_url = reverse("match-player-stats-list", kwargs={"match_pk": self.match_a.pk})
+        fake_url = reverse("match-player-stats-list", kwargs={"match_pk": FAKE_PK})
+        self.client.force_authenticate(user=self.coach_b)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
+
     def test_match_player_stats_detail(self):
+        """GET /api/matches/{match_pk}/players/{pk}/ — resolved through academy-scoped queryset."""
         url = reverse("match-player-stats-detail", kwargs={
             "match_pk": self.match_a.pk, "pk": self.match_stats_a.pk,
         })
-        self._assert_blocked(self.coach_b, url)
-        self._assert_blocked(self.admin_b, url)
+        for user in (self.coach_b, self.admin_b):
+            self.client.force_authenticate(user=user)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND,
+                             f"{user.email} should get 404 from {url}")
         self._assert_allowed(self.coach_a, url)
+
+    def test_match_player_stats_detail_404_body_identical(self):
+        """Out-of-scope match-player-stats detail 404 body must match non-existent match."""
+        real_url = reverse("match-player-stats-detail", kwargs={
+            "match_pk": self.match_a.pk, "pk": self.match_stats_a.pk,
+        })
+        fake_url = reverse("match-player-stats-detail", kwargs={
+            "match_pk": FAKE_PK, "pk": self.match_stats_a.pk,
+        })
+        self.client.force_authenticate(user=self.coach_b)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
 
     def test_player_match_history(self):
         """GET /api/players/{player_pk}/matches/ — player-scoped, academy-gated."""
@@ -486,18 +530,44 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.session_a.pk), ids)
 
     def test_session_exercise_list(self):
-        """GET /api/training/sessions/{session_pk}/exercises/ — staff_of_academy."""
+        """GET /api/training/sessions/{session_pk}/exercises/ — resolved through academy-scoped queryset."""
         url = reverse("training-session-exercise-list", kwargs={"session_pk": self.session_a.pk})
-        self._assert_blocked(self.coach_b, url)
-        self._assert_blocked(self.admin_b, url)
+        for user in (self.coach_b, self.admin_b):
+            self.client.force_authenticate(user=user)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND,
+                             f"{user.email} should get 404 from {url}")
         self._assert_allowed(self.coach_a, url)
 
+    def test_session_exercise_list_404_body_identical(self):
+        """Out-of-scope session-exercises 404 body must match non-existent session."""
+        real_url = reverse("training-session-exercise-list", kwargs={"session_pk": self.session_a.pk})
+        fake_url = reverse("training-session-exercise-list", kwargs={"session_pk": FAKE_PK})
+        self.client.force_authenticate(user=self.coach_b)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
+
     def test_training_attendance_list(self):
-        """GET /api/training/sessions/{session_pk}/attendance/ — staff_of_academy."""
+        """GET /api/training/sessions/{session_pk}/attendance/ — resolved through academy-scoped queryset."""
         url = reverse("training-attendance-list", kwargs={"session_pk": self.session_a.pk})
-        self._assert_blocked(self.coach_b, url)
-        self._assert_blocked(self.admin_b, url)
+        for user in (self.coach_b, self.admin_b):
+            self.client.force_authenticate(user=user)
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND,
+                             f"{user.email} should get 404 from {url}")
         self._assert_allowed(self.coach_a, url)
+
+    def test_training_attendance_list_404_body_identical(self):
+        """Out-of-scope attendance 404 body must match non-existent session."""
+        real_url = reverse("training-attendance-list", kwargs={"session_pk": self.session_a.pk})
+        fake_url = reverse("training-attendance-list", kwargs={"session_pk": FAKE_PK})
+        self.client.force_authenticate(user=self.coach_b)
+        real_resp = self.client.get(real_url)
+        fake_resp = self.client.get(fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
 
     def test_player_training_history(self):
         """GET /api/players/{player_pk}/training/history/"""
@@ -653,6 +723,283 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         ]
         for url in urls:
             self._assert_allowed(self.superuser, url)
+
+
+# ===========================================================================
+# Development-data cutoff for former-academy staff (transfer scenarios)
+# ===========================================================================
+
+
+class DevelopmentCutoffTests(AccessMatrixMixin, APITestCase):
+    """
+    Player transfers from Academy A → Academy B.
+
+    Coach A (former academy, LEFT membership) should only see development
+    records dated on or before the player's left_at date.
+    Coach B (current academy, ACTIVE membership) sees everything.
+    Superuser, the player, and the parent see everything.
+
+    When the player returns to Academy A (new ACTIVE membership), Coach A
+    sees everything again.
+    """
+
+    def setUp(self):
+        self.set_up_fixture()
+
+        # --- Transfer player A from Academy A to Academy B ---
+        # Mark Academy A membership as LEFT with a specific date.
+        self.left_date = "2026-09-15"
+        membership_a = PlayerAcademyMembership.objects.get(
+            player=self.player_a, academy=self.academy_a,
+        )
+        membership_a.status = PlayerAcademyMembership.Status.LEFT
+        membership_a.left_at = self.left_date
+        membership_a.save()
+
+        # Enroll player A at Academy B (ACTIVE).
+        _enroll(self.player_a, self.academy_b)
+        # Also give coach_b staff at academy_b (already done in fixture).
+
+        # --- Development data BEFORE the cutoff (2026-09-01, from fixture) ---
+        # assessment_a  (assessment_date=2026-09-01)  ← visible to coach_a
+        # goal_a        (start_date=2026-09-01)       ← visible to coach_a
+        # measurement_a (measurement_date=2026-09-01) ← visible to coach_a
+
+        # --- Development data AFTER the cutoff ---
+        self.assessment_after = Assessment.objects.create(
+            player=self.player_a, coach=self.coach_b,
+            assessment_date="2026-10-01",
+        )
+        AssessmentItem.objects.create(
+            assessment=self.assessment_after, skill=self.skill, score=9,
+        )
+        self.goal_after = DevelopmentGoal.objects.create(
+            player=self.player_a, skill=self.skill,
+            description="New goal at B",
+            start_date="2026-10-01", target_date="2026-12-01",
+            created_by=self.coach_b,
+        )
+        self.measurement_after = PhysicalMeasurement.objects.create(
+            player=self.player_a, measurement_date="2026-10-01",
+            height_cm="177.00",
+        )
+
+    # ------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------
+
+    def _get(self, user, url):
+        self.client.force_authenticate(user=user)
+        return self.client.get(url)
+
+    @staticmethod
+    def _ids(resp):
+        """Extract IDs from a list response (handles plain list and DRF pagination)."""
+        data = resp.json()
+        items = data.get("results", data) if isinstance(data, dict) else data
+        return {item["id"] for item in items}
+
+    # ==================================================================
+    # Assessment list — coach A sees only pre-cutoff
+    # ==================================================================
+
+    def test_assessment_list_coach_a_filtered(self):
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertNotIn(str(self.assessment_after.pk), ids)
+
+    def test_assessment_list_coach_b_full(self):
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_b, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertIn(str(self.assessment_after.pk), ids)
+
+    # ==================================================================
+    # Assessment detail — coach A gets 404 for post-cutoff
+    # ==================================================================
+
+    def test_assessment_detail_coach_a_before_cutoff(self):
+        url = reverse("player-assessment-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": self.assessment_a.pk,
+        })
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_assessment_detail_coach_a_after_cutoff_404(self):
+        url = reverse("player-assessment-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": self.assessment_after.pk,
+        })
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_assessment_detail_coach_a_404_identical_to_fake(self):
+        real_url = reverse("player-assessment-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": self.assessment_after.pk,
+        })
+        fake_url = reverse("player-assessment-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": FAKE_PK,
+        })
+        real_resp = self._get(self.coach_a, real_url)
+        fake_resp = self._get(self.coach_a, fake_url)
+        self.assertEqual(real_resp.status_code, 404)
+        self.assertEqual(real_resp.json(), fake_resp.json())
+
+    # ==================================================================
+    # Goal list — coach A sees only pre-cutoff
+    # ==================================================================
+
+    def test_goal_list_coach_a_filtered(self):
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.goal_a.pk), ids)
+        self.assertNotIn(str(self.goal_after.pk), ids)
+
+    def test_goal_list_coach_b_full(self):
+        url = reverse("player-goal-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_b, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.goal_a.pk), ids)
+        self.assertIn(str(self.goal_after.pk), ids)
+
+    # ==================================================================
+    # Goal detail — coach A gets 404 for post-cutoff
+    # ==================================================================
+
+    def test_goal_detail_coach_a_after_cutoff_404(self):
+        url = reverse("player-goal-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": self.goal_after.pk,
+        })
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 404)
+
+    # ==================================================================
+    # Measurement list — coach A sees only pre-cutoff
+    # ==================================================================
+
+    def test_measurement_list_coach_a_filtered(self):
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.measurement_a.pk), ids)
+        self.assertNotIn(str(self.measurement_after.pk), ids)
+
+    def test_measurement_list_coach_b_full(self):
+        url = reverse("player-measurement-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_b, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.measurement_a.pk), ids)
+        self.assertIn(str(self.measurement_after.pk), ids)
+
+    # ==================================================================
+    # Measurement detail — coach A gets 404 for post-cutoff
+    # ==================================================================
+
+    def test_measurement_detail_coach_a_after_cutoff_404(self):
+        url = reverse("player-measurement-detail", kwargs={
+            "player_pk": self.player_a.pk, "pk": self.measurement_after.pk,
+        })
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 404)
+
+    # ==================================================================
+    # Development Timeline — coach A sees filtered timeline
+    # ==================================================================
+
+    def test_timeline_coach_a_filtered(self):
+        url = reverse("player-development-timeline", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        a_ids = {a["id"] for a in data["assessments"]}
+        g_ids = {g["id"] for g in data["goals"]}
+        m_ids = {m["id"] for m in data["measurements"]}
+        self.assertIn(str(self.assessment_a.pk), a_ids)
+        self.assertNotIn(str(self.assessment_after.pk), a_ids)
+        self.assertIn(str(self.goal_a.pk), g_ids)
+        self.assertNotIn(str(self.goal_after.pk), g_ids)
+        self.assertIn(str(self.measurement_a.pk), m_ids)
+        self.assertNotIn(str(self.measurement_after.pk), m_ids)
+
+    def test_timeline_coach_b_full(self):
+        url = reverse("player-development-timeline", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_b, url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        a_ids = {a["id"] for a in data["assessments"]}
+        self.assertIn(str(self.assessment_a.pk), a_ids)
+        self.assertIn(str(self.assessment_after.pk), a_ids)
+
+    # ==================================================================
+    # Player Comparison — coach A's view uses cutoff-filtered assessment
+    # ==================================================================
+
+    def test_comparison_coach_a_uses_pre_cutoff_assessment(self):
+        """Coach A should see the pre-cutoff assessment as latest, not the post-cutoff one."""
+        # Give player_a an active team membership at team_b for comparison to work.
+        _team_membership(self.player_a, self.team_b)
+        url = reverse("player-compare", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # Coach A should still see the player has an assessment (the pre-cutoff one).
+        self.assertTrue(data.get("player_has_assessment", False))
+
+    # ==================================================================
+    # Superuser, player, parent — always full access
+    # ==================================================================
+
+    def test_superuser_sees_all(self):
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.superuser, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertIn(str(self.assessment_after.pk), ids)
+
+    def test_player_sees_all(self):
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.player_user_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertIn(str(self.assessment_after.pk), ids)
+
+    def test_parent_sees_all(self):
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.parent_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertIn(str(self.assessment_after.pk), ids)
+
+    # ==================================================================
+    # Player returns to Academy A — coach A sees everything again
+    # ==================================================================
+
+    def test_return_to_academy_a_restores_full_access(self):
+        """Re-enrolling player at Academy A (ACTIVE) gives coach A full access."""
+        # Create a new ACTIVE membership at Academy A.
+        PlayerAcademyMembership.objects.create(
+            player=self.player_a, academy=self.academy_a,
+            joined_at="2026-10-15",
+            status=PlayerAcademyMembership.Status.ACTIVE,
+        )
+        url = reverse("player-assessment-list", kwargs={"player_pk": self.player_a.pk})
+        resp = self._get(self.coach_a, url)
+        self.assertEqual(resp.status_code, 200)
+        ids = self._ids(resp)
+        self.assertIn(str(self.assessment_a.pk), ids)
+        self.assertIn(str(self.assessment_after.pk), ids)
 
 
 # ===========================================================================

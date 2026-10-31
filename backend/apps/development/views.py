@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement, Skill
+from apps.players.permissions import development_cutoff_for
+
 from .permissions import get_player_and_check_access
 from .serializers import (
     AssessmentCreateSerializer,
@@ -81,12 +83,16 @@ class AssessmentViewSet(
 
     def get_queryset(self):
         player = self.get_player()
-        return (
+        qs = (
             Assessment.objects.filter(player=player)
             .prefetch_related("items__skill")
             .select_related("coach")
             .order_by("-assessment_date", "-created_at")
         )
+        cutoff = development_cutoff_for(self.request.user, player)
+        if cutoff is not None:
+            qs = qs.filter(assessment_date__lte=cutoff)
+        return qs
 
     def perform_create(self, serializer):
         player = self.get_player(require_write=True)
@@ -118,11 +124,15 @@ class GoalViewSet(
 
     def get_queryset(self):
         player = self.get_player()
-        return (
+        qs = (
             DevelopmentGoal.objects.filter(player=player)
             .select_related("skill", "created_by")
             .order_by("-created_at")
         )
+        cutoff = development_cutoff_for(self.request.user, player)
+        if cutoff is not None:
+            qs = qs.filter(start_date__lte=cutoff)
+        return qs
 
     def perform_create(self, serializer):
         player = self.get_player(require_write=True)
@@ -156,9 +166,13 @@ class MeasurementViewSet(
 
     def get_queryset(self):
         player = self.get_player()
-        return PhysicalMeasurement.objects.filter(player=player).order_by(
+        qs = PhysicalMeasurement.objects.filter(player=player).order_by(
             "-measurement_date", "-created_at"
         )
+        cutoff = development_cutoff_for(self.request.user, player)
+        if cutoff is not None:
+            qs = qs.filter(measurement_date__lte=cutoff)
+        return qs
 
     def perform_create(self, serializer):
         player = self.get_player(require_write=True)
@@ -180,6 +194,7 @@ class DevelopmentTimelineView(APIView):
 
     def get(self, request, player_pk):
         player = get_player_and_check_access(request, player_pk)
+        cutoff = development_cutoff_for(request.user, player)
 
         assessments = (
             Assessment.objects.filter(player=player)
@@ -195,6 +210,11 @@ class DevelopmentTimelineView(APIView):
         measurements = PhysicalMeasurement.objects.filter(player=player).order_by(
             "measurement_date", "created_at"
         )
+
+        if cutoff is not None:
+            assessments = assessments.filter(assessment_date__lte=cutoff)
+            goals = goals.filter(start_date__lte=cutoff)
+            measurements = measurements.filter(measurement_date__lte=cutoff)
 
         return Response(
             {
@@ -228,6 +248,7 @@ class PlayerComparisonView(APIView):
         from apps.teams.models import PlayerTeamMembership
 
         player = get_player_and_check_access(request, player_pk, require_write=False)
+        cutoff = development_cutoff_for(request.user, player)
 
         player_name = f"{player.first_name} {player.last_name}"
 
@@ -263,9 +284,14 @@ class PlayerComparisonView(APIView):
             "age_group": team.age_group or None,
         }
 
-        # Step 3: Find the target player's latest assessment
+        # Step 3: Find the target player's latest assessment (respecting cutoff)
+        player_assessment_qs = Assessment.objects.filter(player=player)
+        if cutoff is not None:
+            player_assessment_qs = player_assessment_qs.filter(
+                assessment_date__lte=cutoff
+            )
         player_assessment = (
-            Assessment.objects.filter(player=player)
+            player_assessment_qs
             .prefetch_related("items__skill")
             .order_by("assessment_date", "created_at")
             .last()

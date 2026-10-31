@@ -93,6 +93,59 @@ def require_staff_affiliated_with_player(user, player) -> None:
         )
 
 
+def development_cutoff_for(user, player):
+    """
+    Return a cutoff date for development-data visibility, or ``None``
+    for full access.
+
+    Full access (returns None):
+      - Superuser
+      - The player themselves (PLAYER role with matching user)
+      - PARENT linked to the player
+      - COACH / ACADEMY_ADMIN with at least one ACTIVE PlayerAcademyMembership
+        for the player at one of the user's academies
+
+    Limited access (returns a date):
+      - COACH / ACADEMY_ADMIN whose academies only have LEFT memberships for
+        the player: returns the latest ``left_at`` among those memberships.
+        Records dated *after* this cutoff must be invisible.
+
+    The caller is responsible for filtering querysets using the returned date.
+    This helper must be called *after* ``staff_can_read_player`` / the
+    equivalent access check has confirmed the user may see the player at all.
+    """
+    from apps.academies.models import PlayerAcademyMembership
+    from apps.academies.permissions import get_user_academy_ids
+    from apps.users.models import User
+
+    if user.is_superuser:
+        return None
+
+    if user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        # PLAYER and PARENT always get full history (their read scope is
+        # already restricted to their own player / linked players).
+        return None
+
+    academy_ids = get_user_academy_ids(user)
+    memberships = PlayerAcademyMembership.objects.filter(
+        player=player,
+        academy_id__in=academy_ids,
+    )
+
+    if memberships.filter(status=PlayerAcademyMembership.Status.ACTIVE).exists():
+        return None
+
+    # Only LEFT memberships — return the latest left_at.
+    latest_left = (
+        memberships
+        .filter(status=PlayerAcademyMembership.Status.LEFT)
+        .order_by("-left_at")
+        .values_list("left_at", flat=True)
+        .first()
+    )
+    return latest_left
+
+
 def get_player_and_check_read_access(request, player_pk):
     """
     Fetch the Player identified by `player_pk` and verify read access.
