@@ -744,11 +744,11 @@ class PlayerSearchAPITests(APITestCase):
 #
 # Access matrix
 # ─────────────
-# PLAYER        own player  → 200     other player → 403
+# PLAYER        own player  → 200     other player → 404
 # COACH         any player  → 200
 # ACADEMY_ADMIN any player  → 200
 # PARENT linked     player  → 200
-# PARENT unlinked   player  → 403
+# PARENT unlinked   player  → 404
 # unauthenticated           → 401
 # ---------------------------------------------------------------------------
 
@@ -774,6 +774,7 @@ class PlayerRetrieveAuthorizationTests(APITestCase):
     """Authorization tests for GET /api/players/{id}/."""
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
         from apps.users.models import ParentPlayerLink
 
         self.coach     = _make_user(User.Role.COACH,         "coach_r@test.com")
@@ -785,6 +786,13 @@ class PlayerRetrieveAuthorizationTests(APITestCase):
         self.stranger  = _make_user(User.Role.PARENT,        "stranger_r@test.com")
         ParentPlayerLink.objects.create(parent=self.parent, player=self.player)
 
+        # Academy fixtures so coach/admin can read players enrolled in their academy.
+        self.academy = Academy.objects.create(name="Retrieve Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
+        PlayerAcademyMembership.objects.create(player=self.player, academy=self.academy, joined_at="2026-01-01")
+        PlayerAcademyMembership.objects.create(player=self.other, academy=self.academy, joined_at="2026-01-01")
+
     def _url(self, player):
         return reverse("player-detail", kwargs={"pk": player.pk})
 
@@ -794,7 +802,7 @@ class PlayerRetrieveAuthorizationTests(APITestCase):
 
     def test_player_cannot_read_other_record(self):
         self.client.force_authenticate(self.p_user)
-        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_reads_any_player(self):
         self.client.force_authenticate(self.coach)
@@ -810,11 +818,11 @@ class PlayerRetrieveAuthorizationTests(APITestCase):
 
     def test_unlinked_parent_cannot_read_any_player(self):
         self.client.force_authenticate(self.stranger)
-        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_parent_linked_to_a_cannot_read_b(self):
         self.client.force_authenticate(self.parent)
-        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_is_rejected(self):
         self.client.force_authenticate(user=None)
@@ -825,6 +833,7 @@ class PlayerHistoryAuthorizationTests(APITestCase):
     """Authorization tests for GET /api/players/{id}/history/."""
 
     def setUp(self):
+        from apps.academies.models import Academy, AcademyStaffMembership, PlayerAcademyMembership
         from apps.users.models import ParentPlayerLink
 
         self.coach     = _make_user(User.Role.COACH,         "coach_h@test.com")
@@ -836,6 +845,13 @@ class PlayerHistoryAuthorizationTests(APITestCase):
         self.stranger  = _make_user(User.Role.PARENT,        "stranger_h@test.com")
         ParentPlayerLink.objects.create(parent=self.parent, player=self.player)
 
+        # Academy fixtures so coach/admin can read history for players enrolled in their academy.
+        self.academy = Academy.objects.create(name="History Academy", city="London", country="England")
+        AcademyStaffMembership.objects.create(user=self.coach, academy=self.academy)
+        AcademyStaffMembership.objects.create(user=self.admin, academy=self.academy)
+        PlayerAcademyMembership.objects.create(player=self.player, academy=self.academy, joined_at="2026-01-01")
+        PlayerAcademyMembership.objects.create(player=self.other, academy=self.academy, joined_at="2026-01-01")
+
     def _url(self, player):
         return reverse("player-history", kwargs={"pk": player.pk})
 
@@ -845,7 +861,7 @@ class PlayerHistoryAuthorizationTests(APITestCase):
 
     def test_player_cannot_read_other_history(self):
         self.client.force_authenticate(self.p_user)
-        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_reads_any_history(self):
         self.client.force_authenticate(self.coach)
@@ -861,11 +877,11 @@ class PlayerHistoryAuthorizationTests(APITestCase):
 
     def test_unlinked_parent_cannot_read_any_history(self):
         self.client.force_authenticate(self.stranger)
-        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.player)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_parent_linked_to_a_cannot_read_b_history(self):
         self.client.force_authenticate(self.parent)
-        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self._url(self.other)).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_is_rejected(self):
         self.client.force_authenticate(user=None)

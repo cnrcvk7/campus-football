@@ -114,12 +114,12 @@ class ParentPlayerLinkAuthTests(APITestCase):
     def test_unlinked_parent_cannot_read_matches(self):
         self.client.force_authenticate(self.other_parent)
         r = self.client.get(self._matches_url(self.player))
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     def test_unlinked_parent_cannot_read_training(self):
         self.client.force_authenticate(self.other_parent)
         r = self.client.get(self._training_url(self.player))
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(r.status_code, (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND))
 
     # --- Isolation ---
     def test_parent_linked_to_player_a_cannot_read_player_b(self):

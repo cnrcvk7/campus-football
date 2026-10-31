@@ -71,15 +71,21 @@ class TeamPlayersView(APIView):
     """
 
     def get(self, request, team_pk):
-        from apps.academies.permissions import require_staff_of_academy
+        from apps.academies.permissions import get_user_academy_ids, require_coach_or_admin
         from apps.players.models import Player
         from apps.players.serializers import PlayerSerializer
         from .models import PlayerTeamMembership
 
-        team = get_object_or_404(Team, pk=team_pk)
-        # Require staff membership for the team's actual academy.  This also
-        # enforces role (COACH / ACADEMY_ADMIN) so PLAYER and PARENT receive 403.
-        require_staff_of_academy(request.user, team.academy_id)
+        require_coach_or_admin(request)
+        qs = Team.objects.select_related("academy")
+        if not request.user.is_superuser:
+            academy_ids = get_user_academy_ids(request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        try:
+            team = qs.get(pk=team_pk)
+        except Team.DoesNotExist:
+            from django.http import Http404
+            raise Http404
 
         active_player_ids = PlayerTeamMembership.objects.filter(
             team_id=team_pk,
