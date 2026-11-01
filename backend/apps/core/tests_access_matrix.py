@@ -382,7 +382,8 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         self.assertNotIn(str(self.player_a.pk), ids)
 
     # ===================================================================
-    # 4. DEVELOPMENT (assessments, goals, measurements, timeline, compare)
+    # 4. DEVELOPMENT (assessments, goals, measurements, timeline, compare,
+    #                 monthly report)
     # ===================================================================
 
     def test_assessment_list(self):
@@ -430,6 +431,33 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
         url = reverse("player-compare", kwargs={"player_pk": self.player_a.pk})
         self._assert_404_for_all_b_users(url)
         self._assert_allowed(self.coach_a, url)
+
+    # year/month are mandatory on the monthly report (400 without them);
+    # September 2026 matches the fixture's assessment/match/training dates.
+    MONTHLY_REPORT_QUERY = "?year=2026&month=9"
+
+    def _monthly_report_url(self, player_pk):
+        return (
+            reverse("player-monthly-report", kwargs={"player_pk": player_pk})
+            + self.MONTHLY_REPORT_QUERY
+        )
+
+    def test_player_monthly_report(self):
+        """GET /api/players/{player_pk}/report/monthly/?year=&month="""
+        url = self._monthly_report_url(self.player_a.pk)
+        self.assertTrue(
+            url.startswith(f"/api/players/{self.player_a.pk}/report/monthly/"),
+            url,
+        )
+        self._assert_404_for_all_b_users(url)
+        self._assert_allowed(self.coach_a, url)
+
+    def test_player_monthly_report_404_body_identical(self):
+        self._assert_404_body_identical(
+            self.coach_b,
+            self._monthly_report_url(self.player_a.pk),
+            self._monthly_report_url(FAKE_PK),
+        )
 
     # ===================================================================
     # 5. MATCHES (detail, player stats list/detail, history, summary)
@@ -691,6 +719,7 @@ class CrossAcademyAccessMatrixTests(AccessMatrixMixin, APITestCase):
             reverse("player-measurement-list", kwargs={"player_pk": self.player_a.pk}),
             reverse("player-development-timeline", kwargs={"player_pk": self.player_a.pk}),
             reverse("player-compare", kwargs={"player_pk": self.player_a.pk}),
+            self._monthly_report_url(self.player_a.pk),
             reverse("match-detail", kwargs={"pk": self.match_a.pk}),
             reverse("player-match-history", kwargs={"player_pk": self.player_a.pk}),
             reverse("player-match-summary", kwargs={"player_pk": self.player_a.pk}),
