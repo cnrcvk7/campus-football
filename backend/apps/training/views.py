@@ -4,6 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.dates import get_date_range
 from apps.users.models import User
 
 from .models import Exercise, TrainingAttendance, TrainingSession, TrainingSessionExercise
@@ -244,6 +245,7 @@ class PlayerTrainingHistoryView(APIView):
 
     def get(self, request, player_pk):
         player = get_player_and_check_training_access(request, player_pk)
+        start, end = get_date_range(request)
 
         sessions = (
             TrainingSession.objects.filter(attendance__player=player)
@@ -264,6 +266,11 @@ class PlayerTrainingHistoryView(APIView):
             from apps.academies.permissions import get_user_academy_ids
             academy_ids = get_user_academy_ids(request.user)
             sessions = sessions.filter(academy_id__in=academy_ids)
+
+        if start and end:
+            sessions = sessions.filter(
+                training_date__gte=start, training_date__lte=end
+            )
 
         serializer = PlayerTrainingSessionSerializer(
             sessions,

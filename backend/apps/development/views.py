@@ -1,8 +1,11 @@
 from collections import defaultdict
 
 from rest_framework import mixins, status, viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.core.dates import get_date_range, month_bounds
 
 from .models import Assessment, AssessmentItem, DevelopmentGoal, PhysicalMeasurement, Skill
 from .permissions import get_player_and_check_access
@@ -180,32 +183,44 @@ class DevelopmentTimelineView(APIView):
 
     def get(self, request, player_pk):
         player = get_player_and_check_access(request, player_pk)
+        start, end = get_date_range(request)
 
-        assessments = (
+        assessments_qs = (
             Assessment.objects.filter(player=player)
             .prefetch_related("items__skill")
             .select_related("coach")
             .order_by("assessment_date", "created_at")
         )
-        goals = (
+        goals_qs = (
             DevelopmentGoal.objects.filter(player=player)
             .select_related("skill", "created_by")
             .order_by("start_date", "created_at")
         )
-        measurements = PhysicalMeasurement.objects.filter(player=player).order_by(
+        measurements_qs = PhysicalMeasurement.objects.filter(player=player).order_by(
             "measurement_date", "created_at"
         )
+
+        if start and end:
+            assessments_qs = assessments_qs.filter(
+                assessment_date__gte=start, assessment_date__lte=end
+            )
+            goals_qs = goals_qs.filter(
+                created_at__date__gte=start, created_at__date__lte=end
+            )
+            measurements_qs = measurements_qs.filter(
+                measurement_date__gte=start, measurement_date__lte=end
+            )
 
         return Response(
             {
                 "assessments": AssessmentDetailSerializer(
-                    assessments, many=True, context={"request": request}
+                    assessments_qs, many=True, context={"request": request}
                 ).data,
                 "goals": DevelopmentGoalSerializer(
-                    goals, many=True, context={"request": request}
+                    goals_qs, many=True, context={"request": request}
                 ).data,
                 "measurements": PhysicalMeasurementSerializer(
-                    measurements, many=True, context={"request": request}
+                    measurements_qs, many=True, context={"request": request}
                 ).data,
             }
         )
@@ -366,5 +381,197 @@ class PlayerComparisonView(APIView):
                 "player_has_assessment": True,
                 "peer_count": peers_with_assessments,
                 "categories": categories_result,
+            }
+        )
+
+
+# ---------------------------------------------------------------------------
+# Monthly Report Summary
+# ---------------------------------------------------------------------------
+
+
+def _get_report_academy_scope(request, player):
+    """
+    Return the academy IDs the report aggregation must be restricted to, or
+    None when no academy filter applies.
+
+    Mirrors the scoping already used by PlayerMatchHistoryView and
+    PlayerTrainingHistoryView:
+      SUPERUSER            — None (cross-academy access, PR #7).
+      COACH / ACADEMY_ADMIN — staff academies only.  The player must also be
+                             visible to them under PlayerViewSet rules (a
+                             membership, active or left, at one of their
+                             academies); otherwise 403.
+      PLAYER / PARENT      — None; access is already scoped to the player
+                             itself by get_player_and_check_access.
+    """
+    from rest_framework.exceptions import PermissionDenied
+
+    from apps.academies.models import PlayerAcademyMembership
+    from apps.academies.permissions import get_user_academy_ids
+    from apps.users.models import User
+
+    user = request.user
+    if user.is_superuser or user.role not in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
+        return None
+
+    academy_ids = get_user_academy_ids(user)
+    if not PlayerAcademyMembership.objects.filter(
+        player=player, academy_id__in=academy_ids
+    ).exists():
+        raise PermissionDenied(
+            "You can only view reports for players affiliated with your academy."
+        )
+    return academy_ids
+
+
+def _compute_period_stats(player, start, end, academy_ids=None):
+    """
+    Compute aggregated stats for a player within a calendar period.
+    Returns a dict matching MonthlyPeriodStats shape.
+
+    When `academy_ids` is given, match and training figures only include
+    records belonging to those academies.  Assessments, goals and
+    measurements carry no academy and are returned as the player-scoped
+    development endpoints return them.
+    """
+    from django.db.models import Avg, F, Sum
+
+    from apps.matches.models import MatchPlayerStats
+    from apps.training.models import TrainingAttendance, TrainingSession
+
+    # Assessments
+    assessment_qs = Assessment.objects.filter(
+        player=player,
+        assessment_date__gte=start,
+        assessment_date__lte=end,
+    )
+    assessment_count = assessment_qs.count()
+
+    # Matches
+    match_stats_qs = MatchPlayerStats.objects.filter(
+        player=player,
+        match__match_date__gte=start,
+        match__match_date__lte=end,
+    )
+    if academy_ids is not None:
+        match_stats_qs = match_stats_qs.filter(match__academy_id__in=academy_ids)
+    match_count = match_stats_qs.count()
+    # NULL scores never satisfy the comparison, so unplayed matches are excluded.
+    matches_won = match_stats_qs.filter(
+        match__team_score__gt=F("match__opponent_score")
+    ).count()
+    match_agg = match_stats_qs.aggregate(
+        total_goals=Sum("goals"),
+        total_assists=Sum("assists"),
+        avg_rating=Avg("rating"),
+    )
+    goals = match_agg["total_goals"] or 0
+    assists = match_agg["total_assists"] or 0
+    avg_rating = match_agg["avg_rating"]
+
+    # Training
+    training_sessions_qs = TrainingSession.objects.filter(
+        attendance__player=player,
+        training_date__gte=start,
+        training_date__lte=end,
+    ).distinct()
+    attendance_qs = TrainingAttendance.objects.filter(
+        player=player,
+        session__training_date__gte=start,
+        session__training_date__lte=end,
+    )
+    if academy_ids is not None:
+        training_sessions_qs = training_sessions_qs.filter(academy_id__in=academy_ids)
+        attendance_qs = attendance_qs.filter(session__academy_id__in=academy_ids)
+    training_count = training_sessions_qs.count()
+    training_attended = attendance_qs.filter(
+        status__in=("PRESENT", "LATE")
+    ).count()
+    total_recorded = attendance_qs.count()
+    attendance_rate = (
+        round((training_attended / total_recorded) * 100)
+        if total_recorded > 0
+        else None
+    )
+
+    # Measurements
+    measurement_count = PhysicalMeasurement.objects.filter(
+        player=player,
+        measurement_date__gte=start,
+        measurement_date__lte=end,
+    ).count()
+
+    # Goals
+    goals_completed = DevelopmentGoal.objects.filter(
+        player=player,
+        status="COMPLETED",
+        created_at__date__gte=start,
+        created_at__date__lte=end,
+    ).count()
+    goals_active = DevelopmentGoal.objects.filter(
+        player=player,
+        status="ACTIVE",
+        created_at__date__gte=start,
+        created_at__date__lte=end,
+    ).count()
+
+    return {
+        "assessment_count": assessment_count,
+        "match_count": match_count,
+        "matches_won": matches_won,
+        "goals": goals,
+        "assists": assists,
+        "avg_rating": str(round(avg_rating, 2)) if avg_rating is not None else None,
+        "training_count": training_count,
+        "training_attended": training_attended,
+        "attendance_rate": attendance_rate,
+        "measurement_count": measurement_count,
+        "goals_completed": goals_completed,
+        "goals_active": goals_active,
+    }
+
+
+class MonthlyReportSummaryView(APIView):
+    """
+    GET /api/players/{player_pk}/report/monthly/?year=YYYY&month=MM
+
+    Returns summary stats for the selected month AND the previous calendar month,
+    allowing the frontend to display month-over-month comparison.
+    """
+
+    def get(self, request, player_pk):
+        player = get_player_and_check_access(request, player_pk, require_write=False)
+        academy_ids = _get_report_academy_scope(request, player)
+
+        # Unlike the list endpoints, the period is mandatory here.
+        current_start, current_end = get_date_range(request)
+        if current_start is None:
+            raise ValidationError("Both 'year' and 'month' parameters are required.")
+        year, month = current_start.year, current_start.month
+        current_stats = _compute_period_stats(
+            player, current_start, current_end, academy_ids
+        )
+
+        # Previous period
+        if month == 1:
+            prev_year, prev_month = year - 1, 12
+        else:
+            prev_year, prev_month = year, month - 1
+        prev_start, prev_end = month_bounds(prev_year, prev_month)
+        prev_stats = _compute_period_stats(player, prev_start, prev_end, academy_ids)
+
+        has_previous_data = any(
+            v != 0 and v is not None
+            for k, v in prev_stats.items()
+            if k not in ("avg_rating", "attendance_rate")
+        ) or prev_stats["avg_rating"] is not None
+
+        return Response(
+            {
+                "period": {"year": year, "month": month},
+                "current": current_stats,
+                "previous": prev_stats if has_previous_data else None,
+                "has_previous_data": has_previous_data,
             }
         )
