@@ -335,7 +335,7 @@ class MatchPermissionTests(APITestCase):
         self.client.force_authenticate(user=self.player_user)
         url = reverse("player-match-history", args=[self.other_player.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_unauthenticated_cannot_access_matches(self):
         """Unauthenticated requests are rejected."""
@@ -369,6 +369,9 @@ class PlayerMatchHistoryTests(APITestCase):
         self.academy = make_academy("History Academy")
         self.team = make_team(self.academy)
         make_staff_membership(self.coach, self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2026-01-01"
+        )
         self.match = make_match(
             self.coach, self.academy, self.team,
             team_score=3, opponent_score=1
@@ -432,6 +435,9 @@ class PlayerMatchSummaryTests(APITestCase):
         self.academy = make_academy("Summary Academy")
         self.team = make_team(self.academy)
         make_staff_membership(self.coach, self.academy)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy, joined_at="2026-01-01"
+        )
         self.match1 = make_match(self.coach, self.academy, self.team, match_date="2026-10-01")
         self.match2 = make_match(
             self.coach, self.academy, self.team,
@@ -522,6 +528,9 @@ class MatchAcademyAuthorizationTests(APITestCase):
         # A player linked to a user, with stats in Academy A
         self.player_user = make_user(User.Role.PLAYER, "player_auth@test.com")
         self.player = make_player(user=self.player_user)
+        PlayerAcademyMembership.objects.create(
+            player=self.player, academy=self.academy_a, joined_at="2026-01-01"
+        )
         MatchPlayerStats.objects.create(match=self.match_a, player=self.player)
 
         self.list_url = reverse("match-list")
@@ -613,19 +622,19 @@ class MatchAcademyAuthorizationTests(APITestCase):
     # --- Nested player-stats isolation ----------------------------------------
 
     def test_coach_cannot_list_stats_for_another_academys_match(self):
-        """Coach A receives 403 when listing stats for Academy B's match."""
+        """Coach A receives 404 when listing stats for Academy B's match."""
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-list", args=[self.match_b.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_cannot_add_stats_to_another_academys_match(self):
-        """Coach A receives 403 when adding stats to Academy B's match."""
+        """Coach A receives 404 when adding stats to Academy B's match."""
         player = make_player()
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-list", args=[self.match_b.pk])
         response = self.client.post(url, {"player": str(player.pk), "started": True}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     # --- Player history and summary scoping -----------------------------------
 
@@ -686,20 +695,20 @@ class MatchAcademyAuthorizationTests(APITestCase):
     # --- Nested stats retrieve / update cross-academy ------------------------
 
     def test_coach_cannot_retrieve_stats_for_another_academys_match(self):
-        """Coach A receives 403 when retrieving a stats record from Academy B's match."""
+        """Coach A receives 404 when retrieving a stats record from Academy B's match."""
         stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player)
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_cannot_update_stats_for_another_academys_match(self):
-        """Coach A receives 403 when updating a stats record in Academy B's match and the record is unchanged."""
+        """Coach A receives 404 when updating a stats record in Academy B's match and the record is unchanged."""
         stats = MatchPlayerStats.objects.create(match=self.match_b, player=self.player, goals=3)
         self.client.force_authenticate(user=self.coach_a)
         url = reverse("match-player-stats-detail", args=[self.match_b.pk, stats.pk])
         response = self.client.patch(url, {"goals": 99}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         # Verify the record was not modified
         stats.refresh_from_db()
         self.assertEqual(stats.goals, 3)
@@ -755,18 +764,18 @@ class ParentMatchAccessTests(APITestCase):
         self.assertEqual(response.data["goals"], 1)
 
     def test_parent_cannot_read_unlinked_player_match_history(self):
-        """PARENT receives 403 when reading history for a player they are not linked to."""
+        """PARENT receives 404 when reading history for a player they are not linked to."""
         self.client.force_authenticate(user=self.parent_user)
         url = reverse("player-match-history", args=[self.unlinked_player.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_parent_cannot_read_unlinked_player_match_summary(self):
-        """PARENT receives 403 when reading summary for a player they are not linked to."""
+        """PARENT receives 404 when reading summary for a player they are not linked to."""
         self.client.force_authenticate(user=self.parent_user)
         url = reverse("player-match-summary", args=[self.unlinked_player.pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ---------------------------------------------------------------------------

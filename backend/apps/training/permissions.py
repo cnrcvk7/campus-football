@@ -2,7 +2,7 @@
 Training-domain permission helpers.
 """
 
-from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework.exceptions import PermissionDenied
 
 from apps.users.models import User
@@ -30,18 +30,26 @@ def get_player_and_check_training_access(request, player_pk, require_write: bool
 
     Access rules
     ────────────
+    SUPERUSER    — full read and write access (no affiliation required).
     PLAYER       — can read their own training history only (no write).
-    COACH        — can read and manage training data for any player.
-    ACADEMY_ADMIN— can read and manage training data for any player.
-    PARENT       — read-only access to explicitly linked players only (via ParentPlayerLink).
+    COACH        — read: player has a PlayerAcademyMembership (any status) at
+                   an academy the user staffs; otherwise Http404.
+                   write: membership must be ACTIVE; otherwise PermissionDenied.
+    ACADEMY_ADMIN— same as COACH.
+    PARENT       — read-only access to explicitly linked players only
+                   (via ParentPlayerLink); otherwise Http404.
 
     Returns the Player on success.
-    Raises Http404 if the player does not exist.
-    Raises PermissionDenied if access is denied.
+    Raises Http404 if the player does not exist or the user has no read access.
+    Raises PermissionDenied if the user lacks write access.
     """
     from apps.players.models import Player
+    from apps.players.permissions import staff_can_read_player
 
-    player = get_object_or_404(Player, pk=player_pk)
+    try:
+        player = Player.objects.get(pk=player_pk)
+    except Player.DoesNotExist:
+        raise Http404
     user = request.user
 
     # Django superusers bypass all role and affiliation restrictions.
@@ -50,21 +58,35 @@ def get_player_and_check_training_access(request, player_pk, require_write: bool
 
     if user.role == User.Role.PLAYER:
         if player.user_id != user.pk:
-            raise PermissionDenied("You can only access your own training history.")
+            raise Http404
         if require_write:
             raise PermissionDenied("Players cannot modify training data.")
 
     elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
-        pass  # full access
+        if not staff_can_read_player(user, player):
+            raise Http404
+        if require_write:
+            from apps.academies.models import PlayerAcademyMembership
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(user)
+            if not PlayerAcademyMembership.objects.filter(
+                player=player,
+                academy_id__in=academy_ids,
+                status=PlayerAcademyMembership.Status.ACTIVE,
+            ).exists():
+                raise PermissionDenied(
+                    "You can only write training data for players with an "
+                    "active membership at your academy."
+                )
 
     elif user.role == User.Role.PARENT:
         from apps.users.models import ParentPlayerLink
         if not ParentPlayerLink.objects.filter(parent=user, player=player).exists():
-            raise PermissionDenied("You are not authorized to access this player's data.")
+            raise Http404
         if require_write:
             raise PermissionDenied("Parents cannot modify this data.")
 
     else:
-        raise PermissionDenied("Insufficient permissions.")
+        raise Http404
 
     return player

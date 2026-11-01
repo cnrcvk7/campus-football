@@ -133,10 +133,16 @@ class SessionExerciseViewSet(viewsets.GenericViewSet):
 
     def _get_session(self) -> TrainingSession:
         require_coach_or_admin(self.request)
-        session = get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
-        from apps.academies.permissions import require_staff_of_academy
-        require_staff_of_academy(self.request.user, session.academy_id)
-        return session
+        qs = TrainingSession.objects.select_related("academy")
+        if not self.request.user.is_superuser:
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(self.request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        try:
+            return qs.get(pk=self.kwargs["session_pk"])
+        except TrainingSession.DoesNotExist:
+            from django.http import Http404
+            raise Http404
 
     def list(self, request, session_pk=None):
         session = self._get_session()
@@ -176,10 +182,16 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     def _get_session(self) -> TrainingSession:
         require_coach_or_admin(self.request)
-        session = get_object_or_404(TrainingSession, pk=self.kwargs["session_pk"])
-        from apps.academies.permissions import require_staff_of_academy
-        require_staff_of_academy(self.request.user, session.academy_id)
-        return session
+        qs = TrainingSession.objects.select_related("academy")
+        if not self.request.user.is_superuser:
+            from apps.academies.permissions import get_user_academy_ids
+            academy_ids = get_user_academy_ids(self.request.user)
+            qs = qs.filter(academy_id__in=academy_ids)
+        try:
+            return qs.get(pk=self.kwargs["session_pk"])
+        except TrainingSession.DoesNotExist:
+            from django.http import Http404
+            raise Http404
 
     def list(self, request, session_pk=None):
         session = self._get_session()

@@ -402,10 +402,10 @@ class TeamPlayersViewAuthorizationTests(APITestCase):
         self.assertEqual(self.client.get(self.url).status_code, status.HTTP_200_OK)
 
     def test_coach_without_membership_cannot_view_roster(self):
-        """COACH without staff membership for this team's academy gets 403."""
+        """COACH without staff membership for this team's academy gets 404."""
         coach = self._make_user(User.Role.COACH, "coach_rv2@test.com")
         self.client.force_authenticate(user=coach)
-        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_coach_of_other_academy_cannot_view_roster(self):
         """COACH with staff membership in a different academy cannot view this team's roster."""
@@ -413,7 +413,7 @@ class TeamPlayersViewAuthorizationTests(APITestCase):
         coach = self._make_user(User.Role.COACH, "coach_other_rv@test.com")
         AcademyStaffMembership.objects.create(user=coach, academy=other_academy)
         self.client.force_authenticate(user=coach)
-        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(self.url).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_player_cannot_view_roster(self):
         """PLAYER role is denied with 403."""

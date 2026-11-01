@@ -7,7 +7,7 @@ Follows the same pattern as:
   apps.training.permissions.get_player_and_check_training_access
 """
 
-from django.shortcuts import get_object_or_404
+from django.http import Http404
 from rest_framework.exceptions import PermissionDenied
 
 from apps.users.models import User
@@ -25,6 +25,31 @@ def require_coach_or_admin(request) -> None:
         raise PermissionDenied(
             "Only coaches and academy admins can manage player data."
         )
+
+
+def staff_can_read_player(user, player) -> bool:
+    """
+    Return True if the COACH / ACADEMY_ADMIN user has read access to
+    the given player.
+
+    Read access requires the player to have a PlayerAcademyMembership
+    (any status — ACTIVE or LEFT) at an academy where the user is staff.
+    Former academies keep read access so historical data remains visible.
+
+    This is the single source of truth for staff→player read visibility,
+    used by get_player_and_check_read_access and every domain-specific
+    helper (development, matches, training).
+    """
+    from apps.academies.models import PlayerAcademyMembership
+    from apps.academies.permissions import get_user_academy_ids
+
+    academy_ids = get_user_academy_ids(user)
+    if not academy_ids:
+        return False
+    return PlayerAcademyMembership.objects.filter(
+        player=player,
+        academy_id__in=academy_ids,
+    ).exists()
 
 
 def require_staff_affiliated_with_player(user, player) -> None:
@@ -74,36 +99,43 @@ def get_player_and_check_read_access(request, player_pk):
 
     Access rules
     ────────────
-    PLAYER        — can read their own player record only.
-    COACH         — can read any player record.
-    ACADEMY_ADMIN — can read any player record.
+    SUPERUSER     — full read access to any player (no affiliation required).
+    PLAYER        — can read their own player record only; otherwise Http404.
+    COACH         — read: player has a PlayerAcademyMembership (any status) at
+                    an academy the user staffs; otherwise Http404.
+    ACADEMY_ADMIN — same as COACH.
     PARENT        — read-only access to explicitly linked players only
-                    (via ParentPlayerLink).  Role alone is not sufficient.
+                    (via ParentPlayerLink); otherwise Http404.
 
     Returns the Player instance on success.
-    Raises Http404    if the player does not exist.
-    Raises PermissionDenied if the requesting user is not authorised.
+    Raises Http404 if the player does not exist or the user has no read access.
     """
     from apps.players.models import Player
 
-    player = get_object_or_404(Player, pk=player_pk)
+    try:
+        player = Player.objects.get(pk=player_pk)
+    except Player.DoesNotExist:
+        raise Http404
+
     user = request.user
+
+    if user.is_superuser:
+        return player
 
     if user.role == User.Role.PLAYER:
         if player.user_id != user.pk:
-            raise PermissionDenied("You can only access your own player record.")
+            raise Http404
 
     elif user.role in (User.Role.COACH, User.Role.ACADEMY_ADMIN):
-        pass  # full read access
+        if not staff_can_read_player(user, player):
+            raise Http404
 
     elif user.role == User.Role.PARENT:
         from apps.users.models import ParentPlayerLink
         if not ParentPlayerLink.objects.filter(parent=user, player=player).exists():
-            raise PermissionDenied(
-                "You are not authorised to access this player's data."
-            )
+            raise Http404
 
     else:
-        raise PermissionDenied("Insufficient permissions to access player data.")
+        raise Http404
 
     return player
